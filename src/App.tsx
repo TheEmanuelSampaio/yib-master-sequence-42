@@ -1,26 +1,47 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Index from "./pages/Index";
+import { AppProvider } from "@/context/AppContext";
+import { ThemeProvider } from "@/components/theme/ThemeProvider";
+import { MainLayout } from "@/components/layout/MainLayout";
+
+// Pages
+import Dashboard from "./pages/Dashboard";
+import Sequences from "./pages/Sequences";
+import Contacts from "./pages/Contacts";
+import Messages from "./pages/Messages";
+import Instances from "./pages/Instances";
+import Settings from "./pages/Settings";
+import ApiDocs from "./pages/ApiDocs";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
+    <ThemeProvider defaultTheme="system">
+      <AppProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<MainLayout><Dashboard /></MainLayout>} />
+              <Route path="/sequences" element={<MainLayout><Sequences /></MainLayout>} />
+              <Route path="/contacts" element={<MainLayout><Contacts /></MainLayout>} />
+              <Route path="/messages" element={<MainLayout><Messages /></MainLayout>} />
+              <Route path="/instances" element={<MainLayout><Instances /></MainLayout>} />
+              <Route path="/settings" element={<MainLayout><Settings /></MainLayout>} />
+              <Route path="/api-docs" element={<MainLayout><ApiDocs /></MainLayout>} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </AppProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 

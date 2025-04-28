@@ -1,0 +1,91 @@
+
+import { useApp } from '@/context/AppContext';
+import { ThemeToggle } from '@/components/theme/ThemeToggle';
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuSeparator, 
+  DropdownMenuTrigger 
+} from '@/components/ui/dropdown-menu';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { cn } from '@/lib/utils';
+
+interface HeaderProps {
+  sidebarCollapsed: boolean;
+}
+
+export function Header({ sidebarCollapsed }: HeaderProps) {
+  const { user, instances, currentInstance, setCurrentInstance } = useApp();
+
+  const handleInstanceChange = (instanceId: string) => {
+    const instance = instances.find(inst => inst.id === instanceId);
+    if (instance) {
+      setCurrentInstance(instance);
+    }
+  };
+
+  return (
+    <header className={cn(
+      "h-16 border-b border-border flex items-center justify-between px-4",
+      "bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
+    )}>
+      <div className="flex items-center space-x-4">
+        <h1 className={cn(
+          "font-semibold text-foreground transition-opacity duration-300", 
+          sidebarCollapsed ? "opacity-100" : "opacity-0 hidden md:block"
+        )}>
+          Master Sequence
+        </h1>
+      </div>
+
+      <div className="flex items-center space-x-4">
+        <Select onValueChange={handleInstanceChange} value={currentInstance?.id}>
+          <SelectTrigger className="w-[180px] md:w-[220px]">
+            <SelectValue placeholder="Selecionar instância" />
+          </SelectTrigger>
+          <SelectContent>
+            {instances.map((instance) => (
+              <SelectItem key={instance.id} value={instance.id}>
+                {instance.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <ThemeToggle />
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="outline-none">
+              <Avatar className="h-8 w-8">
+                <AvatarImage src={user?.avatar} alt={user?.name} />
+                <AvatarFallback>{user?.name?.charAt(0)}</AvatarFallback>
+              </Avatar>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <div className="flex items-center justify-start gap-2 p-2">
+              <div className="flex flex-col space-y-1 leading-none">
+                <p className="font-medium text-sm">{user?.name}</p>
+                <p className="text-xs text-muted-foreground">{user?.email}</p>
+              </div>
+            </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem>Perfil</DropdownMenuItem>
+            <DropdownMenuItem>Configurações</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem>Sair</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </header>
+  );
+}
