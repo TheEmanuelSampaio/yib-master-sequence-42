@@ -738,39 +738,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
   
+  // Fix for the type issues in updateContactSequence function
   const updateContactSequence = (contactId: string, sequenceId: string, updates: Partial<ContactSequence>) => {
     setContactSequences((prev) => {
       return prev.map((cs) => {
         if (cs.contactId === contactId && cs.sequenceId === sequenceId) {
-          // Make sure stageProgress maintains the correct type
-          const updatedStageProgress = updates.stageProgress 
-            ? updates.stageProgress.map(stage => ({
-                stageId: stage.stageId,
-                status: stage.status as "pending" | "completed" | "skipped",
-                completedAt: stage.completedAt
-              }))
-            : cs.stageProgress;
-
-          return {
+          // Create a properly typed stageProgress array
+          let updatedStageProgress = cs.stageProgress;
+          
+          if (updates.stageProgress) {
+            updatedStageProgress = updates.stageProgress.map(stage => ({
+              stageId: stage.stageId,
+              status: stage.status as "pending" | "completed" | "skipped",
+              completedAt: stage.completedAt
+            }));
+          }
+          
+          // Create a properly typed updated contact sequence
+          const updatedContactSequence: ContactSequence = {
             ...cs,
-            ...updates,
-            stageProgress: updatedStageProgress || cs.stageProgress
-          } as ContactSequence;
+            ...(updates as Omit<typeof updates, 'stageProgress'>),
+            stageProgress: updatedStageProgress
+          };
+          
+          return updatedContactSequence;
         }
         return cs;
       });
     });
   };
   
+  // Fix for the type issues in completeContactSequence function
   const completeContactSequence = (contactId: string, sequenceId: string) => {
     setContactSequences((prev) => {
       return prev.map((cs) => {
         if (cs.contactId === contactId && cs.sequenceId === sequenceId) {
-          return {
+          // Create a properly typed completed contact sequence
+          const completedContactSequence: ContactSequence = {
             ...cs,
-            status: "completed" as const,
+            status: "completed",
             completedAt: new Date().toISOString()
-          } as ContactSequence;
+          };
+          
+          return completedContactSequence;
         }
         return cs;
       });
