@@ -1,7 +1,6 @@
-
 import { useState } from "react";
 import { useApp } from '@/context/AppContext';
-import { Search, Filter, Calendar, CheckCircle, XCircle, AlertCircle, MessageCircle, FileCode, Robot } from "lucide-react";
+import { Search, Filter, Calendar, CheckCircle, XCircle, AlertCircle, MessageCircle, FileCode, Bot } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -53,7 +52,6 @@ export default function Messages() {
   const [showMessageContent, setShowMessageContent] = useState(false);
   const [selectedMessage, setSelectedMessage] = useState<any>(null);
   
-  // Combine data for easier display
   const messagesWithDetails = scheduledMessages.map(message => {
     const contact = contacts.find(c => c.id === message.contactId);
     const sequence = sequences.find(s => s.id === message.sequenceId);
@@ -70,14 +68,11 @@ export default function Messages() {
     };
   });
   
-  // Apply filters
   const filteredMessages = messagesWithDetails.filter(message => {
-    // Status filter
     if (statusFilter !== 'all' && message.status !== statusFilter) {
       return false;
     }
     
-    // Search filter
     if (searchQuery) {
       const searchLower = searchQuery.toLowerCase();
       return (
@@ -91,12 +86,10 @@ export default function Messages() {
     return true;
   });
   
-  // Sort messages by scheduledTime (most recent first)
   const sortedMessages = [...filteredMessages].sort(
     (a, b) => new Date(b.scheduledTime).getTime() - new Date(a.scheduledTime).getTime()
   );
   
-  // Status badge component
   const StatusBadge = ({ status }: { status: string }) => {
     switch (status) {
       case 'pending':
@@ -106,9 +99,11 @@ export default function Messages() {
           </Badge>
         );
       case 'processing':
-        <Badge variant="outline" className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30">
-          Processando
-        </Badge>
+        return (
+          <Badge variant="outline" className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30">
+            Processando
+          </Badge>
+        );
       case 'sent':
         return (
           <Badge variant="outline" className="bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30">
@@ -139,19 +134,17 @@ export default function Messages() {
       case "pattern":
         return <FileCode className="h-4 w-4" />;
       case "typebot":
-        return <Robot className="h-4 w-4" />;
+        return <Bot className="h-4 w-4" />;
       default:
         return <MessageCircle className="h-4 w-4" />;
     }
   };
   
-  // Handle view message content
   const handleViewMessage = (message: any) => {
     setSelectedMessage(message);
     setShowMessageContent(true);
   };
   
-  // Format date from ISO string
   const formatDate = (isoString: string) => {
     return new Date(isoString).toLocaleString('pt-BR', {
       day: '2-digit',
@@ -368,14 +361,13 @@ export default function Messages() {
         </CardContent>
       </Card>
       
-      {/* Message Content Dialog */}
       <Dialog open={showMessageContent} onOpenChange={setShowMessageContent}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle className="flex items-center">
               {selectedMessage?.stageType === "message" && <MessageCircle className="h-5 w-5 mr-2" />}
               {selectedMessage?.stageType === "pattern" && <FileCode className="h-5 w-5 mr-2" />}
-              {selectedMessage?.stageType === "typebot" && <Robot className="h-5 w-5 mr-2" />}
+              {selectedMessage?.stageType === "typebot" && <Bot className="h-5 w-5 mr-2" />}
               {selectedMessage?.stageName}
             </DialogTitle>
             <DialogDescription>
@@ -428,7 +420,7 @@ export default function Messages() {
               <div className="bg-muted/50 p-3 rounded-md border text-sm overflow-x-auto">
                 {selectedMessage?.stageType === "typebot" ? (
                   <div className="flex items-center">
-                    <Robot className="h-4 w-4 mr-2 text-muted-foreground" />
+                    <Bot className="h-4 w-4 mr-2 text-muted-foreground" />
                     <a 
                       href={selectedMessage?.content} 
                       target="_blank" 

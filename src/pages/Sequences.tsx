@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useApp } from '@/context/AppContext';
 import {
@@ -12,7 +11,7 @@ import {
   MoreVertical,
   MessageCircle,
   FileCode,
-  Robot
+  Bot
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,7 +46,6 @@ export default function Sequences() {
   const [currentSequence, setCurrentSequence] = useState<Sequence | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   
-  // Filter sequences for current instance
   const instanceSequences = sequences
     .filter(seq => seq.instanceId === currentInstance?.id)
     .filter(seq => 
@@ -91,13 +89,12 @@ export default function Sequences() {
       case "pattern":
         return <FileCode className="h-4 w-4" />;
       case "typebot":
-        return <Robot className="h-4 w-4" />;
+        return <Bot className="h-4 w-4" />;
       default:
         return <MessageCircle className="h-4 w-4" />;
     }
   };
 
-  // If in create or edit mode, show the sequence builder
   if (isCreateMode) {
     return (
       <div className="space-y-6">

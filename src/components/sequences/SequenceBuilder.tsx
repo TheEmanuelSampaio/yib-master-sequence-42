@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { PlusCircle, Clock, Trash2, AlertCircle, ChevronDown, ChevronUp, MessageCircle, FileCode, Robot } from "lucide-react";
+import { PlusCircle, Clock, Trash2, AlertCircle, ChevronDown, ChevronUp, MessageCircle, FileCode, Bot, X } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -217,7 +217,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
       case "pattern":
         return <FileCode className="h-4 w-4" />;
       case "typebot":
-        return <Robot className="h-4 w-4" />;
+        return <Bot className="h-4 w-4" />;
       default:
         return <MessageCircle className="h-4 w-4" />;
     }
