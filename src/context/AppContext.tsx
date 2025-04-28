@@ -1,10 +1,114 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { 
   Instance, User, Sequence, Contact, ScheduledMessage, 
-  ContactSequence, DailyStats, TagCondition, TimeRestriction
+  ContactSequence, DailyStats, TagCondition, TimeRestriction, StageProgressStatus
 } from '@/types';
 import { mockInstances, mockUser, mockSequences, mockContacts, mockStats } from '@/lib/mockData';
 import { toast } from 'sonner';
+
+// Utility functions
+const checkTagConditions = (contactTags: string[], condition: TagCondition): boolean => {
+  if (condition.tags.length === 0) return false;
+  
+  if (condition.type === 'AND') {
+    return condition.tags.every(tag => contactTags.includes(tag));
+  } else {
+    return condition.tags.some(tag => contactTags.includes(tag));
+  }
+};
+
+const calculateScheduledTime = (
+  base: Date, 
+  delay: number, 
+  delayUnit: 'minutes' | 'hours' | 'days',
+  timeRestrictions: TimeRestriction[]
+): Date => {
+  const result = new Date(base);
+  
+  // Add delay
+  switch (delayUnit) {
+    case 'minutes':
+      result.setMinutes(result.getMinutes() + delay);
+      break;
+    case 'hours':
+      result.setHours(result.getHours() + delay);
+      break;
+    case 'days':
+      result.setDate(result.getDate() + delay);
+      break;
+  }
+  
+  // If no time restrictions, return the calculated time
+  if (!timeRestrictions || timeRestrictions.length === 0) {
+    return result;
+  }
+  
+  // Check if the time falls within any of the restrictions
+  const day = result.getDay(); // 0 = Sunday, 1 = Monday, etc.
+  const hour = result.getHours();
+  const minute = result.getMinutes();
+  
+  // Find applicable time restrictions for the current day
+  const applicableRestrictions = timeRestrictions.filter(tr => tr.days.includes(day));
+  
+  if (applicableRestrictions.length === 0) {
+    // No restrictions for this day
+    return result;
+  }
+  
+  // Check if the time falls outside any of the restrictions
+  for (const restriction of applicableRestrictions) {
+    const startMinutes = restriction.startHour * 60 + restriction.startMinute;
+    const endMinutes = restriction.endHour * 60 + restriction.endMinute;
+    const currentMinutes = hour * 60 + minute;
+    
+    if (currentMinutes < startMinutes || currentMinutes > endMinutes) {
+      // Time is outside restriction, move to the next available time
+      const nextDay = new Date(result);
+      nextDay.setDate(nextDay.getDate() + 1);
+      nextDay.setHours(restriction.startHour);
+      nextDay.setMinutes(restriction.startMinute);
+      nextDay.setSeconds(0);
+      
+      return nextDay;
+    }
+  }
+  
+  return result;
+};
+
+const updateDailyStats = (date: string, updates: Partial<Record<keyof Omit<DailyStats, 'date'>, number>>) => {
+  const updatedStats = (prevStats: DailyStats[]) => {
+    let stats = [...prevStats];
+    const existingStatIndex = stats.findIndex(s => s.date === date);
+    
+    if (existingStatIndex >= 0) {
+      // Update existing stats
+      stats[existingStatIndex] = {
+        ...stats[existingStatIndex],
+        ...Object.fromEntries(Object.entries(updates).map(([key, value]) => [
+          key, 
+          (stats[existingStatIndex][key as keyof Omit<DailyStats, 'date'>] as number) + value
+        ]))
+      };
+    } else {
+      // Create new stats for the day
+      stats.push({
+        date,
+        messagesScheduled: updates.messagesScheduled || 0,
+        messagesSent: updates.messagesSent || 0,
+        messagesFailed: updates.messagesFailed || 0,
+        newContacts: updates.newContacts || 0,
+        completedSequences: updates.completedSequences || 0
+      });
+    }
+    
+    return stats;
+  };
+  
+  return updatedStats;
+};
 
 interface AppContextType {
   user: User | null;
@@ -187,7 +291,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSequences(prev => [...prev, newSequence]);
     
     const today = new Date().toISOString().split('T')[0];
-    updateDailyStats(today, { sequences: 1 });
+    setStats(updateDailyStats(today, { completedSequences: 1 }));
     
     toast.success("Sequência criada com sucesso!");
   };
@@ -260,11 +364,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       contact = newContact;
       
       const today = new Date().toISOString().split('T')[0];
-      updateDailyStats(today, { newContacts: 1 });
+      setStats(updateDailyStats(today, { newContacts: 1 }));
     }
     
     const applicableSequences = sequences.filter(sequence => 
-      sequence.instanceId === currentInstance.id &&
+      sequence.instanceId === currentInstance!.id &&
       sequence.status === 'active' &&
       checkTagConditions(tags, sequence.startCondition) &&
       !checkTagConditions(tags, sequence.stopCondition)
@@ -320,7 +424,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setScheduledMessages(prev => [...prev, newMessage]);
           
           const today = new Date().toISOString().split('T')[0];
-          updateDailyStats(today, { messagesScheduled: 1 });
+          setStats(updateDailyStats(today, { messagesScheduled: 1 }));
         }
       } else {
         const newContactSequence = {
@@ -367,9 +471,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setScheduledMessages(prev => [...prev, newMessage]);
         
         const today = new Date().toISOString().split('T')[0];
-        updateDailyStats(today, { messagesScheduled: 1 });
+        setStats(updateDailyStats(today, { messagesScheduled: 1 }));
       }
     }
+    
+    // Get active contact sequences for this contact
+    const activeContactSequences = contactSequences.filter(
+      cs => cs.contactId === contact.id && cs.status === 'active'
+    );
     
     for (const contactSequence of activeContactSequences) {
       const sequence = sequences.find(s => s.id === contactSequence.sequenceId);
@@ -491,13 +600,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         )
       );
       
-      updateDailyStats(today, { messagesSent: 1 });
+      setStats(updateDailyStats(today, { messagesSent: 1 }));
       
       const updatedStageProgress = contactSequence.stageProgress.map(progress => 
         progress.stageId === message.stageId
           ? { 
               ...progress, 
-              status: 'completed' as const, 
+              status: 'completed' as StageProgressStatus, 
               completedAt: new Date().toISOString() 
             }
           : progress
@@ -547,7 +656,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         
         setScheduledMessages(prev => [...prev, newMessage]);
         
-        updateDailyStats(today, { messagesScheduled: 1 });
+        setStats(updateDailyStats(today, { messagesScheduled: 1 }));
       } else {
         setContactSequences(prev => 
           prev.map(cs => 
@@ -562,7 +671,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           )
         );
         
-        updateDailyStats(today, { completedSequences: 1 });
+        setStats(updateDailyStats(today, { completedSequences: 1 }));
       }
       
       return { status: 'success', message: 'Message delivery successful' };
@@ -588,7 +697,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         );
       }
       
-      updateDailyStats(today, { messagesFailed: 1 });
+      setStats(updateDailyStats(today, { messagesFailed: 1 }));
       
       return { status: 'error', message: 'Message delivery failed' };
     }
@@ -601,7 +710,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const updatedStageProgress = updates.stageProgress 
             ? updates.stageProgress.map(stage => ({
                 stageId: stage.stageId,
-                status: stage.status as "pending" | "completed" | "skipped",
+                status: stage.status as StageProgressStatus,
                 completedAt: stage.completedAt
               }))
             : cs.stageProgress;
