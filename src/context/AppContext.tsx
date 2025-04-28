@@ -18,24 +18,19 @@ interface AppContextType {
   stats: DailyStats[];
   tags: string[];
   
-  // Instance management
   addInstance: (instance: Omit<Instance, 'id' | 'createdAt'>) => void;
   updateInstance: (id: string, data: Partial<Instance>) => void;
   deleteInstance: (id: string) => void;
   
-  // Sequence management
   addSequence: (sequence: Omit<Sequence, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateSequence: (id: string, data: Partial<Sequence>) => void;
   deleteSequence: (id: string) => void;
   
-  // Tag management
   addTag: (tag: string) => void;
   removeTag: (tag: string) => void;
   
-  // Contact sequences
   getContactSequences: (contactId: string) => ContactSequence[];
   
-  // API endpoints simulation
   handleTagChange: (payload: any) => void;
   getPendingMessages: () => any[];
   handleDeliveryStatus: (messageId: string, success: boolean) => void;
@@ -52,7 +47,6 @@ export const useApp = () => {
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Initialize state with mock data or from localStorage
   const [user, setUser] = useState<User | null>(() => {
     const saved = localStorage.getItem('ms_user');
     return saved ? JSON.parse(saved) : mockUser;
@@ -105,7 +99,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : ["lead", "google", "produto-xpto", "premium", "freemium", "newsletter", "website", "basic", "pro", "enterprise"];
   });
   
-  // Persist state to localStorage
   useEffect(() => {
     localStorage.setItem('ms_user', JSON.stringify(user));
   }, [user]);
@@ -144,7 +137,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('ms_tags', JSON.stringify(tags));
   }, [tags]);
   
-  // Instance management
   const addInstance = (instance: Omit<Instance, 'id' | 'createdAt'>) => {
     const newInstance = {
       ...instance,
@@ -179,12 +171,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCurrentInstance(instances.find(instance => instance.id !== id) || null);
     }
     
-    // Remove any sequences associated with this instance
     setSequences(prev => prev.filter(seq => seq.instanceId !== id));
     toast.success("Instância removida com sucesso!");
   };
   
-  // Sequence management
   const addSequence = (sequence: Omit<Sequence, 'id' | 'createdAt' | 'updatedAt'>) => {
     const now = new Date().toISOString();
     const newSequence = {
@@ -196,7 +186,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     
     setSequences(prev => [...prev, newSequence]);
     
-    // Update stats for today
     const today = new Date().toISOString().split('T')[0];
     updateDailyStats(today, { sequences: 1 });
     
@@ -219,14 +208,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteSequence = (id: string) => {
     setSequences(prev => prev.filter(sequence => sequence.id !== id));
     
-    // Also remove any scheduled messages and contact sequences for this sequence
     setScheduledMessages(prev => prev.filter(msg => msg.sequenceId !== id));
     setContactSequences(prev => prev.filter(seq => seq.sequenceId !== id));
     
     toast.success("Sequência removida com sucesso!");
   };
   
-  // Tag management
   const addTag = (tag: string) => {
     if (!tags.includes(tag)) {
       setTags(prev => [...prev, tag]);
@@ -237,115 +224,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setTags(prev => prev.filter(t => t !== tag));
   };
   
-  // Helper to get contact sequences
   const getContactSequences = (contactId: string) => {
     return contactSequences.filter(cs => cs.contactId === contactId);
   };
   
-  // Helper to update daily stats
-  const updateDailyStats = (date: string, updates: Partial<{
-    messagesScheduled: number;
-    messagesSent: number;
-    messagesFailed: number;
-    newContacts: number;
-    completedSequences: number;
-    sequences: number;
-  }>) => {
-    setStats(prev => {
-      const dayStats = prev.find(s => s.date === date);
-      
-      if (dayStats) {
-        return prev.map(s => 
-          s.date === date ? {
-            ...s,
-            messagesScheduled: s.messagesScheduled + (updates.messagesScheduled || 0),
-            messagesSent: s.messagesSent + (updates.messagesSent || 0),
-            messagesFailed: s.messagesFailed + (updates.messagesFailed || 0),
-            newContacts: s.newContacts + (updates.newContacts || 0),
-            completedSequences: s.completedSequences + (updates.completedSequences || 0),
-          } : s
-        );
-      } else {
-        return [...prev, {
-          date,
-          messagesScheduled: updates.messagesScheduled || 0,
-          messagesSent: updates.messagesSent || 0,
-          messagesFailed: updates.messagesFailed || 0,
-          newContacts: updates.newContacts || 0,
-          completedSequences: updates.completedSequences || 0,
-        }];
-      }
-    });
-  };
-  
-  // Check if contact meets the condition requirements
-  const checkTagConditions = (contactTags: string[], condition: TagCondition) => {
-    const { type, tags } = condition;
-    
-    if (type === 'AND') {
-      return tags.every(tag => contactTags.includes(tag));
-    } else { // OR
-      return tags.some(tag => contactTags.includes(tag));
-    }
-  };
-  
-  // Calculate the next scheduled time based on delay and restrictions
-  const calculateScheduledTime = (baseTime: Date, delay: number, delayUnit: string, timeRestrictions: TimeRestriction[]) => {
-    // Apply delay
-    const scheduledTime = new Date(baseTime);
-    
-    if (delayUnit === 'minutes') {
-      scheduledTime.setMinutes(scheduledTime.getMinutes() + delay);
-    } else if (delayUnit === 'hours') {
-      scheduledTime.setHours(scheduledTime.getHours() + delay);
-    } else { // days
-      scheduledTime.setDate(scheduledTime.getDate() + delay);
-    }
-    
-    // Check if the scheduled time falls within a restriction
-    let finalScheduledTime = new Date(scheduledTime);
-    let needsReschedule = false;
-    
-    do {
-      needsReschedule = false;
-      const dayOfWeek = finalScheduledTime.getDay();
-      const hour = finalScheduledTime.getHours();
-      const minute = finalScheduledTime.getMinutes();
-      
-      for (const restriction of timeRestrictions) {
-        if (restriction.days.includes(dayOfWeek)) {
-          // Check if time falls within the restricted hours
-          const timeValue = hour * 60 + minute;
-          const restrictionStart = restriction.startHour * 60 + restriction.startMinute;
-          const restrictionEnd = restriction.endHour * 60 + restriction.endMinute;
-          
-          if (timeValue >= restrictionStart && timeValue <= restrictionEnd) {
-            // Move to after the restriction ends
-            finalScheduledTime.setHours(restriction.endHour);
-            finalScheduledTime.setMinutes(restriction.endMinute + 1);
-            needsReschedule = true;
-            break;
-          }
-        }
-      }
-    } while (needsReschedule);
-    
-    return finalScheduledTime;
-  };
-  
-  // API endpoint simulation: handle tag change
   const handleTagChange = (payload: any) => {
     console.log("Tag change received:", payload);
     const { accountId, accountName, contact: contactData, conversation } = payload.body.data;
     
-    // Parse labels into tags array
     const tags = conversation.labels ? conversation.labels.split(",").map((t: string) => t.trim()) : [];
     
-    // Check if contact exists, add or update
     let contact = contacts.find(c => c.id === contactData.id.toString());
     
     if (contact) {
-      // Update existing contact
       setContacts(prev => 
         prev.map(c => 
           c.id === contactData.id.toString() 
@@ -354,7 +245,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         )
       );
     } else {
-      // Create new contact
       const newContact = {
         id: contactData.id.toString(),
         name: contactData.name,
@@ -369,13 +259,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setContacts(prev => [...prev, newContact]);
       contact = newContact;
       
-      // Update stats for today - new contact
       const today = new Date().toISOString().split('T')[0];
       updateDailyStats(today, { newContacts: 1 });
     }
-    
-    // Check which sequences this contact should be in based on tags
-    if (!currentInstance) return;
     
     const applicableSequences = sequences.filter(sequence => 
       sequence.instanceId === currentInstance.id &&
@@ -385,13 +271,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
     
     for (const sequence of applicableSequences) {
-      // Check if contact is already in this sequence
       const existingSequence = contactSequences.find(
         cs => cs.contactId === contact.id && cs.sequenceId === sequence.id
       );
       
       if (existingSequence) {
-        // If already exists but was removed, potentially reactivate
         if (existingSequence.status === 'removed') {
           setContactSequences(prev => 
             prev.map(cs => 
@@ -407,44 +291,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             )
           );
           
-          // Schedule first message
-          if (sequence.stages.length > 0) {
-            const firstStage = sequence.stages[0];
-            const now = new Date();
-            const rawScheduledTime = calculateScheduledTime(
-              now, 
-              firstStage.delay, 
-              firstStage.delayUnit, 
-              []
-            );
-            
-            const scheduledTime = calculateScheduledTime(
-              now, 
-              firstStage.delay, 
-              firstStage.delayUnit, 
-              sequence.timeRestrictions
-            );
-            
-            const newMessage = {
-              id: crypto.randomUUID(),
-              contactId: contact.id,
-              sequenceId: sequence.id,
-              stageId: firstStage.id,
-              rawScheduledTime: rawScheduledTime.toISOString(),
-              scheduledTime: scheduledTime.toISOString(),
-              status: 'pending' as const,
-              attempts: 0
-            };
-            
-            setScheduledMessages(prev => [...prev, newMessage]);
-            
-            // Update stats for today
-            const today = new Date().toISOString().split('T')[0];
-            updateDailyStats(today, { messagesScheduled: 1 });
-          }
+          const now = new Date();
+          const rawScheduledTime = calculateScheduledTime(
+            now, 
+            sequence.stages[0].delay, 
+            sequence.stages[0].delayUnit, 
+            []
+          );
+          
+          const scheduledTime = calculateScheduledTime(
+            now, 
+            sequence.stages[0].delay, 
+            sequence.stages[0].delayUnit, 
+            sequence.timeRestrictions
+          );
+          
+          const newMessage = {
+            id: crypto.randomUUID(),
+            contactId: contact.id,
+            sequenceId: sequence.id,
+            stageId: sequence.stages[0].id,
+            rawScheduledTime: rawScheduledTime.toISOString(),
+            scheduledTime: scheduledTime.toISOString(),
+            status: 'pending' as const,
+            attempts: 0
+          };
+          
+          setScheduledMessages(prev => [...prev, newMessage]);
+          
+          const today = new Date().toISOString().split('T')[0];
+          updateDailyStats(today, { messagesScheduled: 1 });
         }
       } else {
-        // Create new contact sequence
         const newContactSequence = {
           id: crypto.randomUUID(),
           contactId: contact.id,
@@ -460,54 +338,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         
         setContactSequences(prev => [...prev, newContactSequence]);
         
-        // Schedule first message
-        if (sequence.stages.length > 0) {
-          const firstStage = sequence.stages[0];
-          const now = new Date();
-          const rawScheduledTime = calculateScheduledTime(
-            now, 
-            firstStage.delay, 
-            firstStage.delayUnit, 
-            []
-          );
-          
-          const scheduledTime = calculateScheduledTime(
-            now, 
-            firstStage.delay, 
-            firstStage.delayUnit, 
-            sequence.timeRestrictions
-          );
-          
-          const newMessage = {
-            id: crypto.randomUUID(),
-            contactId: contact.id,
-            sequenceId: sequence.id,
-            stageId: firstStage.id,
-            rawScheduledTime: rawScheduledTime.toISOString(),
-            scheduledTime: scheduledTime.toISOString(),
-            status: 'pending' as const,
-            attempts: 0
-          };
-          
-          setScheduledMessages(prev => [...prev, newMessage]);
-          
-          // Update stats for today
-          const today = new Date().toISOString().split('T')[0];
-          updateDailyStats(today, { messagesScheduled: 1 });
-        }
+        const now = new Date();
+        const rawScheduledTime = calculateScheduledTime(
+          now, 
+          sequence.stages[0].delay, 
+          sequence.stages[0].delayUnit, 
+          []
+        );
+        
+        const scheduledTime = calculateScheduledTime(
+          now, 
+          sequence.stages[0].delay, 
+          sequence.stages[0].delayUnit, 
+          sequence.timeRestrictions
+        );
+        
+        const newMessage = {
+          id: crypto.randomUUID(),
+          contactId: contact.id,
+          sequenceId: sequence.id,
+          stageId: sequence.stages[0].id,
+          rawScheduledTime: rawScheduledTime.toISOString(),
+          scheduledTime: scheduledTime.toISOString(),
+          status: 'pending' as const,
+          attempts: 0
+        };
+        
+        setScheduledMessages(prev => [...prev, newMessage]);
+        
+        const today = new Date().toISOString().split('T')[0];
+        updateDailyStats(today, { messagesScheduled: 1 });
       }
     }
-    
-    // Check if contact should be removed from any sequences
-    const activeContactSequences = contactSequences.filter(
-      cs => cs.contactId === contact.id && cs.status === 'active'
-    );
     
     for (const contactSequence of activeContactSequences) {
       const sequence = sequences.find(s => s.id === contactSequence.sequenceId);
       
       if (sequence && checkTagConditions(tags, sequence.stopCondition)) {
-        // Remove contact from sequence
         setContactSequences(prev => 
           prev.map(cs => 
             cs.id === contactSequence.id
@@ -520,7 +387,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           )
         );
         
-        // Remove any pending messages for this sequence
         setScheduledMessages(prev => 
           prev.filter(msg => 
             !(msg.contactId === contact.id && 
@@ -534,17 +400,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { status: 'success', message: 'Tag change processed successfully' };
   };
   
-  // API endpoint simulation: get pending messages
   const getPendingMessages = () => {
     const now = new Date();
     
-    // Find messages that are scheduled before now
     const pendingMessages = scheduledMessages.filter(msg => 
       (msg.status === 'pending' || msg.status === 'failed') && 
       new Date(msg.scheduledTime) <= now
     );
     
-    // Mark these as processing
     setScheduledMessages(prev => 
       prev.map(msg => 
         pendingMessages.some(p => p.id === msg.id)
@@ -553,7 +416,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       )
     );
     
-    // Return formatted pending messages for N8N
     return pendingMessages.map(msg => {
       const contact = contacts.find(c => c.id === msg.contactId);
       const sequence = sequences.find(s => s.id === msg.sequenceId);
@@ -602,7 +464,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }).filter(Boolean);
   };
   
-  // API endpoint simulation: handle delivery status
   const handleDeliveryStatus = (messageId: string, success: boolean) => {
     const message = scheduledMessages.find(msg => msg.id === messageId);
     
@@ -622,7 +483,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const today = new Date().toISOString().split('T')[0];
     
     if (success) {
-      // Mark message as sent
       setScheduledMessages(prev => 
         prev.map(msg => 
           msg.id === messageId
@@ -631,31 +491,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         )
       );
       
-      // Update stats
       updateDailyStats(today, { messagesSent: 1 });
       
-      // Update contact sequence progress
       const updatedStageProgress = contactSequence.stageProgress.map(progress => 
         progress.stageId === message.stageId
-          ? { ...progress, status: 'completed', completedAt: new Date().toISOString() }
+          ? { 
+              ...progress, 
+              status: 'completed' as const, 
+              completedAt: new Date().toISOString() 
+            }
           : progress
       );
       
-      // Find the current stage index
       const currentStageIndex = sequence.stages.findIndex(s => s.id === message.stageId);
       const nextStage = sequence.stages[currentStageIndex + 1];
       
       if (nextStage) {
-        // There's a next stage, schedule the next message
         setContactSequences(prev => 
           prev.map(cs => 
             cs.id === contactSequence.id
-              ? { ...cs, currentStageId: nextStage.id, stageProgress: updatedStageProgress }
+              ? { 
+                  ...cs, 
+                  currentStageId: nextStage.id, 
+                  stageProgress: updatedStageProgress 
+                }
               : cs
           )
         );
         
-        // Schedule next message
         const now = new Date();
         const rawScheduledTime = calculateScheduledTime(
           now, 
@@ -684,16 +547,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         
         setScheduledMessages(prev => [...prev, newMessage]);
         
-        // Update stats
         updateDailyStats(today, { messagesScheduled: 1 });
       } else {
-        // This was the last stage, mark sequence as completed
         setContactSequences(prev => 
           prev.map(cs => 
             cs.id === contactSequence.id
               ? { 
                   ...cs, 
-                  status: 'completed', 
+                  status: 'completed' as const, 
                   completedAt: new Date().toISOString(),
                   stageProgress: updatedStageProgress 
                 }
@@ -701,18 +562,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           )
         );
         
-        // Update stats
         updateDailyStats(today, { completedSequences: 1 });
       }
       
       return { status: 'success', message: 'Message delivery successful' };
     } else {
-      // Message delivery failed
       const updatedAttempts = message.attempts + 1;
       const maxAttempts = 3;
       
       if (updatedAttempts >= maxAttempts) {
-        // Max attempts reached, mark as persistent_error
         setScheduledMessages(prev => 
           prev.map(msg => 
             msg.id === messageId
@@ -721,7 +579,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           )
         );
       } else {
-        // Mark as failed for retry
         setScheduledMessages(prev => 
           prev.map(msg => 
             msg.id === messageId
@@ -731,56 +588,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         );
       }
       
-      // Update stats
       updateDailyStats(today, { messagesFailed: 1 });
       
       return { status: 'error', message: 'Message delivery failed' };
     }
   };
   
-  // Fix for the type issues in updateContactSequence function
   const updateContactSequence = (contactId: string, sequenceId: string, updates: Partial<ContactSequence>) => {
     setContactSequences((prev) => {
-      return prev.map((cs) => {
+      return prev.map((cs): ContactSequence => {
         if (cs.contactId === contactId && cs.sequenceId === sequenceId) {
-          // Create a properly typed stageProgress array
-          let updatedStageProgress = cs.stageProgress;
+          const updatedStageProgress = updates.stageProgress 
+            ? updates.stageProgress.map(stage => ({
+                stageId: stage.stageId,
+                status: stage.status as "pending" | "completed" | "skipped",
+                completedAt: stage.completedAt
+              }))
+            : cs.stageProgress;
           
-          if (updates.stageProgress) {
-            updatedStageProgress = updates.stageProgress.map(stage => ({
-              stageId: stage.stageId,
-              status: stage.status as "pending" | "completed" | "skipped",
-              completedAt: stage.completedAt
-            }));
-          }
-          
-          // Create a properly typed updated contact sequence
-          const updatedContactSequence: ContactSequence = {
+          return {
             ...cs,
-            ...(updates as Omit<typeof updates, 'stageProgress'>),
+            ...updates,
             stageProgress: updatedStageProgress
           };
-          
-          return updatedContactSequence;
         }
         return cs;
       });
     });
   };
   
-  // Fix for the type issues in completeContactSequence function
   const completeContactSequence = (contactId: string, sequenceId: string) => {
     setContactSequences((prev) => {
-      return prev.map((cs) => {
+      return prev.map((cs): ContactSequence => {
         if (cs.contactId === contactId && cs.sequenceId === sequenceId) {
-          // Create a properly typed completed contact sequence
-          const completedContactSequence: ContactSequence = {
+          return {
             ...cs,
-            status: "completed",
+            status: "completed" as const,
             completedAt: new Date().toISOString()
           };
-          
-          return completedContactSequence;
         }
         return cs;
       });

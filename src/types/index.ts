@@ -82,6 +82,14 @@ export interface ScheduledMessage {
   sentAt?: string;
 }
 
+export type StageProgressStatus = 'pending' | 'completed' | 'skipped';
+
+export interface StageProgress {
+  stageId: string;
+  status: StageProgressStatus;
+  completedAt?: string;
+}
+
 export interface ContactSequence {
   id: string;
   contactId: string;
@@ -91,11 +99,7 @@ export interface ContactSequence {
   completedAt?: string;
   removedAt?: string;
   currentStageId?: string;
-  stageProgress: {
-    stageId: string;
-    status: 'pending' | 'completed' | 'skipped';
-    completedAt?: string;
-  }[];
+  stageProgress: StageProgress[];
 }
 
 export interface DailyStats {
