@@ -1,8 +1,7 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { 
   Instance, User, Sequence, Contact, ScheduledMessage, 
-  ContactSequence, DailyStats, TagCondition 
+  ContactSequence, DailyStats, TagCondition, TimeRestriction
 } from '@/types';
 import { mockInstances, mockUser, mockSequences, mockContacts, mockStats } from '@/lib/mockData';
 import { toast } from 'sonner';
@@ -737,6 +736,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       
       return { status: 'error', message: 'Message delivery failed' };
     }
+  };
+  
+  const updateContactSequence = (contactId: string, sequenceId: string, updates: Partial<ContactSequence>) => {
+    setContactSequences((prev) => {
+      return prev.map((cs) => {
+        if (cs.contactId === contactId && cs.sequenceId === sequenceId) {
+          // Make sure stageProgress maintains the correct type
+          const updatedStageProgress = updates.stageProgress 
+            ? updates.stageProgress.map(stage => ({
+                stageId: stage.stageId,
+                status: stage.status as "pending" | "completed" | "skipped",
+                completedAt: stage.completedAt
+              }))
+            : cs.stageProgress;
+
+          return {
+            ...cs,
+            ...updates,
+            stageProgress: updatedStageProgress || cs.stageProgress
+          } as ContactSequence;
+        }
+        return cs;
+      });
+    });
+  };
+  
+  const completeContactSequence = (contactId: string, sequenceId: string) => {
+    setContactSequences((prev) => {
+      return prev.map((cs) => {
+        if (cs.contactId === contactId && cs.sequenceId === sequenceId) {
+          return {
+            ...cs,
+            status: "completed" as const,
+            completedAt: new Date().toISOString()
+          } as ContactSequence;
+        }
+        return cs;
+      });
+    });
   };
   
   return (

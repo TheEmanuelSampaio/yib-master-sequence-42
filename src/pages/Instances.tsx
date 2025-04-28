@@ -1,4 +1,3 @@
-
 import { useApp } from '@/context/AppContext';
 import {
   Card,
@@ -40,7 +39,6 @@ export default function Instances() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   
   const handleNewInstance = () => {
-    // Validate
     if (!newInstanceForm.name || !newInstanceForm.evolutionApiUrl || !newInstanceForm.apiKey) {
       toast.error("Preencha todos os campos obrigatórios");
       return;
@@ -53,7 +51,6 @@ export default function Instances() {
       active: true,
     });
     
-    // Reset form
     setNewInstanceForm({
       name: '',
       evolutionApiUrl: '',
@@ -75,7 +72,6 @@ export default function Instances() {
   };
   
   const handleEditInstance = () => {
-    // Validate
     if (!editInstanceForm.name || !editInstanceForm.evolutionApiUrl || !editInstanceForm.apiKey) {
       toast.error("Preencha todos os campos obrigatórios");
       return;
@@ -116,6 +112,306 @@ export default function Instances() {
             <TabsTrigger value="active">Ativas ({instances.filter(i => i.active).length})</TabsTrigger>
             <TabsTrigger value="inactive">Inativas ({instances.filter(i => !i.active).length})</TabsTrigger>
           </TabsList>
+          
+          <TabsContent value="all" className="mt-0">
+            <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
+              {instances.length === 0 ? (
+                <Card className="col-span-full">
+                  <CardHeader className="text-center pb-2">
+                    <AlertCircle className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
+                    <CardTitle>Nenhuma instância encontrada</CardTitle>
+                    <CardDescription>
+                      Clique no botão "Nova Instância" para adicionar sua primeira instância.
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+              ) : (
+                instances.map(instance => (
+                  <Card key={instance.id} className={currentInstance?.id === instance.id ? "border-primary" : ""}>
+                    <CardHeader className="pb-2">
+                      <div className="flex justify-between items-center">
+                        <CardTitle className="flex items-center">
+                          {instance.name}
+                          {!instance.active && (
+                            <Badge variant="outline" className="ml-2 text-xs">Inativa</Badge>
+                          )}
+                          {currentInstance?.id === instance.id && (
+                            <Badge className="ml-2 text-xs">Selecionada</Badge>
+                          )}
+                        </CardTitle>
+                        <div className="flex space-x-1">
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={() => openEditDialog(instance)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                            <span className="sr-only">Editar</span>
+                          </Button>
+                          
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <Trash2 className="h-4 w-4 text-red-500" />
+                                <span className="sr-only">Excluir</span>
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Tem certeza?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Esta ação irá excluir permanentemente a instância "{instance.name}" 
+                                  e todos os dados relacionados a ela.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction 
+                                  onClick={() => handleDeleteInstance(instance.id)}
+                                  className="bg-red-500 hover:bg-red-600"
+                                >
+                                  Excluir
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </div>
+                      <CardDescription>
+                        Criada {formatDistanceToNow(new Date(instance.createdAt), { addSuffix: true, locale: ptBR })}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="pb-2">
+                      <div className="space-y-1.5">
+                        <div>
+                          <Label className="text-xs text-muted-foreground">URL da API</Label>
+                          <p className="text-sm truncate">{instance.evolutionApiUrl}</p>
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Status</Label>
+                          <div className="flex items-center space-x-2">
+                            <div className={`w-2 h-2 rounded-full ${instance.active ? "bg-green-500" : "bg-red-500"}`} />
+                            <p className="text-sm">{instance.active ? "Online" : "Offline"}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                    <CardFooter className="flex justify-end">
+                      {currentInstance?.id !== instance.id ? (
+                        <Button variant="outline" onClick={() => handleSetCurrentInstance(instance)}>
+                          Selecionar
+                        </Button>
+                      ) : (
+                        <Button variant="outline" disabled>
+                          <Check className="h-4 w-4 mr-1" /> Selecionada
+                        </Button>
+                      )}
+                    </CardFooter>
+                  </Card>
+                ))
+              )}
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="active">
+            <div className="grid gap-6 grid-cols-1 md:grid-cols-2 mt-6">
+              {instances.filter(i => i.active).length === 0 ? (
+                <Card className="col-span-full">
+                  <CardHeader className="text-center pb-2">
+                    <AlertCircle className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
+                    <CardTitle>Nenhuma instância ativa encontrada</CardTitle>
+                    <CardDescription>
+                      Suas instâncias ativas aparecerão aqui.
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+              ) : (
+                instances.filter(i => i.active).map(instance => (
+                  <Card key={instance.id} className={currentInstance?.id === instance.id ? "border-primary" : ""}>
+                    <CardHeader className="pb-2">
+                      <div className="flex justify-between items-center">
+                        <CardTitle className="flex items-center">
+                          {instance.name}
+                          {!instance.active && (
+                            <Badge variant="outline" className="ml-2 text-xs">Inativa</Badge>
+                          )}
+                          {currentInstance?.id === instance.id && (
+                            <Badge className="ml-2 text-xs">Selecionada</Badge>
+                          )}
+                        </CardTitle>
+                        <div className="flex space-x-1">
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={() => openEditDialog(instance)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                            <span className="sr-only">Editar</span>
+                          </Button>
+                          
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <Trash2 className="h-4 w-4 text-red-500" />
+                                <span className="sr-only">Excluir</span>
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Tem certeza?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Esta ação irá excluir permanentemente a instância "{instance.name}" 
+                                  e todos os dados relacionados a ela.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction 
+                                  onClick={() => handleDeleteInstance(instance.id)}
+                                  className="bg-red-500 hover:bg-red-600"
+                                >
+                                  Excluir
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </div>
+                      <CardDescription>
+                        Criada {formatDistanceToNow(new Date(instance.createdAt), { addSuffix: true, locale: ptBR })}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="pb-2">
+                      <div className="space-y-1.5">
+                        <div>
+                          <Label className="text-xs text-muted-foreground">URL da API</Label>
+                          <p className="text-sm truncate">{instance.evolutionApiUrl}</p>
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Status</Label>
+                          <div className="flex items-center space-x-2">
+                            <div className={`w-2 h-2 rounded-full ${instance.active ? "bg-green-500" : "bg-red-500"}`} />
+                            <p className="text-sm">{instance.active ? "Online" : "Offline"}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                    <CardFooter className="flex justify-end">
+                      {currentInstance?.id !== instance.id ? (
+                        <Button variant="outline" onClick={() => handleSetCurrentInstance(instance)}>
+                          Selecionar
+                        </Button>
+                      ) : (
+                        <Button variant="outline" disabled>
+                          <Check className="h-4 w-4 mr-1" /> Selecionada
+                        </Button>
+                      )}
+                    </CardFooter>
+                  </Card>
+                ))
+              )}
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="inactive">
+            <div className="grid gap-6 grid-cols-1 md:grid-cols-2 mt-6">
+              {instances.filter(i => !i.active).length === 0 ? (
+                <Card className="col-span-full">
+                  <CardHeader className="text-center pb-2">
+                    <AlertCircle className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
+                    <CardTitle>Nenhuma instância inativa encontrada</CardTitle>
+                    <CardDescription>
+                      Suas instâncias inativas aparecerão aqui.
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+              ) : (
+                instances.filter(i => !i.active).map(instance => (
+                  <Card key={instance.id} className={currentInstance?.id === instance.id ? "border-primary" : ""}>
+                    <CardHeader className="pb-2">
+                      <div className="flex justify-between items-center">
+                        <CardTitle className="flex items-center">
+                          {instance.name}
+                          {!instance.active && (
+                            <Badge variant="outline" className="ml-2 text-xs">Inativa</Badge>
+                          )}
+                          {currentInstance?.id === instance.id && (
+                            <Badge className="ml-2 text-xs">Selecionada</Badge>
+                          )}
+                        </CardTitle>
+                        <div className="flex space-x-1">
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={() => openEditDialog(instance)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                            <span className="sr-only">Editar</span>
+                          </Button>
+                          
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <Trash2 className="h-4 w-4 text-red-500" />
+                                <span className="sr-only">Excluir</span>
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Tem certeza?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Esta ação irá excluir permanentemente a instância "{instance.name}" 
+                                  e todos os dados relacionados a ela.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction 
+                                  onClick={() => handleDeleteInstance(instance.id)}
+                                  className="bg-red-500 hover:bg-red-600"
+                                >
+                                  Excluir
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </div>
+                      <CardDescription>
+                        Criada {formatDistanceToNow(new Date(instance.createdAt), { addSuffix: true, locale: ptBR })}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="pb-2">
+                      <div className="space-y-1.5">
+                        <div>
+                          <Label className="text-xs text-muted-foreground">URL da API</Label>
+                          <p className="text-sm truncate">{instance.evolutionApiUrl}</p>
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Status</Label>
+                          <div className="flex items-center space-x-2">
+                            <div className={`w-2 h-2 rounded-full ${instance.active ? "bg-green-500" : "bg-red-500"}`} />
+                            <p className="text-sm">{instance.active ? "Online" : "Offline"}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                    <CardFooter className="flex justify-end">
+                      {currentInstance?.id !== instance.id ? (
+                        <Button variant="outline" onClick={() => handleSetCurrentInstance(instance)}>
+                          Selecionar
+                        </Button>
+                      ) : (
+                        <Button variant="outline" disabled>
+                          <Check className="h-4 w-4 mr-1" /> Selecionada
+                        </Button>
+                      )}
+                    </CardFooter>
+                  </Card>
+                ))
+              )}
+            </div>
+          </TabsContent>
         </Tabs>
         
         <Dialog open={isNewDialogOpen} onOpenChange={setIsNewDialogOpen}>
@@ -168,106 +464,6 @@ export default function Instances() {
           </DialogContent>
         </Dialog>
       </div>
-      
-      <TabsContent value="all" className="mt-0">
-        <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
-          {instances.length === 0 ? (
-            <Card className="col-span-full">
-              <CardHeader className="text-center pb-2">
-                <AlertCircle className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
-                <CardTitle>Nenhuma instância encontrada</CardTitle>
-                <CardDescription>
-                  Clique no botão "Nova Instância" para adicionar sua primeira instância.
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          ) : (
-            instances.map(instance => (
-              <Card key={instance.id} className={currentInstance?.id === instance.id ? "border-primary" : ""}>
-                <CardHeader className="pb-2">
-                  <div className="flex justify-between items-center">
-                    <CardTitle className="flex items-center">
-                      {instance.name}
-                      {!instance.active && (
-                        <Badge variant="outline" className="ml-2 text-xs">Inativa</Badge>
-                      )}
-                      {currentInstance?.id === instance.id && (
-                        <Badge className="ml-2 text-xs">Selecionada</Badge>
-                      )}
-                    </CardTitle>
-                    <div className="flex space-x-1">
-                      <Button 
-                        variant="ghost" 
-                        size="icon"
-                        onClick={() => openEditDialog(instance)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                        <span className="sr-only">Editar</span>
-                      </Button>
-                      
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <Trash2 className="h-4 w-4 text-red-500" />
-                            <span className="sr-only">Excluir</span>
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Tem certeza?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Esta ação irá excluir permanentemente a instância "{instance.name}" 
-                              e todos os dados relacionados a ela.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction 
-                              onClick={() => handleDeleteInstance(instance.id)}
-                              className="bg-red-500 hover:bg-red-600"
-                            >
-                              Excluir
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-                  </div>
-                  <CardDescription>
-                    Criada {formatDistanceToNow(new Date(instance.createdAt), { addSuffix: true, locale: ptBR })}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="pb-2">
-                  <div className="space-y-1.5">
-                    <div>
-                      <Label className="text-xs text-muted-foreground">URL da API</Label>
-                      <p className="text-sm truncate">{instance.evolutionApiUrl}</p>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Status</Label>
-                      <div className="flex items-center space-x-2">
-                        <div className={`w-2 h-2 rounded-full ${instance.active ? "bg-green-500" : "bg-red-500"}`} />
-                        <p className="text-sm">{instance.active ? "Online" : "Offline"}</p>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-                <CardFooter className="flex justify-end">
-                  {currentInstance?.id !== instance.id ? (
-                    <Button variant="outline" onClick={() => handleSetCurrentInstance(instance)}>
-                      Selecionar
-                    </Button>
-                  ) : (
-                    <Button variant="outline" disabled>
-                      <Check className="h-4 w-4 mr-1" /> Selecionada
-                    </Button>
-                  )}
-                </CardFooter>
-              </Card>
-            ))
-          )}
-        </div>
-      </TabsContent>
       
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">

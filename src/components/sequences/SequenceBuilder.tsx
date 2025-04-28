@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { PlusCircle, Clock, Trash2, AlertCircle, ChevronDown, ChevronUp, MessageCircle, FileCode, Bot, X } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -739,7 +738,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
                   <div className="bg-background/50 p-3 rounded-md border text-sm">
                     {stage.type === "typebot" ? (
                       <div className="flex items-center">
-                        <Robot className="h-4 w-4 mr-2 text-muted-foreground" />
+                        <Bot className="h-4 w-4 mr-2 text-muted-foreground" />
                         <a 
                           href={stage.content} 
                           target="_blank" 
