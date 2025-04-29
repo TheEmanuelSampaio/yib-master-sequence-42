@@ -17,6 +17,9 @@ interface AppContextType {
   contacts: Contact[];
   tags: string[];
   timeRestrictions: TimeRestriction[];
+  scheduledMessages: ScheduledMessage[];
+  contactSequences: ContactSequence[];
+  stats: DailyStats[];
   
   setCurrentInstance: (instance: Instance) => void;
   addInstance: (instance: Omit<Instance, "id" | "createdAt" | "updatedAt">) => void;
@@ -32,9 +35,96 @@ interface AppContextType {
   deleteContact: (id: string) => void;
   addTagToContact: (contactId: string, tag: string) => void;
   removeTagFromContact: (contactId: string, tag: string) => void;
+  
+  getContactSequences: (contactId: string) => ContactSequence[];
+  
+  addTag: (tag: string) => void;
+  removeTag: (tag: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
+
+// Mock scheduled messages
+const scheduledMessages: ScheduledMessage[] = [
+  {
+    id: 'msg-1',
+    contactId: '16087',
+    sequenceId: 'sequence-1',
+    stageId: 'stage-1',
+    scheduledTime: new Date(Date.now() + 3600000).toISOString(),
+    scheduledAt: new Date().toISOString(),
+    status: 'pending',
+  },
+  {
+    id: 'msg-2',
+    contactId: '16088',
+    sequenceId: 'sequence-1',
+    stageId: 'stage-2',
+    scheduledTime: new Date(Date.now() - 7200000).toISOString(),
+    scheduledAt: new Date(Date.now() - 86400000).toISOString(),
+    sentAt: new Date(Date.now() - 7200000).toISOString(),
+    status: 'sent',
+  },
+  {
+    id: 'msg-3',
+    contactId: '16089',
+    sequenceId: 'sequence-2',
+    stageId: 'stage-1',
+    scheduledTime: new Date(Date.now() - 3600000).toISOString(),
+    scheduledAt: new Date(Date.now() - 43200000).toISOString(),
+    status: 'failed',
+    attempts: 3,
+  }
+];
+
+// Mock contact sequences
+const mockContactSequences: ContactSequence[] = [
+  {
+    id: 'cs-1',
+    contactId: '16087',
+    sequenceId: 'sequence-1',
+    currentStageIndex: 1,
+    currentStageId: 'stage-2',
+    status: 'active',
+    startedAt: new Date(Date.now() - 86400000).toISOString(),
+    lastMessageAt: new Date(Date.now() - 43200000).toISOString(),
+    stageProgress: [
+      {
+        stageId: 'stage-1',
+        status: 'completed',
+        completedAt: new Date(Date.now() - 43200000).toISOString(),
+      }
+    ]
+  },
+  {
+    id: 'cs-2',
+    contactId: '16088',
+    sequenceId: 'sequence-1',
+    currentStageIndex: 3,
+    currentStageId: 'stage-3',
+    status: 'completed',
+    startedAt: new Date(Date.now() - 259200000).toISOString(),
+    lastMessageAt: new Date(Date.now() - 86400000).toISOString(),
+    completedAt: new Date(Date.now() - 86400000).toISOString(),
+    stageProgress: [
+      {
+        stageId: 'stage-1',
+        status: 'completed',
+        completedAt: new Date(Date.now() - 172800000).toISOString(),
+      },
+      {
+        stageId: 'stage-2',
+        status: 'completed',
+        completedAt: new Date(Date.now() - 86400000).toISOString(),
+      },
+      {
+        stageId: 'stage-3',
+        status: 'completed',
+        completedAt: new Date(Date.now() - 86400000).toISOString(),
+      }
+    ]
+  }
+];
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [currentUser] = useState<User>(user);
@@ -44,8 +134,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
   const [sequencesList, setSequencesList] = useState<Sequence[]>(sequences);
   const [contactsList, setContactsList] = useState<Contact[]>(contacts);
-  const [tagsList] = useState<string[]>(tags);
+  const [tagsList, setTagsList] = useState<string[]>(tags);
   const [timeRestrictionsList] = useState<TimeRestriction[]>(globalTimeRestrictions);
+  const [contactSequencesList] = useState<ContactSequence[]>(mockContactSequences);
   
   // Instance management
   const addInstance = (instance: Omit<Instance, "id" | "createdAt" | "updatedAt">) => {
@@ -200,6 +291,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     toast.success(`Tag "${tag}" removida com sucesso!`);
   };
   
+  // Tag management
+  const addTag = (tag: string) => {
+    if (!tagsList.includes(tag)) {
+      setTagsList(prev => [...prev, tag]);
+      toast.success(`Tag "${tag}" adicionada com sucesso!`);
+    } else {
+      toast.error(`Tag "${tag}" já existe!`);
+    }
+  };
+  
+  const removeTag = (tag: string) => {
+    setTagsList(prev => prev.filter(t => t !== tag));
+    toast.success(`Tag "${tag}" removida com sucesso!`);
+  };
+  
+  // Contact sequences
+  const getContactSequences = (contactId: string) => {
+    return contactSequencesList.filter(cs => cs.contactId === contactId);
+  };
+  
   return (
     <AppContext.Provider
       value={{
@@ -210,6 +321,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         contacts: contactsList,
         tags: tagsList,
         timeRestrictions: timeRestrictionsList,
+        scheduledMessages,
+        contactSequences: contactSequencesList,
+        stats,
         
         setCurrentInstance,
         addInstance,
@@ -224,7 +338,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         updateContact,
         deleteContact,
         addTagToContact,
-        removeTagFromContact
+        removeTagFromContact,
+        
+        getContactSequences,
+        
+        addTag,
+        removeTag
       }}
     >
       {children}

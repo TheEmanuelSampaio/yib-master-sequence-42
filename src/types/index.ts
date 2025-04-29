@@ -55,7 +55,6 @@ export interface TimeRestriction {
   endMinute: number;
 }
 
-// Add missing types
 export interface Contact {
   id: string;
   name: string;
@@ -72,9 +71,11 @@ export interface ScheduledMessage {
   contactId: string;
   sequenceId: string;
   stageId: string;
+  scheduledTime: string;
   scheduledAt: string;
   sentAt?: string;
-  status: "scheduled" | "sent" | "failed";
+  status: "pending" | "processing" | "sent" | "failed" | "persistent_error";
+  attempts?: number;
 }
 
 export interface ContactSequence {
@@ -82,9 +83,19 @@ export interface ContactSequence {
   contactId: string;
   sequenceId: string;
   currentStageIndex: number;
-  status: "active" | "completed" | "paused";
+  currentStageId?: string;
+  status: "active" | "completed" | "paused" | "removed";
   startedAt: string;
   lastMessageAt?: string;
+  completedAt?: string;
+  removedAt?: string;
+  stageProgress?: StageProgress[];
+}
+
+export interface StageProgress {
+  stageId: string;
+  status: "pending" | "completed" | "skipped";
+  completedAt?: string;
 }
 
 export interface DailyStats {

@@ -49,7 +49,6 @@ export default function Instances() {
       evolutionApiUrl: newInstanceForm.evolutionApiUrl,
       apiKey: newInstanceForm.apiKey,
       active: true,
-      updatedAt: new Date().toISOString(),
     });
     
     setNewInstanceForm({

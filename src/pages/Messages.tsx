@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useApp } from '@/context/AppContext';
 import { Search, Filter, Calendar, CheckCircle, XCircle, AlertCircle, MessageCircle, FileCode, Bot } from "lucide-react";
@@ -39,7 +40,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { cn } from "@/lib/utils";
+import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 

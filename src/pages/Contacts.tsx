@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useApp } from '@/context/AppContext';
 import { Search, User, Tag, CheckCircle2, Clock, AlertCircle, ChevronDown, MoreVertical } from "lucide-react";
@@ -353,9 +352,8 @@ export default function Contacts() {
                                 <h5 className="text-sm font-medium mb-2">Progresso dos Estágios</h5>
                                 <div className="space-y-2">
                                   {sequence.stages.map((stage, index) => {
-                                    const progress = contactSequence.stageProgress.find(
-                                      p => p.stageId === stage.id
-                                    );
+                                    const progress = contactSequence.stageProgress ? 
+                                      contactSequence.stageProgress.find(p => p.stageId === stage.id) : undefined;
                                     
                                     return (
                                       <div 

@@ -1,5 +1,5 @@
 
-import { User, Instance, Sequence, Contact, DailyStats } from '@/types';
+import { User, Instance, Sequence, Contact, DailyStats, TimeRestriction } from '@/types';
 
 // Mock user
 export const user: User = {
