@@ -1,3 +1,4 @@
+
 import { Bell, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,9 +9,10 @@ import { UserAvatar } from "@/components/ui/avatar";
 
 interface HeaderProps {
   onMenuClick?: () => void;
+  sidebarCollapsed?: boolean;
 }
 
-export function Header({ onMenuClick }: HeaderProps) {
+export function Header({ onMenuClick, sidebarCollapsed }: HeaderProps) {
   const { user } = useApp();
 
   return (

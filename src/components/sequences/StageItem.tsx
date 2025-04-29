@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { SequenceStage, TypebotStage } from "@/types";
+import { SequenceStage } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -169,10 +169,10 @@ export function StageItem({
                 <Label htmlFor="stage-type">Tipo do Conteúdo</Label>
                 <Select
                   value={editedStage.type}
-                  onValueChange={(value: SequenceStageType) => 
+                  onValueChange={(value: "message" | "pattern" | "typebot") => 
                     setEditedStage({ 
                       ...editedStage, 
-                      type: value as "message" | "pattern" | "typebot" 
+                      type: value
                     })
                   }
                   disabled
@@ -245,9 +245,9 @@ export function StageItem({
                 <Label htmlFor="stage-delay-unit">Unidade</Label>
                 <Select
                   value={editedStage.delayUnit}
-                  onValueChange={(value) => setEditedStage({ 
+                  onValueChange={(value: "minutes" | "hours" | "days") => setEditedStage({ 
                     ...editedStage, 
-                    delayUnit: value as "minutes" | "hours" | "days" 
+                    delayUnit: value 
                   })}
                 >
                   <SelectTrigger id="stage-delay-unit">

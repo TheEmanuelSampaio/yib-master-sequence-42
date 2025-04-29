@@ -10,11 +10,15 @@ interface MainLayoutProps {
 export function MainLayout({ children }: MainLayoutProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
+  const toggleSidebar = () => {
+    setSidebarCollapsed(!sidebarCollapsed);
+  };
+
   return (
     <div className="min-h-screen flex">
-      <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
+      <Sidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
       <div className="flex flex-col flex-1 overflow-hidden">
-        <Header sidebarCollapsed={sidebarCollapsed} />
+        <Header sidebarCollapsed={sidebarCollapsed} onMenuClick={toggleSidebar} />
         <main className="flex-1 overflow-auto p-4 md:p-6">
           {children}
         </main>

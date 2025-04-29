@@ -33,7 +33,7 @@ export function RestrictionItem({ restriction, onDelete, onUpdate }: Restriction
           <Switch
             checked={restriction.active}
             onCheckedChange={handleToggleActive}
-            size="sm"
+            className="h-5 w-9"
           />
         </div>
         <div className="flex flex-wrap gap-1 mb-1">
