@@ -1,48 +1,219 @@
 
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Clipboard, CheckCircle2 } from "lucide-react";
+import { useState } from "react";
 
-const tagChangePayload = `{
-  "body": {
-    "data": {
-      "accountId": 1,
-      "accountName": "Years In Box",
-      "contact": {
-        "id": 16087,
-        "name": "Emanuel Years In Box",
-        "phoneNumber": "+5511937474703"
-      },
-      "conversation": {
-        "inboxId": 46,
-        "conversationId": 23266,
-        "displayId": 1608,
-        "labels": "lead, google, produto-xpto"
-      }
+export default function ApiDocs() {
+  const [copiedTabs, setCopiedTabs] = useState<{ [key: string]: boolean }>({});
+
+  const copyToClipboard = (text: string, tabId: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedTabs({ ...copiedTabs, [tabId]: true });
+    setTimeout(() => {
+      setCopiedTabs({ ...copiedTabs, [tabId]: false });
+    }, 2000);
+  };
+
+  const apiUrl = window.location.origin.includes('localhost') 
+    ? 'https://mlwcupyfhtxdxcybwbmg.supabase.co/functions/v1'
+    : window.location.origin.includes('vercel') || window.location.origin.includes('netlify')
+      ? 'https://mlwcupyfhtxdxcybwbmg.supabase.co/functions/v1'
+      : `${window.location.origin}/api`;
+
+  const tagChangePayload = `{
+  "data": {
+    "accountId": 1,
+    "accountName": "Years In Box",
+    "contact": {
+      "id": 16087,
+      "name": "Emanuel Years In Box",
+      "phoneNumber": "+5511937474703"
+    },
+    "conversation": {
+      "inboxId": 46,
+      "conversationId": 23266,
+      "displayId": 1608,
+      "labels": "lead, google, produto-xpto"
     }
   }
 }`;
 
-const tagChangeResponse = `{
-  "status": "success",
-  "message": "Tag change processed successfully"
+  const deliveryStatusPayload = `{
+  "messageId": "your-message-id",
+  "status": "success"
 }`;
 
-const pendingMessagesResponse = `[
-  {
-    "messageId": "msg-12345",
-    "chatwootData": {
-      "data": {
-        "accountId": 1,
-        "accountName": "Years In Box",
-        "contact": {
-          "id": 16087,
+  return (
+    <div className="container mx-auto py-6 space-y-8">
+      <div>
+        <h1 className="text-3xl font-bold mb-2">Documentação de API</h1>
+        <p className="text-muted-foreground">
+          Documentação completa dos endpoints disponíveis para integração com o Master Sequence
+        </p>
+      </div>
+      
+      <Card>
+        <CardHeader>
+          <CardTitle>Base URL</CardTitle>
+          <CardDescription>URL base para todos os endpoints</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="p-4 bg-muted rounded-md flex justify-between items-center">
+            <code className="text-sm">{apiUrl}</code>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => copyToClipboard(apiUrl, 'baseurl')}
+            >
+              {copiedTabs['baseurl'] ? (
+                <CheckCircle2 className="h-4 w-4 text-green-500" />
+              ) : (
+                <Clipboard className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+      
+      <Tabs defaultValue="tag-change">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="tag-change">Tag Change</TabsTrigger>
+          <TabsTrigger value="pending-messages">Pending Messages</TabsTrigger>
+          <TabsTrigger value="delivery-status">Delivery Status</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="tag-change" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Endpoint: Tag Change</CardTitle>
+              <CardDescription>
+                Esse endpoint é chamado quando as tags de um contato são alteradas no Chatwoot
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-2">
+                <h3 className="font-semibold">URL</h3>
+                <div className="p-4 bg-muted rounded-md flex justify-between items-center">
+                  <code className="text-sm">{`${apiUrl}/tag-change`}</code>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => copyToClipboard(`${apiUrl}/tag-change`, 'tag-change-url')}
+                  >
+                    {copiedTabs['tag-change-url'] ? (
+                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <Clipboard className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <h3 className="font-semibold">Método</h3>
+                <div className="p-1 px-3 bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400 rounded-md inline-block">
+                  <code>POST</code>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold">Payload</h3>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => copyToClipboard(tagChangePayload, 'tag-change-payload')}
+                  >
+                    {copiedTabs['tag-change-payload'] ? (
+                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <Clipboard className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+                <pre className="p-4 bg-muted rounded-md overflow-auto text-sm whitespace-pre">
+                  {tagChangePayload}
+                </pre>
+              </div>
+              
+              <div className="space-y-2">
+                <h3 className="font-semibold">Resposta</h3>
+                <pre className="p-4 bg-muted rounded-md overflow-auto text-sm whitespace-pre">
+                  {`{
+  "success": true,
+  "message": "Contact processed successfully",
+  "contact": {
+    "id": "16087",
+    "name": "Emanuel Years In Box",
+    "tags": ["lead", "google", "produto-xpto"]
+  }
+}`}
+                </pre>
+              </div>
+              
+              <div className="space-y-2">
+                <h3 className="font-semibold">Descrição</h3>
+                <p className="text-muted-foreground">
+                  Este endpoint recebe dados do N8N quando tags são editadas no Chatwoot. 
+                  Com base nas tags, o sistema verifica se o contato deve ser adicionado a uma ou mais sequências. 
+                  Se as condições forem atendidas, o contato será inserido na sequência e a primeira mensagem será agendada.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="pending-messages" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Endpoint: Pending Messages</CardTitle>
+              <CardDescription>
+                Esse endpoint retorna as mensagens agendadas que estão prontas para serem enviadas
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-2">
+                <h3 className="font-semibold">URL</h3>
+                <div className="p-4 bg-muted rounded-md flex justify-between items-center">
+                  <code className="text-sm">{`${apiUrl}/pending-messages`}</code>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => copyToClipboard(`${apiUrl}/pending-messages`, 'pending-messages-url')}
+                  >
+                    {copiedTabs['pending-messages-url'] ? (
+                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <Clipboard className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <h3 className="font-semibold">Método</h3>
+                <div className="p-1 px-3 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 rounded-md inline-block">
+                  <code>GET</code>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <h3 className="font-semibold">Resposta</h3>
+                <pre className="p-4 bg-muted rounded-md overflow-auto text-sm whitespace-pre">
+                  {`{
+  "success": true,
+  "messages": [
+    {
+      "id": "message-uuid",
+      "chatwootData": {
+        "accountData": {
+          "accountId": 1,
+          "accountName": "Years In Box"
+        },
+        "contactData": {
+          "id": "16087",
           "name": "Emanuel Years In Box",
           "phoneNumber": "+5511937474703"
         },
@@ -52,369 +223,161 @@ const pendingMessagesResponse = `[
           "displayId": 1608,
           "labels": "lead, google, produto-xpto"
         }
-      }
-    },
-    "instanceData": {
-      "name": "Instância Principal",
-      "evolutionApiUrl": "https://evolution-api.example.com",
-      "apiKey": "api-key-12345"
-    },
-    "sequenceData": {
-      "instanceName": "Instância Principal",
-      "sequenceName": "Sequência de Boas-vindas",
-      "type": "message",
-      "stage": {
-        "id": "stage-1",
-        "content": "Olá, bem-vindo à nossa comunidade! Estamos felizes em te ter aqui.",
-        "rawScheduledTime": "2023-04-28T14:30:00.000Z",
-        "scheduledTime": "2023-04-28T14:30:00.000Z"
+      },
+      "instanceData": {
+        "id": "instance-uuid",
+        "name": "Whatsapp Bot",
+        "evolutionApiUrl": "https://api.example.com",
+        "apiKey": "your-api-key"
+      },
+      "sequenceData": {
+        "instanceName": "Whatsapp Bot",
+        "sequenceName": "Sequência de Boas-vindas",
+        "type": "message",
+        "stage": {
+          "stg1": {
+            "id": "stage-uuid",
+            "content": "Olá ${name}, seja bem-vindo!",
+            "rawScheduledTime": "2025-04-29T22:00:00Z",
+            "scheduledTime": "2025-04-29T22:00:00Z"
+          }
+        }
       }
     }
-  }
-]`;
-
-const deliverySuccessPayload = `{
-  "messageId": "msg-12345",
+  ]
+}`}
+                </pre>
+              </div>
+              
+              <div className="space-y-2">
+                <h3 className="font-semibold">Descrição</h3>
+                <p className="text-muted-foreground">
+                  Este endpoint é chamado pelo N8N a cada 5 minutos para verificar se existem mensagens pendentes de envio. 
+                  Ele retorna todas as mensagens que estão agendadas para o momento atual ou anterior. 
+                  Ao receber estas mensagens, o N8N deve processá-las e enviar o resultado para o endpoint de status de entrega.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="delivery-status" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Endpoint: Delivery Status</CardTitle>
+              <CardDescription>
+                Esse endpoint recebe o status de entrega de uma mensagem
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-2">
+                <h3 className="font-semibold">URL</h3>
+                <div className="p-4 bg-muted rounded-md flex justify-between items-center">
+                  <code className="text-sm">{`${apiUrl}/delivery-status`}</code>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => copyToClipboard(`${apiUrl}/delivery-status`, 'delivery-status-url')}
+                  >
+                    {copiedTabs['delivery-status-url'] ? (
+                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <Clipboard className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <h3 className="font-semibold">Método</h3>
+                <div className="p-1 px-3 bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400 rounded-md inline-block">
+                  <code>POST</code>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold">Payload</h3>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => copyToClipboard(deliveryStatusPayload, 'delivery-status-payload')}
+                  >
+                    {copiedTabs['delivery-status-payload'] ? (
+                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <Clipboard className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+                <pre className="p-4 bg-muted rounded-md overflow-auto text-sm whitespace-pre">
+                  {deliveryStatusPayload}
+                </pre>
+              </div>
+              
+              <div className="space-y-2">
+                <h3 className="font-semibold">Resposta</h3>
+                <pre className="p-4 bg-muted rounded-md overflow-auto text-sm whitespace-pre">
+                  {`{
   "success": true
-}`;
-
-const deliveryFailPayload = `{
-  "messageId": "msg-12345",
-  "success": false
-}`;
-
-const deliveryResponse = `{
-  "status": "success",
-  "message": "Message delivery successful"
-}`;
-
-export default function ApiDocs() {
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col">
-        <h1 className="text-2xl font-bold tracking-tight">Documentação da API</h1>
-        <p className="text-muted-foreground">
-          Referência completa dos endpoints disponíveis no Master Sequence
-        </p>
-      </div>
-
-      <Card>
+}`}
+                </pre>
+              </div>
+              
+              <div className="space-y-2">
+                <h3 className="font-semibold">Descrição</h3>
+                <p className="text-muted-foreground">
+                  Este endpoint recebe o status de entrega de uma mensagem após o N8N processá-la. 
+                  Se a entrega for bem-sucedida, o sistema avança o contato para o próximo estágio da sequência e agenda a próxima mensagem. 
+                  Em caso de falha, o sistema marca a mensagem para reenvio, até um máximo de 3 tentativas.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+      
+      <Card className="mt-8">
         <CardHeader>
-          <CardTitle>Visão Geral</CardTitle>
+          <CardTitle>Configuração do N8N</CardTitle>
           <CardDescription>
-            O Master Sequence oferece os seguintes endpoints para integração com o N8N e outras ferramentas:
+            Passos para configurar o N8N para trabalhar com o Master Sequence
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="grid grid-cols-3 gap-4">
-              <Card className="col-span-1">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base">Gerenciamento de Tags</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    Recebe notificações quando tags são alteradas no Chatwoot e inicia sequências conforme necessário.
-                  </p>
-                </CardContent>
-              </Card>
-              <Card className="col-span-1">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base">Recuperação de Mensagens</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    Fornece mensagens agendadas pendentes para serem processadas pelo N8N.
-                  </p>
-                </CardContent>
-              </Card>
-              <Card className="col-span-1">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base">Confirmação de Entrega</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    Recebe confirmações de sucesso ou falha na entrega das mensagens.
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="pt-4">
-              <h3 className="text-lg font-semibold mb-2">Fluxo de Trabalho</h3>
-              <ol className="space-y-2 text-sm">
-                <li className="border-l-2 border-primary pl-4 py-1">
-                  <span className="font-medium">1.</span> O Chatwoot atualiza tags para um contato
-                </li>
-                <li className="border-l-2 border-primary pl-4 py-1">
-                  <span className="font-medium">2.</span> Um trigger do Postgres notifica o N8N
-                </li>
-                <li className="border-l-2 border-primary pl-4 py-1">
-                  <span className="font-medium">3.</span> O N8N envia um POST para <code className="text-xs px-1 bg-secondary rounded">/api/tag-change</code>
-                </li>
-                <li className="border-l-2 border-primary pl-4 py-1">
-                  <span className="font-medium">4.</span> O Master Sequence processa as condições de tags e agenda mensagens
-                </li>
-                <li className="border-l-2 border-primary pl-4 py-1">
-                  <span className="font-medium">5.</span> O N8N faz polling a cada 5 minutos para <code className="text-xs px-1 bg-secondary rounded">/api/pending-messages</code>
-                </li>
-                <li className="border-l-2 border-primary pl-4 py-1">
-                  <span className="font-medium">6.</span> O N8N envia as mensagens e notifica o resultado através de <code className="text-xs px-1 bg-secondary rounded">/api/delivery-success</code> ou <code className="text-xs px-1 bg-secondary rounded">/api/delivery-fail</code>
-                </li>
-              </ol>
-            </div>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <h3 className="font-semibold">Trigger inicial (Chatwoot)</h3>
+            <p className="text-muted-foreground">
+              Configure um webhook no Chatwoot ou um trigger de banco de dados PostgreSQL para 
+              enviar os dados para o endpoint <code>tag-change</code> quando as tags de um contato forem alteradas.
+            </p>
+          </div>
+          
+          <div className="space-y-2">
+            <h3 className="font-semibold">CRON de verificação de mensagens</h3>
+            <p className="text-muted-foreground">
+              Configure um CRON para executar a cada 5 minutos que faz uma requisição para o endpoint 
+              <code>pending-messages</code> e processa as mensagens retornadas, enviando-as através da 
+              Evolution API. Após o envio, notifique o resultado para o endpoint <code>delivery-status</code>.
+            </p>
+          </div>
+          
+          <div className="space-y-2">
+            <h3 className="font-semibold">Tratamento de tipos de mensagem</h3>
+            <ul className="list-disc pl-6 space-y-1 text-muted-foreground">
+              <li>
+                <strong>message:</strong> Enviar o conteúdo diretamente como mensagem de texto.
+              </li>
+              <li>
+                <strong>pattern:</strong> Processar o padrão para determinar o tipo de conteúdo (imagem, documento, etc.).
+              </li>
+              <li>
+                <strong>typebot:</strong> Disparar o fluxo do typebot fornecido no content, passando o valor do estágio (stg1, stg2, etc.) para o switch inicial.
+              </li>
+            </ul>
           </div>
         </CardContent>
       </Card>
-
-      <div className="space-y-6">
-        <Accordion type="single" collapsible className="w-full">
-          <AccordionItem value="item-1">
-            <AccordionTrigger>
-              <div className="flex items-center">
-                <Badge className="mr-2 bg-green-600">POST</Badge>
-                <span>/api/tag-change</span>
-              </div>
-            </AccordionTrigger>
-            <AccordionContent>
-              <Tabs defaultValue="description">
-                <TabsList className="mb-4">
-                  <TabsTrigger value="description">Descrição</TabsTrigger>
-                  <TabsTrigger value="request">Request</TabsTrigger>
-                  <TabsTrigger value="response">Response</TabsTrigger>
-                </TabsList>
-                <TabsContent value="description">
-                  <div className="space-y-4">
-                    <div>
-                      <h4 className="font-medium">Descrição</h4>
-                      <p className="text-muted-foreground text-sm mt-1">
-                        Este endpoint processa alterações de tags provenientes do Chatwoot via N8N. Ele verifica 
-                        condições de início e parada para determinar se um contato deve ser adicionado 
-                        ou removido de sequências.
-                      </p>
-                    </div>
-                    <div>
-                      <h4 className="font-medium">Casos de Uso</h4>
-                      <ul className="list-disc pl-5 text-sm text-muted-foreground mt-1 space-y-1">
-                        <li>Iniciar uma sequência para um novo lead</li>
-                        <li>Mover um contato para uma sequência de up-sell</li>
-                        <li>Remover um contato de uma sequência quando ele se converter</li>
-                      </ul>
-                    </div>
-                  </div>
-                </TabsContent>
-                <TabsContent value="request">
-                  <div className="space-y-4">
-                    <div>
-                      <h4 className="font-medium">Headers</h4>
-                      <div className="mt-2 text-sm">
-                        <div className="bg-secondary p-3 rounded">
-                          <div><span className="font-mono text-xs">Content-Type:</span> application/json</div>
-                        </div>
-                      </div>
-                    </div>
-                    <div>
-                      <h4 className="font-medium">Payload</h4>
-                      <div className="mt-2 text-sm">
-                        <pre className="bg-secondary p-3 rounded overflow-x-auto">
-                          <code className="text-xs">{tagChangePayload}</code>
-                        </pre>
-                      </div>
-                    </div>
-                  </div>
-                </TabsContent>
-                <TabsContent value="response">
-                  <div className="space-y-4">
-                    <div>
-                      <h4 className="font-medium">Resposta de Sucesso (200 OK)</h4>
-                      <div className="mt-2 text-sm">
-                        <pre className="bg-secondary p-3 rounded overflow-x-auto">
-                          <code className="text-xs">{tagChangeResponse}</code>
-                        </pre>
-                      </div>
-                    </div>
-                  </div>
-                </TabsContent>
-              </Tabs>
-            </AccordionContent>
-          </AccordionItem>
-
-          <AccordionItem value="item-2">
-            <AccordionTrigger>
-              <div className="flex items-center">
-                <Badge className="mr-2 bg-blue-600">GET</Badge>
-                <span>/api/pending-messages</span>
-              </div>
-            </AccordionTrigger>
-            <AccordionContent>
-              <Tabs defaultValue="description">
-                <TabsList className="mb-4">
-                  <TabsTrigger value="description">Descrição</TabsTrigger>
-                  <TabsTrigger value="response">Response</TabsTrigger>
-                </TabsList>
-                <TabsContent value="description">
-                  <div className="space-y-4">
-                    <div>
-                      <h4 className="font-medium">Descrição</h4>
-                      <p className="text-muted-foreground text-sm mt-1">
-                        Este endpoint recupera todas as mensagens agendadas cujo horário programado já tenha passado.
-                        O N8N verifica este endpoint a cada 5 minutos para processar mensagens pendentes.
-                      </p>
-                    </div>
-                    <div>
-                      <h4 className="font-medium">Notas</h4>
-                      <ul className="list-disc pl-5 text-sm text-muted-foreground mt-1 space-y-1">
-                        <li>O endpoint marca automaticamente as mensagens como "processing"</li>
-                        <li>Inclui toda a informação necessária para o N8N enviar a mensagem</li>
-                        <li>Dados da instância como URL e API key são incluídos</li>
-                      </ul>
-                    </div>
-                  </div>
-                </TabsContent>
-                <TabsContent value="response">
-                  <div className="space-y-4">
-                    <div>
-                      <h4 className="font-medium">Resposta de Sucesso (200 OK)</h4>
-                      <div className="mt-2 text-sm">
-                        <pre className="bg-secondary p-3 rounded overflow-x-auto">
-                          <code className="text-xs">{pendingMessagesResponse}</code>
-                        </pre>
-                      </div>
-                    </div>
-                  </div>
-                </TabsContent>
-              </Tabs>
-            </AccordionContent>
-          </AccordionItem>
-
-          <AccordionItem value="item-3">
-            <AccordionTrigger>
-              <div className="flex items-center">
-                <Badge className="mr-2 bg-green-600">POST</Badge>
-                <span>/api/delivery-success</span>
-              </div>
-            </AccordionTrigger>
-            <AccordionContent>
-              <Tabs defaultValue="description">
-                <TabsList className="mb-4">
-                  <TabsTrigger value="description">Descrição</TabsTrigger>
-                  <TabsTrigger value="request">Request</TabsTrigger>
-                  <TabsTrigger value="response">Response</TabsTrigger>
-                </TabsList>
-                <TabsContent value="description">
-                  <div className="space-y-4">
-                    <div>
-                      <h4 className="font-medium">Descrição</h4>
-                      <p className="text-muted-foreground text-sm mt-1">
-                        Este endpoint confirma a entrega bem-sucedida de uma mensagem. Ele marca a mensagem como 
-                        enviada e programa o próximo estágio da sequência, se houver.
-                      </p>
-                    </div>
-                    <div>
-                      <h4 className="font-medium">Ações</h4>
-                      <ul className="list-disc pl-5 text-sm text-muted-foreground mt-1 space-y-1">
-                        <li>Atualiza o status da mensagem para "sent"</li>
-                        <li>Registra a data/hora do envio</li>
-                        <li>Avança o contato para o próximo estágio da sequência</li>
-                        <li>Marca a sequência como concluída quando todos os estágios forem enviados</li>
-                      </ul>
-                    </div>
-                  </div>
-                </TabsContent>
-                <TabsContent value="request">
-                  <div className="space-y-4">
-                    <div>
-                      <h4 className="font-medium">Headers</h4>
-                      <div className="mt-2 text-sm">
-                        <div className="bg-secondary p-3 rounded">
-                          <div><span className="font-mono text-xs">Content-Type:</span> application/json</div>
-                        </div>
-                      </div>
-                    </div>
-                    <div>
-                      <h4 className="font-medium">Payload</h4>
-                      <div className="mt-2 text-sm">
-                        <pre className="bg-secondary p-3 rounded overflow-x-auto">
-                          <code className="text-xs">{deliverySuccessPayload}</code>
-                        </pre>
-                      </div>
-                    </div>
-                  </div>
-                </TabsContent>
-                <TabsContent value="response">
-                  <div className="space-y-4">
-                    <div>
-                      <h4 className="font-medium">Resposta de Sucesso (200 OK)</h4>
-                      <div className="mt-2 text-sm">
-                        <pre className="bg-secondary p-3 rounded overflow-x-auto">
-                          <code className="text-xs">{deliveryResponse}</code>
-                        </pre>
-                      </div>
-                    </div>
-                  </div>
-                </TabsContent>
-              </Tabs>
-            </AccordionContent>
-          </AccordionItem>
-
-          <AccordionItem value="item-4">
-            <AccordionTrigger>
-              <div className="flex items-center">
-                <Badge className="mr-2 bg-green-600">POST</Badge>
-                <span>/api/delivery-fail</span>
-              </div>
-            </AccordionTrigger>
-            <AccordionContent>
-              <Tabs defaultValue="description">
-                <TabsList className="mb-4">
-                  <TabsTrigger value="description">Descrição</TabsTrigger>
-                  <TabsTrigger value="request">Request</TabsTrigger>
-                </TabsList>
-                <TabsContent value="description">
-                  <div className="space-y-4">
-                    <div>
-                      <h4 className="font-medium">Descrição</h4>
-                      <p className="text-muted-foreground text-sm mt-1">
-                        Este endpoint registra uma falha na entrega de uma mensagem. Ele marca a mensagem 
-                        para nova tentativa até um limite de tentativas ser atingido.
-                      </p>
-                    </div>
-                    <div>
-                      <h4 className="font-medium">Ações</h4>
-                      <ul className="list-disc pl-5 text-sm text-muted-foreground mt-1 space-y-1">
-                        <li>Incrementa o contador de tentativas</li>
-                        <li>Marca a mensagem como "failed" para nova tentativa</li>
-                        <li>Após 3 tentativas, marca como "persistent_error"</li>
-                        <li>Atualiza estatísticas de falhas</li>
-                      </ul>
-                    </div>
-                  </div>
-                </TabsContent>
-                <TabsContent value="request">
-                  <div className="space-y-4">
-                    <div>
-                      <h4 className="font-medium">Headers</h4>
-                      <div className="mt-2 text-sm">
-                        <div className="bg-secondary p-3 rounded">
-                          <div><span className="font-mono text-xs">Content-Type:</span> application/json</div>
-                        </div>
-                      </div>
-                    </div>
-                    <div>
-                      <h4 className="font-medium">Payload</h4>
-                      <div className="mt-2 text-sm">
-                        <pre className="bg-secondary p-3 rounded overflow-x-auto">
-                          <code className="text-xs">{deliveryFailPayload}</code>
-                        </pre>
-                      </div>
-                    </div>
-                  </div>
-                </TabsContent>
-              </Tabs>
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
-      </div>
     </div>
   );
 }

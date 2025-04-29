@@ -2,6 +2,8 @@
 import { ReactNode, useState } from 'react';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
+import { useAuth } from '@/context/AuthContext';
+import { Navigate } from 'react-router-dom';
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -9,6 +11,23 @@ interface MainLayoutProps {
 
 export function MainLayout({ children }: MainLayoutProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const { loading, user, setupCompleted } = useAuth();
+  
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+  
+  if (!user) {
+    return <Navigate to="/login" />;
+  }
+  
+  if (setupCompleted === false) {
+    return <Navigate to="/setup" />;
+  }
 
   return (
     <div className="min-h-screen flex">
