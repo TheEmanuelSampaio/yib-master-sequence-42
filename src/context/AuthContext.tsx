@@ -166,6 +166,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       toast.success("Login bem-sucedido!");
     } catch (error: any) {
       toast.error(`Erro ao fazer login: ${error.message}`);
+      throw error; // Re-throwing the error to be handled by the caller if needed
     }
   };
 
@@ -209,7 +210,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (error: any) {
       toast.error(`Erro ao criar conta: ${error.message}`);
-      throw error;
+      throw error; // Re-throwing the error
     }
   };
 
@@ -220,6 +221,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       toast.success("Logout realizado com sucesso!");
     } catch (error: any) {
       toast.error(`Erro ao fazer logout: ${error.message}`);
+      throw error; // Re-throwing the error
     }
   };
 
@@ -239,6 +241,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       toast.success("Setup concluído com sucesso!");
     } catch (error: any) {
       toast.error(`Erro ao completar setup: ${error.message}`);
+      throw error; // Re-throwing the error
     }
   };
 
