@@ -1,377 +1,718 @@
 
-import { useState } from "react";
-import { useApp } from '@/context/AppContext';
-import { Tag, PlusCircle, Trash2, AlertCircle, Laptop, Edit, MoreVertical, MessageCircle } from "lucide-react";
+import React, { useState } from "react";
+import { useApp } from "@/context/AppContext";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useTheme } from '@/components/theme/ThemeProvider';
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuSeparator, 
-  DropdownMenuTrigger 
-} from '@/components/ui/dropdown-menu';
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { cn } from "@/lib/utils";
+import { Clock, PlusCircle, MoreVertical, Edit, Trash2, CheckCircle, Save } from "lucide-react";
+import { TimeRestriction } from "@/types";
+import { useToast } from "@/components/ui/use-toast";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
 
 export default function Settings() {
-  const { tags, addTag, removeTag, timeRestrictions, removeTimeRestriction, sequences, updateTimeRestriction } = useApp();
-  const { theme, setTheme } = useTheme();
+  const { timeRestrictions, sequences, addTimeRestriction, updateTimeRestriction, removeTimeRestriction } = useApp();
+  const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState("general");
+  const [editingRestrictionId, setEditingRestrictionId] = useState<string | null>(null);
   
-  const [newTag, setNewTag] = useState("");
-  const [showSequences, setShowSequences] = useState(false);
-  const [selectedRestriction, setSelectedRestriction] = useState<any>(null);
+  const [newRestriction, setNewRestriction] = useState<Omit<TimeRestriction, "id">>({
+    name: "",
+    active: true,
+    days: [1, 2, 3, 4, 5], // Monday to Friday
+    startHour: 20,
+    startMinute: 0,
+    endHour: 8,
+    endMinute: 0,
+  });
   
-  const handleAddTag = () => {
-    if (newTag.trim() !== "") {
-      addTag(newTag.trim());
-      setNewTag("");
-    }
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  
+  // Helper functions
+  const getDayName = (day: number) => {
+    const days = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
+    return days[day];
   };
   
-  const handleRemoveTag = (tag: string) => {
-    removeTag(tag);
+  const formatTime = (hours: number, minutes: number) => {
+    return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
   };
 
-  const getRestrictionUsage = (restrictionId: string) => {
-    const usedIn = sequences.filter(sequence => 
-      sequence.timeRestrictions.some(r => r.id === restrictionId)
+  const getSequencesUsingRestriction = (restrictionId: string) => {
+    return sequences.filter(seq => 
+      seq.timeRestrictions.some(r => r.id === restrictionId)
     );
-    return {
-      count: usedIn.length,
-      sequences: usedIn
-    };
   };
 
-  const handleShowSequences = (restriction: any) => {
-    setSelectedRestriction(restriction);
-    setShowSequences(true);
+  const handleAddRestriction = () => {
+    if (!newRestriction.name) {
+      toast({
+        title: "Erro",
+        description: "Nome da restrição é obrigatório",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    addTimeRestriction(newRestriction);
+    setIsAddDialogOpen(false);
+    resetNewRestriction();
+    
+    toast({
+      title: "Sucesso",
+      description: "Restrição de horário adicionada com sucesso",
+    });
+  };
+
+  const handleUpdateRestriction = (restriction: TimeRestriction) => {
+    updateTimeRestriction(restriction.id, restriction);
+    setEditingRestrictionId(null);
+    
+    toast({
+      title: "Sucesso",
+      description: "Restrição de horário atualizada com sucesso",
+    });
+  };
+
+  const handleRemoveRestriction = (id: string) => {
+    const usedInSequences = getSequencesUsingRestriction(id).length > 0;
+    
+    if (usedInSequences) {
+      toast({
+        title: "Erro",
+        description: "Esta restrição está sendo utilizada em sequências e não pode ser removida",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    removeTimeRestriction(id);
+    toast({
+      title: "Sucesso",
+      description: "Restrição de horário removida com sucesso",
+    });
+  };
+  
+  const resetNewRestriction = () => {
+    setNewRestriction({
+      name: "",
+      active: true,
+      days: [1, 2, 3, 4, 5],
+      startHour: 20,
+      startMinute: 0,
+      endHour: 8,
+      endMinute: 0,
+    });
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col">
+      <div>
         <h1 className="text-2xl font-bold tracking-tight">Configurações</h1>
         <p className="text-muted-foreground">
-          Gerencie as configurações do Master Sequence
+          Gerencie as configurações globais do sistema
         </p>
       </div>
-      
-      <Tabs defaultValue="general" className="space-y-4">
+
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="general">Geral</TabsTrigger>
+          <TabsTrigger value="time-restrictions">Restrições de Horário</TabsTrigger>
           <TabsTrigger value="tags">Tags</TabsTrigger>
-          <TabsTrigger value="restrictions">Restrições</TabsTrigger>
-          <TabsTrigger value="about">Sobre</TabsTrigger>
+          <TabsTrigger value="accounts">Contas</TabsTrigger>
         </TabsList>
-        
-        <TabsContent value="general" className="space-y-4">
+
+        <TabsContent value="general" className="space-y-4 mt-6">
+          {/* General settings content */}
           <Card>
             <CardHeader>
-              <CardTitle>Aparência</CardTitle>
+              <CardTitle>Configurações Gerais</CardTitle>
               <CardDescription>
-                Personalize a aparência do Master Sequence
+                Configure as opções gerais do sistema
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <h3 className="text-sm font-medium">Tema</h3>
-                <div className="flex space-x-4">
-                  <div
-                    className={`border rounded-md p-4 cursor-pointer flex flex-col items-center ${
-                      theme === "light" ? "border-primary bg-primary/10" : ""
-                    }`}
-                    onClick={() => setTheme("light")}
-                  >
-                    <div className="w-10 h-10 bg-white rounded-full mb-2 shadow-sm"></div>
-                    <span className="text-sm">Claro</span>
+                <Label htmlFor="system-name">Nome do Sistema</Label>
+                <Input id="system-name" defaultValue="Master Sequence" />
+                <p className="text-sm text-muted-foreground">
+                  Nome que aparece no cabeçalho e no título da página
+                </p>
+              </div>
+              
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="dark-mode">Modo Escuro</Label>
+                  <Switch id="dark-mode" />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Ativar tema escuro por padrão
+                </p>
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Button>Salvar Alterações</Button>
+            </CardFooter>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="time-restrictions" className="space-y-4 mt-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-xl font-semibold">Restrições de Horário</h2>
+              <p className="text-sm text-muted-foreground">
+                Configure restrições globais de horário para as sequências
+              </p>
+            </div>
+            
+            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <PlusCircle className="h-4 w-4 mr-2" />
+                  Nova Restrição
+                </Button>
+              </DialogTrigger>
+              
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Adicionar Restrição de Horário</DialogTitle>
+                  <DialogDescription>
+                    Mensagens não serão enviadas nos dias e horários selecionados.
+                  </DialogDescription>
+                </DialogHeader>
+                
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="restriction-name">Nome da Restrição</Label>
+                    <Input 
+                      id="restriction-name" 
+                      value={newRestriction.name} 
+                      onChange={(e) => setNewRestriction({ ...newRestriction, name: e.target.value })}
+                      placeholder="Ex: Horário comercial"
+                    />
                   </div>
-                  <div
-                    className={`border rounded-md p-4 cursor-pointer flex flex-col items-center ${
-                      theme === "dark" ? "border-primary bg-primary/10" : ""
-                    }`}
-                    onClick={() => setTheme("dark")}
-                  >
-                    <div className="w-10 h-10 bg-gray-900 rounded-full mb-2 shadow-sm"></div>
-                    <span className="text-sm">Escuro</span>
+                
+                  <div className="flex items-center space-x-2">
+                    <Label htmlFor="restriction-active">Ativa</Label>
+                    <Switch
+                      id="restriction-active"
+                      checked={newRestriction.active}
+                      onCheckedChange={(checked) => setNewRestriction({
+                        ...newRestriction,
+                        active: checked
+                      })}
+                    />
                   </div>
-                  <div
-                    className={`border rounded-md p-4 cursor-pointer flex flex-col items-center ${
-                      theme === "system" ? "border-primary bg-primary/10" : ""
-                    }`}
-                    onClick={() => setTheme("system")}
-                  >
-                    <div className="w-10 h-10 bg-gradient-to-r from-white to-gray-900 rounded-full mb-2 shadow-sm"></div>
-                    <span className="text-sm">Sistema</span>
+                  
+                  <div className="space-y-2">
+                    <Label>Dias da Semana</Label>
+                    <ToggleGroup 
+                      type="multiple" 
+                      variant="outline"
+                      className="justify-start"
+                      value={newRestriction.days.map(d => d.toString())}
+                      onValueChange={(value) => {
+                        if (value.length > 0) {
+                          setNewRestriction({
+                            ...newRestriction,
+                            days: value.map(v => parseInt(v))
+                          });
+                        }
+                      }}
+                    >
+                      {[
+                        { value: "0", label: "D" },
+                        { value: "1", label: "S" },
+                        { value: "2", label: "T" },
+                        { value: "3", label: "Q" },
+                        { value: "4", label: "Q" },
+                        { value: "5", label: "S" },
+                        { value: "6", label: "S" }
+                      ].map(day => (
+                        <ToggleGroupItem 
+                          key={day.value} 
+                          value={day.value} 
+                          aria-label={getDayName(parseInt(day.value))}
+                          title={getDayName(parseInt(day.value))}
+                          className="w-9 h-9 rounded-full data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+                        >
+                          {day.label}
+                        </ToggleGroupItem>
+                      ))}
+                    </ToggleGroup>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Horário de Início</Label>
+                      <div className="flex mt-2 space-x-2">
+                        <Select
+                          value={newRestriction.startHour.toString()}
+                          onValueChange={(value) => 
+                            setNewRestriction({
+                              ...newRestriction,
+                              startHour: parseInt(value),
+                            })
+                          }
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Array.from({ length: 24 }, (_, i) => (
+                              <SelectItem key={`start-hour-${i}`} value={i.toString()}>
+                                {i.toString().padStart(2, "0")}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <span className="flex items-center">:</span>
+                        <Select
+                          value={newRestriction.startMinute.toString()}
+                          onValueChange={(value) => 
+                            setNewRestriction({
+                              ...newRestriction,
+                              startMinute: parseInt(value),
+                            })
+                          }
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {[0, 15, 30, 45].map((minute) => (
+                              <SelectItem key={`start-min-${minute}`} value={minute.toString()}>
+                                {minute.toString().padStart(2, "0")}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div>
+                      <Label>Horário de Término</Label>
+                      <div className="flex mt-2 space-x-2">
+                        <Select
+                          value={newRestriction.endHour.toString()}
+                          onValueChange={(value) => 
+                            setNewRestriction({
+                              ...newRestriction,
+                              endHour: parseInt(value),
+                            })
+                          }
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Array.from({ length: 24 }, (_, i) => (
+                              <SelectItem key={`end-hour-${i}`} value={i.toString()}>
+                                {i.toString().padStart(2, "0")}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <span className="flex items-center">:</span>
+                        <Select
+                          value={newRestriction.endMinute.toString()}
+                          onValueChange={(value) => 
+                            setNewRestriction({
+                              ...newRestriction,
+                              endMinute: parseInt(value),
+                            })
+                          }
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {[0, 15, 30, 45].map((minute) => (
+                              <SelectItem key={`end-min-${minute}`} value={minute.toString()}>
+                                {minute.toString().padStart(2, "0")}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancelar</Button>
+                  <Button onClick={handleAddRestriction}>Adicionar</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+          
+          {timeRestrictions.length === 0 ? (
+            <Card className="p-8 flex flex-col items-center justify-center text-center">
+              <div className="rounded-full bg-muted p-3 mb-4">
+                <Clock className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <h3 className="font-semibold text-lg mb-1">Nenhuma restrição de horário</h3>
+              <p className="text-muted-foreground mb-4">
+                Adicione restrições de horário para controlar quando as mensagens não serão enviadas
+              </p>
+              <Button onClick={() => setIsAddDialogOpen(true)}>
+                <PlusCircle className="h-4 w-4 mr-2" />
+                Nova Restrição
+              </Button>
+            </Card>
+          ) : (
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+              {timeRestrictions.map((restriction) => {
+                const sequencesUsingThis = getSequencesUsingRestriction(restriction.id);
+                const isEditing = editingRestrictionId === restriction.id;
+                const [editingRestriction, setEditingRestriction] = useState<TimeRestriction>({...restriction});
+                
+                const startEditing = () => {
+                  setEditingRestrictionId(restriction.id);
+                  setEditingRestriction({...restriction});
+                };
+                
+                const cancelEditing = () => {
+                  setEditingRestrictionId(null);
+                };
+                
+                return (
+                  <Card key={restriction.id}>
+                    <CardHeader className="pb-3">
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center">
+                          <span 
+                            className={cn(
+                              "w-2 h-2 rounded-full mr-2",
+                              restriction.active ? "bg-green-500" : "bg-gray-400"
+                            )}
+                          />
+                          {isEditing ? (
+                            <Input
+                              value={editingRestriction.name}
+                              onChange={(e) => setEditingRestriction({
+                                ...editingRestriction,
+                                name: e.target.value
+                              })}
+                              className="max-w-[200px]"
+                            />
+                          ) : (
+                            <CardTitle className="text-lg">{restriction.name}</CardTitle>
+                          )}
+                        </div>
+                        
+                        {isEditing ? (
+                          <div className="flex space-x-2">
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={cancelEditing}
+                            >
+                              Cancelar
+                            </Button>
+                            <Button 
+                              variant="default" 
+                              size="sm" 
+                              onClick={() => handleUpdateRestriction(editingRestriction)}
+                            >
+                              <Save className="h-4 w-4 mr-2" />
+                              Salvar
+                            </Button>
+                          </div>
+                        ) : (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreVertical className="h-4 w-4" />
+                                <span className="sr-only">Ações</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={startEditing} className="cursor-pointer">
+                                <Edit className="h-4 w-4 mr-2" />
+                                Editar
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleRemoveRestriction(restriction.id)} className="text-red-500 cursor-pointer">
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Excluir
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
+                      <CardDescription>
+                        Usada em {sequencesUsingThis.length} sequência(s)
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="pb-3">
+                      {isEditing ? (
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <Label htmlFor={`restriction-active-${restriction.id}`}>Ativa</Label>
+                            <Switch
+                              id={`restriction-active-${restriction.id}`}
+                              checked={editingRestriction.active}
+                              onCheckedChange={(checked) => setEditingRestriction({
+                                ...editingRestriction,
+                                active: checked
+                              })}
+                            />
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label>Dias da Semana</Label>
+                            <ToggleGroup 
+                              type="multiple" 
+                              variant="outline"
+                              className="justify-start"
+                              value={editingRestriction.days.map(d => d.toString())}
+                              onValueChange={(value) => {
+                                if (value.length > 0) {
+                                  setEditingRestriction({
+                                    ...editingRestriction,
+                                    days: value.map(v => parseInt(v))
+                                  });
+                                }
+                              }}
+                            >
+                              {[
+                                { value: "0", label: "D" },
+                                { value: "1", label: "S" },
+                                { value: "2", label: "T" },
+                                { value: "3", label: "Q" },
+                                { value: "4", label: "Q" },
+                                { value: "5", label: "S" },
+                                { value: "6", label: "S" }
+                              ].map(day => (
+                                <ToggleGroupItem 
+                                  key={day.value} 
+                                  value={day.value} 
+                                  aria-label={getDayName(parseInt(day.value))}
+                                  title={getDayName(parseInt(day.value))}
+                                  className="w-9 h-9 rounded-full data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+                                >
+                                  {day.label}
+                                </ToggleGroupItem>
+                              ))}
+                            </ToggleGroup>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <Label>Início</Label>
+                              <div className="flex mt-2 space-x-2">
+                                <Select
+                                  value={editingRestriction.startHour.toString()}
+                                  onValueChange={(value) => 
+                                    setEditingRestriction({
+                                      ...editingRestriction,
+                                      startHour: parseInt(value),
+                                    })
+                                  }
+                                >
+                                  <SelectTrigger className="w-full">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {Array.from({ length: 24 }, (_, i) => (
+                                      <SelectItem key={`edit-start-hour-${i}`} value={i.toString()}>
+                                        {i.toString().padStart(2, "0")}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <span className="flex items-center">:</span>
+                                <Select
+                                  value={editingRestriction.startMinute.toString()}
+                                  onValueChange={(value) => 
+                                    setEditingRestriction({
+                                      ...editingRestriction,
+                                      startMinute: parseInt(value),
+                                    })
+                                  }
+                                >
+                                  <SelectTrigger className="w-full">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {[0, 15, 30, 45].map((minute) => (
+                                      <SelectItem key={`edit-start-min-${minute}`} value={minute.toString()}>
+                                        {minute.toString().padStart(2, "0")}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                            <div>
+                              <Label>Término</Label>
+                              <div className="flex mt-2 space-x-2">
+                                <Select
+                                  value={editingRestriction.endHour.toString()}
+                                  onValueChange={(value) => 
+                                    setEditingRestriction({
+                                      ...editingRestriction,
+                                      endHour: parseInt(value),
+                                    })
+                                  }
+                                >
+                                  <SelectTrigger className="w-full">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {Array.from({ length: 24 }, (_, i) => (
+                                      <SelectItem key={`edit-end-hour-${i}`} value={i.toString()}>
+                                        {i.toString().padStart(2, "0")}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <span className="flex items-center">:</span>
+                                <Select
+                                  value={editingRestriction.endMinute.toString()}
+                                  onValueChange={(value) => 
+                                    setEditingRestriction({
+                                      ...editingRestriction,
+                                      endMinute: parseInt(value),
+                                    })
+                                  }
+                                >
+                                  <SelectTrigger className="w-full">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {[0, 15, 30, 45].map((minute) => (
+                                      <SelectItem key={`edit-end-min-${minute}`} value={minute.toString()}>
+                                        {minute.toString().padStart(2, "0")}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <div>
+                            <div className="text-sm font-medium mb-1">Status</div>
+                            <Badge variant={restriction.active ? "default" : "outline"}>
+                              {restriction.active ? "Ativa" : "Inativa"}
+                            </Badge>
+                          </div>
+                          
+                          <div>
+                            <div className="text-sm font-medium mb-1">Dias</div>
+                            <div className="flex flex-wrap gap-1">
+                              {restriction.days.map((day) => (
+                                <Badge key={day} variant="secondary" className="text-xs">
+                                  {getDayName(day).substring(0, 3)}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                          
+                          <div>
+                            <div className="text-sm font-medium mb-1">Horário</div>
+                            <span className="text-sm">
+                              {formatTime(restriction.startHour, restriction.startMinute)} às {formatTime(restriction.endHour, restriction.endMinute)}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="tags" className="space-y-4 mt-6">
+          {/* Tags content */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Gerenciamento de Tags</CardTitle>
+              <CardDescription>
+                Configure as tags disponíveis no sistema
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Adicionar Nova Tag</Label>
+                  <div className="flex space-x-2">
+                    <Input placeholder="Digite o nome da tag" />
+                    <Button>Adicionar</Button>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label>Tags Disponíveis</Label>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge className="px-2 py-1">
+                      cliente-novo
+                      <button className="ml-1 hover:bg-primary-foreground/20 rounded-full p-1">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                    <Badge className="px-2 py-1">
+                      interessado
+                      <button className="ml-1 hover:bg-primary-foreground/20 rounded-full p-1">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                    <Badge className="px-2 py-1">
+                      lead-quente
+                      <button className="ml-1 hover:bg-primary-foreground/20 rounded-full p-1">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
                   </div>
                 </div>
               </div>
             </CardContent>
+            <CardFooter>
+              <Button>Salvar Alterações</Button>
+            </CardFooter>
           </Card>
         </TabsContent>
-        
-        <TabsContent value="tags" className="space-y-4">
+
+        <TabsContent value="accounts" className="space-y-4 mt-6">
+          {/* Accounts content */}
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle>Gerenciamento de Tags</CardTitle>
+            <CardHeader>
+              <CardTitle>Usuários e Permissões</CardTitle>
               <CardDescription>
-                Adicione e remova tags disponíveis para uso nas sequências
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex space-x-2">
-                <Input
-                  placeholder="Digite o nome da tag"
-                  value={newTag}
-                  onChange={(e) => setNewTag(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      handleAddTag();
-                    }
-                  }}
-                />
-                <Button onClick={handleAddTag}>
-                  <PlusCircle className="h-4 w-4 mr-2" />
-                  Adicionar
-                </Button>
-              </div>
-              
-              <Separator />
-              
-              <div>
-                <h3 className="text-sm font-medium mb-2 flex items-center">
-                  <Tag className="h-4 w-4 mr-1" />
-                  Tags Disponíveis ({tags.length})
-                </h3>
-                
-                <ScrollArea className="h-[200px]">
-                  <div className="flex flex-wrap gap-2">
-                    {tags.length > 0 ? (
-                      tags.map(tag => (
-                        <Badge
-                          key={tag}
-                          variant="outline"
-                          className="py-1 flex items-center"
-                        >
-                          {tag}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-4 w-4 ml-1 hover:bg-transparent hover:text-red-500"
-                            onClick={() => handleRemoveTag(tag)}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </Badge>
-                      ))
-                    ) : (
-                      <div className="flex flex-col items-center justify-center w-full py-4 text-center">
-                        <AlertCircle className="h-8 w-8 text-muted-foreground mb-2" />
-                        <p className="text-muted-foreground">Nenhuma tag disponível</p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Adicione tags para utilizar nas condições de sequência
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </ScrollArea>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="restrictions" className="space-y-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle>Gerenciamento de Restrições</CardTitle>
-              <CardDescription>
-                Visualize e gerencie as restrições utilizadas nas sequências
+                Gerencie os usuários e suas permissões no sistema
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[200px]">Nome</TableHead>
-                      <TableHead>Descrição</TableHead>
-                      <TableHead className="w-[100px]">Uso</TableHead>
-                      <TableHead className="w-[80px] text-right">Ações</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {timeRestrictions && timeRestrictions.length > 0 ? timeRestrictions.map((restriction) => {
-                      const usage = getRestrictionUsage(restriction.id);
-                      
-                      return (
-                        <TableRow key={restriction.id}>
-                          <TableCell className="font-medium">{restriction.name}</TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {restriction.days.map(day => {
-                              const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-                              return dayNames[day];
-                            }).join(", ")} {restriction.startHour}:{restriction.startMinute.toString().padStart(2, '0')} - {restriction.endHour}:{restriction.endMinute.toString().padStart(2, '0')}
-                          </TableCell>
-                          <TableCell>
-                            {usage.count > 0 ? (
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className="text-blue-500 p-0 h-auto"
-                                onClick={() => handleShowSequences(restriction)}
-                              >
-                                {usage.count} sequência{usage.count > 1 ? 's' : ''}
-                              </Button>
-                            ) : (
-                              <span className="text-muted-foreground text-sm">Não utilizada</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                  <MoreVertical className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem className="cursor-pointer">
-                                  <Edit className="h-4 w-4 mr-2" />
-                                  Editar
-                                </DropdownMenuItem>
-                                <DropdownMenuItem 
-                                  className="cursor-pointer text-destructive focus:text-destructive"
-                                  onClick={() => removeTimeRestriction(restriction.id)}
-                                  disabled={usage.count > 0}
-                                >
-                                  <Trash2 className="h-4 w-4 mr-2" />
-                                  Excluir
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    }) : (
-                      <TableRow>
-                        <TableCell colSpan={4} className="h-24 text-center">
-                          <div className="flex flex-col items-center justify-center space-y-1">
-                            <AlertCircle className="h-6 w-6 text-muted-foreground" />
-                            <p className="text-muted-foreground">Nenhuma restrição encontrada</p>
-                            <p className="text-xs text-muted-foreground">
-                              As restrições são criadas ao configurar sequências
-                            </p>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="about" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Sobre o Master Sequence</CardTitle>
-              <CardDescription>
-                Informações sobre o aplicativo
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <h3 className="text-sm font-medium mb-1">Versão</h3>
-                <p className="text-muted-foreground">1.0.0</p>
-              </div>
-              
-              <div>
-                <h3 className="text-sm font-medium mb-1">Descrição</h3>
-                <p className="text-muted-foreground">
-                  Master Sequence é uma aplicação para setup e gerenciamento de sequências de follow-up
-                  no WhatsApp. Integra-se com a Evolution API, N8N e Chatwoot para criar fluxos de mensagens
-                  automatizados baseados em tags.
+              <div className="space-y-2">
+                <Label>Lista de Usuários</Label>
+                <p className="text-sm text-muted-foreground">
+                  Funcionalidade em desenvolvimento
                 </p>
               </div>
-              
-              <div>
-                <h3 className="text-sm font-medium mb-1">Documentação de API</h3>
-                <p className="text-muted-foreground">
-                  Acesse a documentação completa da API na seção de documentação.
-                </p>
-              </div>
-              
-              <div>
-                <h3 className="text-sm font-medium mb-1">Desenvolvido por</h3>
-                <p className="text-muted-foreground">Years In Box</p>
-              </div>
             </CardContent>
-            <CardFooter className="flex justify-end">
-              <Button variant="outline" asChild>
-                <a href="/api-docs">Ver Documentação da API</a>
-              </Button>
+            <CardFooter>
+              <Button>Adicionar Usuário</Button>
             </CardFooter>
           </Card>
         </TabsContent>
       </Tabs>
-      
-      <Dialog open={showSequences} onOpenChange={setShowSequences}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center">
-              <MessageCircle className="h-5 w-5 mr-2" />
-              Sequências que utilizam esta restrição
-            </DialogTitle>
-            <DialogDescription>
-              {selectedRestriction?.name}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nome da Sequência</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {selectedRestriction && getRestrictionUsage(selectedRestriction.id).sequences.map((sequence) => (
-                    <TableRow key={sequence.id}>
-                      <TableCell>{sequence.name}</TableCell>
-                      <TableCell>
-                        <Badge variant={sequence.status === "active" ? "success" : "destructive"}>
-                          {sequence.status === "active" ? "Ativa" : "Inativa"}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

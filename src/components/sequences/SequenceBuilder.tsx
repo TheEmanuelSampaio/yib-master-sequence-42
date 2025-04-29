@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { PlusCircle, Clock, Trash2, ChevronDown, ChevronUp, MessageCircle, FileCode, Bot, X, Edit, Save } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,6 +17,7 @@ import { Sequence, SequenceStage, TagCondition, TimeRestriction } from "@/types"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RestrictionItem } from "./RestrictionItem";
 import { StageItem } from "./StageItem";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 interface SequenceBuilderProps {
   sequence?: Sequence;
@@ -712,36 +712,42 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
                         />
                       </div>
                       
-                      <div>
+                      <div className="space-y-2">
                         <Label>Dias da Semana</Label>
-                        <div className="grid grid-cols-4 gap-2 mt-2">
-                          {[0, 1, 2, 3, 4, 5, 6].map((day) => (
-                            <div key={day} className="flex items-center space-x-2">
-                              <input
-                                type="checkbox"
-                                id={`day-${day}`}
-                                checked={newRestriction.days.includes(day)}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setNewRestriction({
-                                      ...newRestriction,
-                                      days: [...newRestriction.days, day],
-                                    });
-                                  } else {
-                                    setNewRestriction({
-                                      ...newRestriction,
-                                      days: newRestriction.days.filter(d => d !== day),
-                                    });
-                                  }
-                                }}
-                                className="rounded"
-                              />
-                              <Label htmlFor={`day-${day}`} className="text-sm">
-                                {getDayName(day)}
-                              </Label>
-                            </div>
+                        <ToggleGroup 
+                          type="multiple" 
+                          variant="outline"
+                          className="justify-start"
+                          value={newRestriction.days.map(d => d.toString())}
+                          onValueChange={(value) => {
+                            if (value.length > 0) {
+                              setNewRestriction({
+                                ...newRestriction,
+                                days: value.map(v => parseInt(v))
+                              });
+                            }
+                          }}
+                        >
+                          {[
+                            { value: "0", label: "D" },
+                            { value: "1", label: "S" },
+                            { value: "2", label: "T" },
+                            { value: "3", label: "Q" },
+                            { value: "4", label: "Q" },
+                            { value: "5", label: "S" },
+                            { value: "6", label: "S" }
+                          ].map(day => (
+                            <ToggleGroupItem 
+                              key={day.value} 
+                              value={day.value} 
+                              aria-label={getDayName(parseInt(day.value))}
+                              title={getDayName(parseInt(day.value))}
+                              className="w-9 h-9 rounded-full data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+                            >
+                              {day.label}
+                            </ToggleGroupItem>
                           ))}
-                        </div>
+                        </ToggleGroup>
                       </div>
                       
                       <div className="grid grid-cols-2 gap-4">
@@ -841,10 +847,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
                     </div>
                     
                     <DialogFooter>
-                      <div className="flex space-x-2">
-                        <Button variant="outline">Selecionar existente</Button>
-                        <Button onClick={addTimeRestriction}>Adicionar nova</Button>
-                      </div>
+                      <Button onClick={addTimeRestriction}>Adicionar</Button>
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>
