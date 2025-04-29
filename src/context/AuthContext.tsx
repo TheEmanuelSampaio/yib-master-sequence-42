@@ -1,3 +1,4 @@
+
 import { createContext, useContext, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,54 +24,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isSuper, setIsSuper] = useState(false);
   const [setupCompleted, setSetupCompleted] = useState<boolean | null>(null);
   const navigate = useNavigate();
-  
-  // Verifica o status de setup da aplicação
+
   useEffect(() => {
     const getAppSetup = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('app_setup')
-          .select('*')
-          .limit(1)
-          .single();
-  
-        if (error) {
-          console.error("Error fetching app setup:", error);
-          // Se não conseguir determinar, assume que precisa de setup
-          setSetupCompleted(false);
-        } else {
-          setSetupCompleted(data.setup_completed);
-        }
-      } catch (error) {
-        console.error("Error in getAppSetup:", error);
-        setSetupCompleted(false);
-      } finally {
-        // Garante que o loading sempre termina, mesmo em caso de erro
-        // setLoading(false); // Será definido no useEffect de autenticação
+      const { data, error } = await supabase
+        .from('app_setup')
+        .select('*')
+        .limit(1)
+        .single();
+
+      if (error) {
+        console.error("Error fetching app setup:", error);
+      } else {
+        setSetupCompleted(data.setup_completed);
       }
     };
 
     getAppSetup();
   }, []);
 
-  // Gerencia o estado de autenticação
   useEffect(() => {
-    let timeout: NodeJS.Timeout | null = null;
-    
-    // Define um timeout de segurança para garantir que o loading não fique infinito
-    timeout = setTimeout(() => {
-      if (loading) {
-        console.warn("Auth loading timeout reached - forcing load completion");
-        setLoading(false);
-      }
-    }, 5000); // 5 segundos de timeout máximo
+    setLoading(true);
 
-    // Inscreve-se para mudanças de estado de autenticação
+    // Subscribe to auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         if (session?.user) {
           try {
-            // Busca dados do perfil do usuário
+            // Get user profile data
             const { data: profileData, error: profileError } = await supabase
               .from('profiles')
               .select('*')
@@ -102,50 +83,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     );
 
-    // Verifica sessão atual
-    supabase.auth.getSession()
-      .then(({ data: { session } }) => {
-        if (session?.user) {
-          // Busca dados do perfil do usuário
-          return supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .single()
-            .then(({ data: profileData, error: profileError }) => {
-              if (profileError) {
-                console.error("Error fetching user profile:", profileError);
-                setUser(null);
-                setLoading(false);
-                return;
-              }
-
-              const userWithProfile = {
-                id: session.user.id,
-                email: session.user.email || "",
-                accountName: profileData.account_name,
-                role: profileData.role,
-                avatar: "",
-              };
-              
-              setUser(userWithProfile);
-              setIsSuper(profileData.role === "super_admin");
+    // Check current session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        // Get user profile data
+        supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single()
+          .then(({ data: profileData, error: profileError }) => {
+            if (profileError) {
+              console.error("Error fetching user profile:", profileError);
+              setUser(null);
               setLoading(false);
-            });
-        } else {
-          setUser(null);
-          setLoading(false);
-        }
-      })
-      .catch((error) => {
-        console.error("Error checking session:", error);
+              return;
+            }
+
+            const userWithProfile = {
+              id: session.user.id,
+              email: session.user.email || "",
+              accountName: profileData.account_name,
+              role: profileData.role,
+              avatar: "",
+            };
+            
+            setUser(userWithProfile);
+            setIsSuper(profileData.role === "super_admin");
+            setLoading(false);
+          });
+      } else {
         setUser(null);
         setLoading(false);
-      });
+      }
+    });
 
     return () => {
       subscription.unsubscribe();
-      if (timeout) clearTimeout(timeout);
     };
   }, []);
 
@@ -162,7 +136,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       toast.success("Login bem-sucedido!");
     } catch (error: any) {
       toast.error(`Erro ao fazer login: ${error.message}`);
-      throw error; // Re-throwing the error to be handled by the caller if needed
     }
   };
 
@@ -206,7 +179,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (error: any) {
       toast.error(`Erro ao criar conta: ${error.message}`);
-      throw error; // Re-throwing the error
+      throw error;
     }
   };
 
@@ -217,7 +190,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       toast.success("Logout realizado com sucesso!");
     } catch (error: any) {
       toast.error(`Erro ao fazer logout: ${error.message}`);
-      throw error; // Re-throwing the error
     }
   };
 
@@ -237,7 +209,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       toast.success("Setup concluído com sucesso!");
     } catch (error: any) {
       toast.error(`Erro ao completar setup: ${error.message}`);
-      throw error; // Re-throwing the error
     }
   };
 
