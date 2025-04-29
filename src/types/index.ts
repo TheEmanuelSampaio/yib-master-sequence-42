@@ -1,3 +1,4 @@
+
 export interface User {
   id: string;
   name: string;
@@ -52,4 +53,54 @@ export interface TimeRestriction {
   startMinute: number;
   endHour: number;
   endMinute: number;
+}
+
+// Add missing types
+export interface Contact {
+  id: string;
+  name: string;
+  phoneNumber: string;
+  tags: string[];
+  accountId: number;
+  accountName: string;
+  inboxId: number;
+  conversationId: number;
+}
+
+export interface ScheduledMessage {
+  id: string;
+  contactId: string;
+  sequenceId: string;
+  stageId: string;
+  scheduledAt: string;
+  sentAt?: string;
+  status: "scheduled" | "sent" | "failed";
+}
+
+export interface ContactSequence {
+  id: string;
+  contactId: string;
+  sequenceId: string;
+  currentStageIndex: number;
+  status: "active" | "completed" | "paused";
+  startedAt: string;
+  lastMessageAt?: string;
+}
+
+export interface DailyStats {
+  date: string;
+  messagesScheduled: number;
+  messagesSent: number;
+  messagesFailed: number;
+  newContacts: number;
+  completedSequences: number;
+}
+
+export interface StageProgressStatus {
+  id: string;
+  sequenceId: string;
+  stageId: string;
+  contactsReached: number;
+  contactsResponded: number;
+  clicksCount: number;
 }

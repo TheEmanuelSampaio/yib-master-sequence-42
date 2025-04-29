@@ -2,7 +2,7 @@
 import { User, Instance, Sequence, Contact, DailyStats } from '@/types';
 
 // Mock user
-export const mockUser: User = {
+export const user: User = {
   id: 'user-1',
   name: 'Usuário Demo',
   email: 'demo@example.com',
@@ -10,13 +10,14 @@ export const mockUser: User = {
 };
 
 // Mock instances
-export const mockInstances: Instance[] = [
+export const instances: Instance[] = [
   {
     id: 'instance-1',
     name: 'Instância Principal',
     evolutionApiUrl: 'https://evolution-api.example.com',
     apiKey: 'api-key-12345',
     createdAt: new Date(2023, 0, 15).toISOString(),
+    updatedAt: new Date(2023, 0, 15).toISOString(),
     active: true,
   },
   {
@@ -25,12 +26,13 @@ export const mockInstances: Instance[] = [
     evolutionApiUrl: 'https://evolution-api2.example.com',
     apiKey: 'api-key-67890',
     createdAt: new Date(2023, 2, 10).toISOString(),
+    updatedAt: new Date(2023, 2, 10).toISOString(),
     active: true,
   },
 ];
 
 // Mock sequences
-export const mockSequences: Sequence[] = [
+export const sequences: Sequence[] = [
   {
     id: 'sequence-1',
     name: 'Sequência de Boas-vindas',
@@ -72,6 +74,8 @@ export const mockSequences: Sequence[] = [
     timeRestrictions: [
       {
         id: 'restriction-1',
+        name: 'Fim de semana',
+        active: true,
         days: [0, 6], // Weekend
         startHour: 0,
         startMinute: 0,
@@ -80,6 +84,8 @@ export const mockSequences: Sequence[] = [
       },
       {
         id: 'restriction-2',
+        name: 'Noturno dias úteis',
+        active: true,
         days: [1, 2, 3, 4, 5], // Weekdays
         startHour: 22,
         startMinute: 0,
@@ -124,6 +130,8 @@ export const mockSequences: Sequence[] = [
     timeRestrictions: [
       {
         id: 'restriction-1',
+        name: 'Noturno dias úteis',
+        active: true,
         days: [1, 2, 3, 4, 5], // Weekdays
         startHour: 22,
         startMinute: 0,
@@ -216,7 +224,7 @@ export const mockSequences: Sequence[] = [
 ];
 
 // Mock contacts
-export const mockContacts: Contact[] = [
+export const contacts: Contact[] = [
   {
     id: '16087',
     name: 'Emanuel Years In Box',
@@ -269,8 +277,56 @@ export const mockContacts: Contact[] = [
   },
 ];
 
+// Available tags for contacts and sequences
+export const tags = [
+  'lead',
+  'website',
+  'inactive',
+  'premium',
+  'basic',
+  'google',
+  'produto-xpto',
+  'interesse-xyz',
+  'comprou-xyz',
+  'unsubscribe'
+];
+
+// Global time restrictions
+export const globalTimeRestrictions: TimeRestriction[] = [
+  {
+    id: 'global-restriction-1',
+    name: 'Fim de semana',
+    active: true,
+    days: [0, 6], // Weekend
+    startHour: 0,
+    startMinute: 0,
+    endHour: 23,
+    endMinute: 59,
+  },
+  {
+    id: 'global-restriction-2',
+    name: 'Noturno dias úteis',
+    active: true,
+    days: [1, 2, 3, 4, 5], // Weekdays
+    startHour: 22,
+    startMinute: 0,
+    endHour: 8,
+    endMinute: 0,
+  },
+  {
+    id: 'global-restriction-3',
+    name: 'Horário de almoço',
+    active: true,
+    days: [1, 2, 3, 4, 5], // Weekdays
+    startHour: 12,
+    startMinute: 0,
+    endHour: 14,
+    endMinute: 0,
+  }
+];
+
 // Mock daily stats for a week
-export const mockStats: DailyStats[] = [
+export const stats: DailyStats[] = [
   {
     date: new Date(Date.now() - 6 * 86400000).toISOString().split('T')[0],
     messagesScheduled: 24,
