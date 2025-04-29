@@ -46,6 +46,7 @@ interface AppContextType {
   updateUser: (id: string, data: { accountName?: string; role?: "super_admin" | "admin" }) => Promise<void>;
   deleteUser: (id: string) => Promise<void>;
   addTag: (tagName: string) => Promise<void>;
+  deleteTag: (tagName: string) => Promise<void>;
   refreshData: () => Promise<void>;
 }
 
@@ -825,6 +826,23 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const deleteTag = async (tagName: string) => {
+    try {
+      const { error } = await supabase
+        .from('tags')
+        .delete()
+        .eq('name', tagName);
+      
+      if (error) throw error;
+      
+      setTags(prev => prev.filter(tag => tag !== tagName));
+      toast.success("Tag removida com sucesso");
+    } catch (error: any) {
+      console.error("Error deleting tag:", error);
+      toast.error(`Erro ao remover tag: ${error.message}`);
+    }
+  };
+
   const value = {
     clients,
     instances,
@@ -856,6 +874,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     updateUser,
     deleteUser,
     addTag,
+    deleteTag,
     refreshData,
   };
 

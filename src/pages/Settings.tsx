@@ -26,6 +26,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { TimeRestriction } from "@/types";
 
 export default function Settings() {
   const { users, clients, tags, timeRestrictions, addUser, updateUser, deleteUser, addClient, updateClient, deleteClient, addTag, deleteTag, addTimeRestriction, updateTimeRestriction, deleteTimeRestriction } = useApp();
@@ -47,9 +48,9 @@ export default function Settings() {
     accountId: "",
   });
 
-  const [newTimeRestriction, setNewTimeRestriction] = useState({
+  const [newTimeRestriction, setNewTimeRestriction] = useState<Omit<TimeRestriction, "id">>({
     name: "",
-    days: ["mon", "tue", "wed", "thu", "fri"],
+    days: [0, 1, 2, 3, 4], // Mon-Fri as numbers (0-6 for days of week)
     startHour: 8,
     startMinute: 0,
     endHour: 18,
@@ -57,16 +58,7 @@ export default function Settings() {
     active: true
   });
 
-  const [editTimeRestriction, setEditTimeRestriction] = useState<{
-    id: string;
-    name: string;
-    days: string[];
-    startHour: number;
-    startMinute: number;
-    endHour: number;
-    endMinute: number;
-    active: boolean;
-  } | null>(null);
+  const [editTimeRestriction, setEditTimeRestriction] = useState<TimeRestriction | null>(null);
 
   const [editUser, setEditUser] = useState<{
     id: string;
@@ -188,7 +180,7 @@ export default function Settings() {
     }
     
     try {
-      await addTag({ name: newTagName.trim() });
+      await addTag(newTagName.trim());
       setNewTagName("");
       toast.success("Tag adicionada com sucesso");
     } catch (error) {
@@ -197,9 +189,9 @@ export default function Settings() {
     }
   };
 
-  const handleDeleteTag = async (id: string) => {
+  const handleDeleteTag = async (tagName: string) => {
     try {
-      await deleteTag(id);
+      await deleteTag(tagName);
       toast.success("Tag removida com sucesso");
     } catch (error) {
       console.error(error);
@@ -241,17 +233,32 @@ export default function Settings() {
     }
   };
 
-  const getDayLabel = (day: string) => {
-    const labels: Record<string, string> = {
-      mon: "Seg",
-      tue: "Ter", 
-      wed: "Qua", 
-      thu: "Qui", 
-      fri: "Sex", 
-      sat: "Sáb", 
-      sun: "Dom"
+  // Map day number to label
+  const getDayLabel = (day: number) => {
+    const labels: Record<number, string> = {
+      0: "Seg",
+      1: "Ter", 
+      2: "Qua", 
+      3: "Qui", 
+      4: "Sex", 
+      5: "Sáb", 
+      6: "Dom"
     };
-    return labels[day] || day;
+    return labels[day] || day.toString();
+  };
+
+  // Map day label to number
+  const getDayNumber = (day: string) => {
+    const numbers: Record<string, number> = {
+      "Seg": 0,
+      "Ter": 1, 
+      "Qua": 2, 
+      "Qui": 3, 
+      "Sex": 4, 
+      "Sáb": 5, 
+      "Dom": 6
+    };
+    return numbers[day] || 0;
   };
 
   const formatTime = (hour: number, minute: number) => {
@@ -276,6 +283,7 @@ export default function Settings() {
           <TabsTrigger value="general">Configurações Gerais</TabsTrigger>
         </TabsList>
         
+        {/* Accounts Tab */}
         <TabsContent value="accounts">
           <Card className="mt-6">
             <CardHeader className="flex flex-row items-center justify-between">
@@ -469,6 +477,7 @@ export default function Settings() {
           </Card>
         </TabsContent>
         
+        {/* Clients Tab */}
         <TabsContent value="clients">
           <Card className="mt-6">
             <CardHeader className="flex flex-row items-center justify-between">
@@ -629,6 +638,7 @@ export default function Settings() {
           </Card>
         </TabsContent>
         
+        {/* Time Restrictions Tab */}
         <TabsContent value="time-restrictions">
           <Card className="mt-6">
             <CardHeader className="flex flex-row items-center justify-between">
@@ -666,7 +676,7 @@ export default function Settings() {
                     <div className="space-y-2">
                       <Label>Dias da Semana</Label>
                       <div className="flex flex-wrap gap-2 mt-2">
-                        {["mon", "tue", "wed", "thu", "fri", "sat", "sun"].map((day) => (
+                        {[0, 1, 2, 3, 4, 5, 6].map((day) => (
                           <Badge 
                             key={day} 
                             variant={newTimeRestriction.days.includes(day) ? "default" : "outline"}
@@ -875,7 +885,7 @@ export default function Settings() {
                       <div className="space-y-2">
                         <Label>Dias da Semana</Label>
                         <div className="flex flex-wrap gap-2 mt-2">
-                          {["mon", "tue", "wed", "thu", "fri", "sat", "sun"].map((day) => (
+                          {[0, 1, 2, 3, 4, 5, 6].map((day) => (
                             <Badge 
                               key={day} 
                               variant={editTimeRestriction.days.includes(day) ? "default" : "outline"}
@@ -916,197 +926,3 @@ export default function Settings() {
                               onValueChange={(value) => setEditTimeRestriction({ ...editTimeRestriction, startMinute: parseInt(value) })}
                             >
                               <SelectTrigger>
-                                <SelectValue placeholder="Min" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {[0, 15, 30, 45].map((min) => (
-                                  <SelectItem key={min} value={min.toString()}>{min.toString().padStart(2, '0')}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <Label>Horário de Término</Label>
-                          <div className="flex items-center gap-2">
-                            <Select
-                              value={editTimeRestriction.endHour.toString()}
-                              onValueChange={(value) => setEditTimeRestriction({ ...editTimeRestriction, endHour: parseInt(value) })}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Hora" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {Array.from({ length: 24 }, (_, i) => (
-                                  <SelectItem key={i} value={i.toString()}>{i.toString().padStart(2, '0')}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <span>:</span>
-                            <Select
-                              value={editTimeRestriction.endMinute.toString()}
-                              onValueChange={(value) => setEditTimeRestriction({ ...editTimeRestriction, endMinute: parseInt(value) })}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Min" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {[0, 15, 30, 45].map((min) => (
-                                  <SelectItem key={min} value={min.toString()}>{min.toString().padStart(2, '0')}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center space-x-2 pt-2">
-                        <Switch
-                          id="edit-active"
-                          checked={editTimeRestriction.active}
-                          onCheckedChange={(checked) => setEditTimeRestriction({ ...editTimeRestriction, active: checked })}
-                        />
-                        <Label htmlFor="edit-active">Ativa</Label>
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setEditTimeRestriction(null)}>
-                        Cancelar
-                      </Button>
-                      <Button onClick={handleEditTimeRestriction}>
-                        Atualizar
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="tags">
-          <Card className="mt-6">
-            <CardHeader>
-              <CardTitle>Gerenciamento de Tags</CardTitle>
-              <CardDescription>
-                Adicione e remova tags disponíveis para uso nas sequências
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                <div className="grid gap-4">
-                  <Label>Adicionar Nova Tag</Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      value={newTagName}
-                      onChange={(e) => setNewTagName(e.target.value)}
-                      placeholder="Digite o nome da tag"
-                      className="flex-1"
-                    />
-                    <Button onClick={handleAddTag}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Adicionar
-                    </Button>
-                  </div>
-                </div>
-                
-                <div>
-                  <Label className="mb-3 block">Tags Disponíveis ({tags.length})</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {tags.map((tag) => (
-                      <div key={tag.id} className="flex items-center bg-secondary text-secondary-foreground rounded-full px-3 py-1">
-                        <Tag className="h-3 w-3 mr-2" />
-                        <span className="text-sm">{tag.name}</span>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-5 w-5 ml-1 hover:text-destructive"
-                          onClick={() => handleDeleteTag(tag.id)}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    ))}
-                    
-                    {tags.length === 0 && (
-                      <div className="w-full p-8 flex flex-col items-center justify-center border border-dashed rounded-lg">
-                        <Tag className="h-8 w-8 text-muted-foreground mb-2" />
-                        <p className="text-muted-foreground text-center">
-                          Nenhuma tag disponível. Adicione tags para utilizá-las nas sequências.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="general">
-          <Card className="mt-6">
-            <CardHeader>
-              <CardTitle>Configurações Gerais</CardTitle>
-              <CardDescription>
-                Ajuste as configurações gerais do sistema
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="notifications">Notificações</Label>
-                    <div className="text-sm text-muted-foreground">
-                      Receber notificações por email
-                    </div>
-                  </div>
-                  <Switch id="notifications" />
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="usage-stats">Estatísticas de Uso</Label>
-                    <div className="text-sm text-muted-foreground">
-                      Compartilhar estatísticas anônimas de uso
-                    </div>
-                  </div>
-                  <Switch id="usage-stats" />
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label>Backup Automático</Label>
-                <Select defaultValue="daily">
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione a frequência" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="daily">Diário</SelectItem>
-                    <SelectItem value="weekly">Semanal</SelectItem>
-                    <SelectItem value="monthly">Mensal</SelectItem>
-                    <SelectItem value="never">Nunca</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="border rounded-md p-4 flex items-center space-x-4">
-                <div className="bg-yellow-100 dark:bg-yellow-900 p-2 rounded-full">
-                  <Info className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
-                </div>
-                <div>
-                  <h4 className="font-semibold">Versão do Sistema</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Master Sequence v1.0.0
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
-}
