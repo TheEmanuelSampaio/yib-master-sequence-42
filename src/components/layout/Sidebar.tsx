@@ -1,120 +1,122 @@
 
-import {
-  Home,
-  LayoutDashboard,
-  ListChecks,
+import { NavLink } from 'react-router-dom';
+import { 
+  LayoutDashboard, 
+  List, 
   Settings,
   Users,
-  MessageSquare,
-} from "lucide-react";
+  MessageCircle,
+  ChevronLeft,
+  ChevronRight,
+  ArrowRightLeft
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
-import { useApp } from "@/context/AppContext";
-import { ThemeToggle } from "@/components/theme/ThemeToggle";
+interface SidebarProps {
+  collapsed: boolean;
+  onToggle: () => void;
+}
 
-const SidebarNavItem = ({
-  href,
-  label,
-  icon: Icon,
-}: {
-  href: string;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-}) => {
-  // We'll use window.location.pathname instead of usePathname from Next.js
-  const pathname = window.location.pathname;
-  const isActive = pathname === href;
+const navItems = [
+  {
+    title: 'Dashboard',
+    href: '/',
+    icon: LayoutDashboard,
+  },
+  {
+    title: 'Sequências',
+    href: '/sequences',
+    icon: List,
+  },
+  {
+    title: 'Contatos',
+    href: '/contacts',
+    icon: Users,
+  },
+  {
+    title: 'Mensagens',
+    href: '/messages',
+    icon: MessageCircle,
+  },
+  {
+    title: 'Instâncias',
+    href: '/instances',
+    icon: ArrowRightLeft,
+  },
+  {
+    title: 'Configurações',
+    href: '/settings',
+    icon: Settings,
+  },
+];
 
+export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   return (
-    <li>
-      <a href={href} className="w-full">
-        <Button variant="ghost" className={`w-full justify-start ${isActive ? 'bg-accent text-accent-foreground' : ''}`}>
-          <Icon className="mr-2 h-4 w-4" />
-          {label}
-        </Button>
-      </a>
-    </li>
-  );
-};
-
-export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
-  const { user, currentInstance } = useApp();
-
-  return (
-    <div className={`sidebar fixed left-0 top-0 z-40 h-screen ${collapsed ? 'w-20' : 'w-60'} overflow-y-auto border-r bg-secondary py-4 transition-all duration-300`}>
-      <ScrollArea className="h-[calc(100vh-8rem)] px-3">
-        <div className="mb-4 flex items-center space-x-2 px-4">
+    <div 
+      className={cn(
+        "h-screen bg-sidebar border-r border-sidebar-border transition-width duration-300 ease-in-out relative",
+        collapsed ? "w-16" : "w-64"
+      )}
+    >
+      <div className="flex items-center justify-between h-16 px-4 border-b border-sidebar-border">
+        <div className={cn("flex items-center", collapsed && "justify-center w-full")}>
           {!collapsed && (
-            <>
-              <Avatar>
-                <AvatarFallback>{user?.name?.charAt(0).toUpperCase()}</AvatarFallback>
-              </Avatar>
-              <div>
-                <p className="text-sm font-semibold">{user?.name}</p>
-                <p className="text-xs text-muted-foreground">{user?.email}</p>
-              </div>
-            </>
+            <span className="text-xl font-semibold text-sidebar-foreground">
+              Master Sequence
+            </span>
           )}
           {collapsed && (
-            <Avatar>
-              <AvatarFallback>{user?.name?.charAt(0).toUpperCase()}</AvatarFallback>
-            </Avatar>
+            <span className="text-xl font-semibold text-sidebar-foreground">
+              MS
+            </span>
           )}
         </div>
-        <Separator className="mb-4" />
-        <nav className="flex flex-col space-y-1">
-          <ul>
-            <SidebarNavItem href="/" label={collapsed ? "" : "Dashboard"} icon={LayoutDashboard} />
-            <SidebarNavItem href="/instances" label={collapsed ? "" : "Instances"} icon={MessageSquare} />
-            <SidebarNavItem href="/sequences" label={collapsed ? "" : "Sequences"} icon={ListChecks} />
-            <SidebarNavItem href="/contacts" label={collapsed ? "" : "Contacts"} icon={Users} />
-          </ul>
-          <Separator />
-          <ul>
-            <SidebarNavItem href="/settings" label={collapsed ? "" : "Settings"} icon={Settings} />
-          </ul>
-        </nav>
-      </ScrollArea>
-      <div className="absolute bottom-0 left-0 w-full border-t p-4">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="w-full justify-start">
-              {currentInstance ? (
-                <>
-                  <MessageSquare className="mr-2 h-4 w-4" />
-                  {!collapsed && currentInstance.name}
-                </>
-              ) : (
-                <>
-                  <MessageSquare className="mr-2 h-4 w-4" />
-                  {!collapsed && "Select Instance"}
-                </>
-              )}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem>
-              <a href="/instances" className="w-full">
-                Manage Instances
-              </a>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <ThemeToggle />
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
+      <button
+        className="absolute right-0 top-16 transform translate-x-1/2 bg-background border border-border rounded-full p-1 flex items-center justify-center"
+        onClick={onToggle}
+      >
+        {collapsed ? (
+          <ChevronRight className="h-4 w-4" />
+        ) : (
+          <ChevronLeft className="h-4 w-4" />
+        )}
+      </button>
+      <ScrollArea className="h-[calc(100vh-4rem)]">
+        <div className="py-4">
+          <nav className="space-y-1 px-2">
+            {navItems.map((item) => (
+              <NavLink
+                key={item.href}
+                to={item.href}
+                className={({ isActive }) =>
+                  cn(
+                    "flex items-center gap-3 rounded-md py-2 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors",
+                    isActive ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium" : "text-sidebar-foreground",
+                    collapsed ? "justify-center px-2" : "px-3"
+                  )
+                }
+              >
+                {collapsed ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <item.icon className="h-5 w-5 flex-shrink-0" />
+                    </TooltipTrigger>
+                    <TooltipContent side="right">{item.title}</TooltipContent>
+                  </Tooltip>
+                ) : (
+                  <>
+                    <item.icon className="h-5 w-5 flex-shrink-0" />
+                    <span>{item.title}</span>
+                  </>
+                )}
+              </NavLink>
+            ))}
+          </nav>
+        </div>
+      </ScrollArea>
     </div>
   );
 }

@@ -1,9 +1,10 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { 
   Instance, User, Sequence, Contact, ScheduledMessage, 
   ContactSequence, DailyStats, TagCondition, TimeRestriction, StageProgressStatus
 } from '@/types';
-import { instances, users, sequences, contacts, tags } from '@/lib/mockData';
+import { mockInstances, mockUser, mockSequences, mockContacts, mockStats } from '@/lib/mockData';
 import { toast } from 'sonner';
 
 // Utility functions
@@ -109,50 +110,6 @@ const updateDailyStats = (date: string, updates: Partial<Record<keyof Omit<Daily
   return updatedStats;
 };
 
-// Create mock stats data
-const mockStats: DailyStats[] = [
-  {
-    date: "2024-04-25",
-    messagesScheduled: 45,
-    messagesSent: 40,
-    messagesFailed: 5,
-    newContacts: 12,
-    completedSequences: 3
-  },
-  {
-    date: "2024-04-26",
-    messagesScheduled: 52,
-    messagesSent: 48,
-    messagesFailed: 4,
-    newContacts: 8,
-    completedSequences: 5
-  },
-  {
-    date: "2024-04-27",
-    messagesScheduled: 38,
-    messagesSent: 35,
-    messagesFailed: 3,
-    newContacts: 10,
-    completedSequences: 4
-  },
-  {
-    date: "2024-04-28",
-    messagesScheduled: 60,
-    messagesSent: 55,
-    messagesFailed: 5,
-    newContacts: 15,
-    completedSequences: 6
-  },
-  {
-    date: "2024-04-29",
-    messagesScheduled: 42,
-    messagesSent: 38,
-    messagesFailed: 4,
-    newContacts: 9,
-    completedSequences: 4
-  }
-];
-
 interface AppContextType {
   user: User | null;
   instances: Instance[];
@@ -194,9 +151,6 @@ export const useApp = () => {
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Create a mock user from the first user in the imported users array
-  const mockUser = users[0];
-  
   const [user, setUser] = useState<User | null>(() => {
     const saved = localStorage.getItem('ms_user');
     return saved ? JSON.parse(saved) : mockUser;
@@ -204,13 +158,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   
   const [instances, setInstances] = useState<Instance[]>(() => {
     const saved = localStorage.getItem('ms_instances');
-    return saved ? JSON.parse(saved) : instances;
+    return saved ? JSON.parse(saved) : mockInstances;
   });
   
   const [currentInstance, setCurrentInstance] = useState<Instance | null>(() => {
     const savedId = localStorage.getItem('ms_current_instance_id');
     const saved = localStorage.getItem('ms_instances');
-    const instanceList = saved ? JSON.parse(saved) : instances;
+    const instanceList = saved ? JSON.parse(saved) : mockInstances;
     
     if (savedId) {
       return instanceList.find((i: Instance) => i.id === savedId) || instanceList[0];
@@ -221,12 +175,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   
   const [sequences, setSequences] = useState<Sequence[]>(() => {
     const saved = localStorage.getItem('ms_sequences');
-    return saved ? JSON.parse(saved) : sequences;
+    return saved ? JSON.parse(saved) : mockSequences;
   });
   
   const [contacts, setContacts] = useState<Contact[]>(() => {
     const saved = localStorage.getItem('ms_contacts');
-    return saved ? JSON.parse(saved) : contacts;
+    return saved ? JSON.parse(saved) : mockContacts;
   });
   
   const [scheduledMessages, setScheduledMessages] = useState<ScheduledMessage[]>(() => {
@@ -246,7 +200,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   
   const [tags, setTags] = useState<string[]>(() => {
     const saved = localStorage.getItem('ms_tags');
-    return saved ? JSON.parse(saved) : tags;
+    return saved ? JSON.parse(saved) : ["lead", "google", "produto-xpto", "premium", "freemium", "newsletter", "website", "basic", "pro", "enterprise"];
   });
   
   useEffect(() => {

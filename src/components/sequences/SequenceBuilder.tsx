@@ -53,8 +53,6 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
   });
   
   const [newRestriction, setNewRestriction] = useState<Omit<TimeRestriction, "id">>({
-    name: "Restrição padrão",
-    active: true,
     days: [1, 2, 3, 4, 5], // Monday to Friday
     startHour: 22,
     startMinute: 0,
@@ -161,8 +159,6 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
     
     // Reset form
     setNewRestriction({
-      name: "Nova restrição",
-      active: true,
       days: [1, 2, 3, 4, 5],
       startHour: 22,
       startMinute: 0,
