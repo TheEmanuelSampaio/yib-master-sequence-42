@@ -33,6 +33,8 @@ export default function Instances() {
   const [apiKey, setApiKey] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<"all" | "active" | "inactive">("all");
+  const [editInstance, setEditInstance] = useState<Instance | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
   
   const handleAddInstance = () => {
     if (!name || !evolutionApiUrl || !apiKey) {
@@ -55,6 +57,36 @@ export default function Instances() {
     setEvolutionApiUrl("");
     setApiKey("");
     setOpen(false);
+    setIsEditing(false);
+    setEditInstance(null);
+  };
+
+  const startEditing = (instance: Instance) => {
+    setEditInstance(instance);
+    setName(instance.name);
+    setEvolutionApiUrl(instance.evolutionApiUrl);
+    setApiKey(instance.apiKey);
+    setIsEditing(true);
+    setOpen(true);
+  };
+  
+  const handleUpdateInstance = () => {
+    if (!editInstance) return;
+    
+    if (!name || !evolutionApiUrl || !apiKey) {
+      toast.error("Preencha todos os campos obrigatórios");
+      return;
+    }
+    
+    updateInstance(editInstance.id, {
+      name,
+      evolutionApiUrl,
+      apiKey,
+      active: editInstance.active
+    });
+    
+    toast.success(`Instância "${name}" atualizada com sucesso`);
+    resetForm();
   };
   
   const handleToggleInstance = (instance: Instance) => {
@@ -104,7 +136,10 @@ export default function Instances() {
           />
         </div>
         
-        <Button onClick={() => setOpen(true)}>
+        <Button onClick={() => {
+          resetForm();
+          setOpen(true);
+        }}>
           <Plus className="h-4 w-4 mr-2" />
           Nova Instância
         </Button>
@@ -134,12 +169,19 @@ export default function Instances() {
         </TabsContent>
       </Tabs>
       
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={(isOpen) => {
+        if (!isOpen) {
+          resetForm();
+        }
+        setOpen(isOpen);
+      }}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Adicionar Instância</DialogTitle>
+            <DialogTitle>{isEditing ? 'Editar Instância' : 'Adicionar Instância'}</DialogTitle>
             <DialogDescription>
-              Adicione uma nova instância do Evolution API para gerenciar as sequências.
+              {isEditing 
+                ? 'Atualize os dados da instância do Evolution API.'
+                : 'Adicione uma nova instância do Evolution API para gerenciar as sequências.'}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -171,7 +213,9 @@ export default function Instances() {
             <Button type="button" variant="secondary" onClick={resetForm}>
               Cancelar
             </Button>
-            <Button type="submit" onClick={handleAddInstance}>Adicionar</Button>
+            <Button type="submit" onClick={isEditing ? handleUpdateInstance : handleAddInstance}>
+              {isEditing ? 'Atualizar' : 'Adicionar'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -208,27 +252,25 @@ export default function Instances() {
         {instances.map((instance) => (
           <Card key={instance.id} className="hover:shadow-md transition-shadow">
             <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle>{instance.name}</CardTitle>
-                <div className="flex items-center">
-                  {instance.active ? 
-                    <Power className="h-4 w-4 text-green-500 mr-1" /> : 
-                    <PowerOff className="h-4 w-4 text-destructive mr-1" />
-                  }
-                  <Badge variant={instance.active ? "default" : "destructive"}>
-                    {instance.active ? "Ativa" : "Inativa"}
-                  </Badge>
-                </div>
-              </div>
+              <CardTitle>{instance.name}</CardTitle>
+              <CardDescription className="flex items-center mt-1">
+                {instance.active ? 
+                  <Power className="h-4 w-4 text-green-500 mr-1" /> : 
+                  <PowerOff className="h-4 w-4 text-destructive mr-1" />
+                }
+                <Badge variant={instance.active ? "default" : "destructive"}>
+                  {instance.active ? "Ativa" : "Inativa"}
+                </Badge>
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium">URL da API</Label>
-                <p className="text-sm text-muted-foreground">{instance.evolutionApiUrl}</p>
+                <p className="text-sm text-muted-foreground break-all">{instance.evolutionApiUrl}</p>
               </div>
               <div className="space-y-1">
                 <Label className="text-xs font-medium">API Key</Label>
-                <p className="text-sm text-muted-foreground">{instance.apiKey}</p>
+                <p className="text-sm text-muted-foreground break-all">{instance.apiKey}</p>
               </div>
             </CardContent>
             <CardFooter className="flex justify-between items-center">
@@ -247,7 +289,7 @@ export default function Instances() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => setOpen(true)} className="cursor-pointer">
+                  <DropdownMenuItem onClick={() => startEditing(instance)} className="cursor-pointer">
                     <Pencil className="h-4 w-4 mr-2" />
                     Editar
                   </DropdownMenuItem>
@@ -280,7 +322,10 @@ export default function Instances() {
         
         <Card 
           className="border-dashed h-full flex items-center justify-center cursor-pointer hover:bg-secondary/50 transition-colors"
-          onClick={() => setOpen(true)}
+          onClick={() => {
+            resetForm();
+            setOpen(true);
+          }}
         >
           <CardContent className="flex flex-col items-center justify-center space-y-2 p-4">
             <Plus className="h-6 w-6 text-muted-foreground" />
