@@ -4,8 +4,8 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AppProvider } from "@/context/AppContext";
 import { AuthProvider } from "@/context/AuthContext";
+import { AppProvider } from "@/context/AppContext";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { MainLayout } from "@/components/layout/MainLayout";
 
@@ -25,7 +25,14 @@ import Login from "./pages/Login";
 import { RequireAuth } from "./components/auth/RequireAuth";
 import { RequireSetup } from "./components/auth/RequireSetup";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -34,8 +41,6 @@ const App = () => (
         <AuthProvider>
           <AppProvider>
             <TooltipProvider>
-              <Toaster />
-              <Sonner />
               <Routes>
                 {/* Auth Routes */}
                 <Route path="/setup" element={<RequireSetup><Setup /></RequireSetup>} />
@@ -53,6 +58,8 @@ const App = () => (
                 {/* 404 Route */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
+              <Toaster />
+              <Sonner />
             </TooltipProvider>
           </AppProvider>
         </AuthProvider>

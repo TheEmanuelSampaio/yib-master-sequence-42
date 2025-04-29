@@ -1,26 +1,37 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Navigate } from "react-router-dom";
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, loading, user, setupCompleted } = useAuth();
   
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Se o usuário já está autenticado, redirecionar para a página inicial
+  if (user) {
+    return <Navigate to="/" />;
+  }
+
+  // Se o setup ainda não foi concluído, redirecionar para a página de setup
+  if (setupCompleted === false) {
+    return <Navigate to="/setup" />;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setIsSubmitting(true);
     
     try {
       await login(email, password);
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -43,6 +54,7 @@ export default function Login() {
                 placeholder="seu@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                disabled={isSubmitting}
                 required
               />
             </div>
@@ -53,13 +65,14 @@ export default function Login() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                disabled={isSubmitting}
                 required
               />
             </div>
           </CardContent>
           <CardFooter>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Entrando..." : "Entrar"}
+            <Button type="submit" className="w-full" disabled={isSubmitting || loading}>
+              {isSubmitting || loading ? "Entrando..." : "Entrar"}
             </Button>
           </CardFooter>
         </form>

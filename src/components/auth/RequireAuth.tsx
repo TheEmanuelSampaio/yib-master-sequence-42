@@ -1,18 +1,14 @@
 
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import { Spinner } from "@/components/layout/Spinner";
 
 export function RequireAuth({ children }: { children: JSX.Element }) {
   const { user, loading, setupCompleted } = useAuth();
   const location = useLocation();
 
   if (loading) {
-    // Show loading state
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-      </div>
-    );
+    return <Spinner />;
   }
 
   // Check if setup is completed

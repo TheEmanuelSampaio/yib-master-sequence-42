@@ -25,53 +25,77 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [setupCompleted, setSetupCompleted] = useState<boolean | null>(null);
   const navigate = useNavigate();
 
+  // Timeout para evitar que o carregamento fique preso indefinidamente
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (loading) {
+        console.warn("Auth loading timeout reached - forcing load completion");
+        setLoading(false);
+      }
+    }, 5000); // 5 segundos de timeout
+
+    return () => clearTimeout(timeout);
+  }, [loading]);
+
+  // Busca o status de setup do aplicativo
   useEffect(() => {
     const getAppSetup = async () => {
-      const { data, error } = await supabase
-        .from('app_setup')
-        .select('*')
-        .limit(1)
-        .single();
+      try {
+        const { data, error } = await supabase
+          .from('app_setup')
+          .select('*')
+          .limit(1)
+          .single();
 
-      if (error) {
+        if (error) {
+          console.error("Error fetching app setup:", error);
+          // Definir como null mas não manter o carregamento
+          setSetupCompleted(null);
+        } else {
+          setSetupCompleted(data.setup_completed);
+        }
+      } catch (error) {
         console.error("Error fetching app setup:", error);
-      } else {
-        setSetupCompleted(data.setup_completed);
+        setSetupCompleted(null);
       }
     };
 
     getAppSetup();
   }, []);
 
+  // Configura o listener de autenticação e busca a sessão atual
   useEffect(() => {
     setLoading(true);
 
-    // Subscribe to auth changes
+    // Primeiro configura o listener de mudanças de autenticação
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      async (event, session) => {
         if (session?.user) {
           try {
-            // Get user profile data
+            // Busca os dados do perfil do usuário
             const { data: profileData, error: profileError } = await supabase
               .from('profiles')
               .select('*')
               .eq('id', session.user.id)
               .single();
             
-            if (profileError) throw profileError;
-
-            const userWithProfile = {
-              id: session.user.id,
-              email: session.user.email || "",
-              accountName: profileData.account_name,
-              role: profileData.role,
-              avatar: "",
-            };
-            
-            setUser(userWithProfile);
-            setIsSuper(profileData.role === "super_admin");
+            if (profileError) {
+              console.error("Error fetching user profile:", profileError);
+              setUser(null);
+            } else {
+              const userWithProfile = {
+                id: session.user.id,
+                email: session.user.email || "",
+                accountName: profileData.account_name,
+                role: profileData.role,
+                avatar: "",
+              };
+              
+              setUser(userWithProfile);
+              setIsSuper(profileData.role === "super_admin");
+            }
           } catch (error) {
-            console.error("Error fetching user profile:", error);
+            console.error("Error in auth state change:", error);
             setUser(null);
           }
         } else {
@@ -83,40 +107,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     );
 
-    // Check current session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        // Get user profile data
-        supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single()
-          .then(({ data: profileData, error: profileError }) => {
+    // Depois verifica a sessão atual
+    const checkCurrentSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session?.user) {
+          try {
+            const { data: profileData, error: profileError } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', session.user.id)
+              .single();
+
             if (profileError) {
               console.error("Error fetching user profile:", profileError);
               setUser(null);
-              setLoading(false);
-              return;
+            } else {
+              const userWithProfile = {
+                id: session.user.id,
+                email: session.user.email || "",
+                accountName: profileData.account_name,
+                role: profileData.role,
+                avatar: "",
+              };
+              
+              setUser(userWithProfile);
+              setIsSuper(profileData.role === "super_admin");
             }
-
-            const userWithProfile = {
-              id: session.user.id,
-              email: session.user.email || "",
-              accountName: profileData.account_name,
-              role: profileData.role,
-              avatar: "",
-            };
-            
-            setUser(userWithProfile);
-            setIsSuper(profileData.role === "super_admin");
-            setLoading(false);
-          });
-      } else {
-        setUser(null);
+          } catch (error) {
+            console.error("Error fetching profile:", error);
+            setUser(null);
+          }
+        } else {
+          setUser(null);
+        }
+        
+        setLoading(false);
+      } catch (error) {
+        console.error("Error checking session:", error);
         setLoading(false);
       }
-    });
+    };
+    
+    checkCurrentSession();
 
     return () => {
       subscription.unsubscribe();
@@ -125,6 +159,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string) => {
     try {
+      setLoading(true);
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -136,11 +171,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       toast.success("Login bem-sucedido!");
     } catch (error: any) {
       toast.error(`Erro ao fazer login: ${error.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
   const signup = async (email: string, password: string, accountName: string, isSuper: boolean) => {
     try {
+      setLoading(true);
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -180,21 +218,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error: any) {
       toast.error(`Erro ao criar conta: ${error.message}`);
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 
   const logout = async () => {
     try {
+      setLoading(true);
       await supabase.auth.signOut();
       navigate("/login");
       toast.success("Logout realizado com sucesso!");
     } catch (error: any) {
       toast.error(`Erro ao fazer logout: ${error.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
   const completeSetup = async () => {
     try {
+      setLoading(true);
       const { error } = await supabase
         .from('app_setup')
         .update({ 
@@ -209,6 +253,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       toast.success("Setup concluído com sucesso!");
     } catch (error: any) {
       toast.error(`Erro ao completar setup: ${error.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 

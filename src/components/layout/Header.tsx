@@ -35,13 +35,31 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
     }
   };
 
+  // Caso não tenha user ou instâncias carregadas, mostrar versão simplificada
+  if (!user || !instances.length || !currentInstance) {
+    return (
+      <header className={cn(
+        "h-16 border-b border-border flex items-center justify-between px-4",
+        "bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
+      )}>
+        <div className="flex items-center gap-4">
+          <span className="text-lg font-semibold">Master Sequence</span>
+        </div>
+
+        <div className="flex items-center space-x-4">
+          <ThemeToggle />
+        </div>
+      </header>
+    );
+  }
+
   return (
     <header className={cn(
       "h-16 border-b border-border flex items-center justify-between px-4",
       "bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
     )}>
       <div className="flex items-center gap-4">
-        <Select onValueChange={handleInstanceChange} value={currentInstance?.id}>
+        <Select onValueChange={handleInstanceChange} value={currentInstance?.id || ""}>
           <SelectTrigger className="w-[180px] md:w-[220px]">
             <SelectValue placeholder="Selecionar instância" />
           </SelectTrigger>
@@ -62,15 +80,15 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
           <DropdownMenuTrigger asChild>
             <button className="outline-none">
               <Avatar className="h-8 w-8 border-2 border-primary bg-primary">
-                <AvatarFallback className="text-primary-foreground">{user?.accountName?.charAt(0)}</AvatarFallback>
+                <AvatarFallback className="text-primary-foreground">{user?.accountName?.charAt(0) || "U"}</AvatarFallback>
               </Avatar>
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <div className="flex items-center justify-start gap-2 p-2">
               <div className="flex flex-col space-y-1 leading-none">
-                <p className="font-medium text-sm">{user?.accountName}</p>
-                <p className="text-xs text-muted-foreground">{user?.email}</p>
+                <p className="font-medium text-sm">{user?.accountName || "Usuário"}</p>
+                <p className="text-xs text-muted-foreground">{user?.email || ""}</p>
               </div>
             </div>
             <DropdownMenuSeparator />
