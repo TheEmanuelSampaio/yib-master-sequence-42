@@ -126,16 +126,14 @@ export default function Instances() {
       </div>
       
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex w-full sm:max-w-sm items-center gap-2">
-          <div className="relative w-full">
-            <Input
-              placeholder="Buscar instâncias..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full"
-            />
-          </div>
-          <Button variant="ghost" size="icon" className="flex-shrink-0">
+        <div className="flex w-full sm:max-w-sm gap-2">
+          <Input
+            placeholder="Buscar instâncias..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full"
+          />
+          <Button variant="ghost" size="icon" className="flex-shrink-0 text-muted-foreground">
             <Search className="h-4 w-4" />
           </Button>
         </div>
@@ -173,16 +171,15 @@ export default function Instances() {
         </TabsContent>
       </Tabs>
       
-      {/* Fixed Dialog handling to prevent UI freezing after editing */}
+      {/* Fixed Dialog handling to prevent UI freezing and pointer-events issues */}
       <Dialog 
         open={open} 
         onOpenChange={(isOpen) => {
-          if (!isOpen) {
-            setTimeout(() => {
-              resetForm();
-            }, 100);
-          }
+          // Just update the state without any delays
           setOpen(isOpen);
+          if (!isOpen) {
+            resetForm();
+          }
         }}
       >
         <DialogContent className="sm:max-w-[425px]">
@@ -196,13 +193,13 @@ export default function Instances() {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="name" className="text-right">
+              <Label htmlFor="name" className="text-right text-base">
                 Nome
               </Label>
               <Input id="name" value={name} onChange={(e) => setName(e.target.value)} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="evolutionApiUrl" className="text-right">
+              <Label htmlFor="evolutionApiUrl" className="text-right text-base">
                 URL da API
               </Label>
               <Input
@@ -213,7 +210,7 @@ export default function Instances() {
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="apiKey" className="text-right">
+              <Label htmlFor="apiKey" className="text-right text-base">
                 API Key
               </Label>
               <Input id="apiKey" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} className="col-span-3" />
@@ -222,9 +219,7 @@ export default function Instances() {
           <DialogFooter>
             <Button type="button" variant="secondary" onClick={() => {
               setOpen(false);
-              setTimeout(() => {
-                resetForm();
-              }, 100);
+              resetForm();
             }}>
               Cancelar
             </Button>
@@ -266,12 +261,12 @@ export default function Instances() {
       <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
         {instances.map((instance) => (
           <Card key={instance.id} className="hover:shadow-md transition-shadow">
-            <CardHeader className="pb-2">
-              <CardTitle>{instance.name}</CardTitle>
-              <CardDescription className="flex items-center mt-1">
+            <CardHeader className="pb-1">
+              <CardTitle className="mb-1">{instance.name}</CardTitle>
+              <CardDescription className="flex items-center mt-2">
                 {instance.active ? 
-                  <Power className="h-4 w-4 text-green-500 mr-1" /> : 
-                  <PowerOff className="h-4 w-4 text-destructive mr-1" />
+                  <Power className="h-4 w-4 text-green-500 mr-2" /> : 
+                  <PowerOff className="h-4 w-4 text-destructive mr-2" />
                 }
                 <Badge variant={instance.active ? "default" : "destructive"}>
                   {instance.active ? "Ativa" : "Inativa"}
@@ -280,11 +275,11 @@ export default function Instances() {
             </CardHeader>
             <CardContent className="space-y-2">
               <div className="space-y-1">
-                <Label className="text-xs font-medium">URL da API</Label>
+                <Label className="text-sm font-medium text-base">URL da API</Label>
                 <p className="text-sm text-muted-foreground break-all">{instance.evolutionApiUrl}</p>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs font-medium">API Key</Label>
+                <Label className="text-xs font-medium text-base">API Key</Label>
                 <p className="text-sm text-muted-foreground break-all">{instance.apiKey}</p>
               </div>
             </CardContent>
