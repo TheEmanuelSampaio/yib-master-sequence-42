@@ -10,15 +10,20 @@ import { useEffect } from 'react';
 export function SequenceOverview() {
   const { sequences, currentInstance, refreshData } = useApp();
 
-  // Recarregar dados quando o componente montar
+  // Recarregar dados quando o componente montar ou quando a instância mudar
   useEffect(() => {
+    console.log("SequenceOverview - refreshing data");
     refreshData();
-  }, [refreshData]);
+  }, [refreshData, currentInstance]);
 
   // Filter sequences for current instance
   const instanceSequences = sequences.filter(seq => 
     seq.instanceId === currentInstance?.id
   );
+
+  console.log("SequenceOverview - sequences:", sequences);
+  console.log("SequenceOverview - current instance:", currentInstance);
+  console.log("SequenceOverview - instance sequences:", instanceSequences);
 
   const activeSequences = instanceSequences.filter(seq => seq.status === 'active');
   

@@ -11,7 +11,8 @@ import {
   Client,
   User,
   DailyStats,
-  StageProgress
+  StageProgress,
+  TagCondition
 } from "@/types";
 import { toast } from "sonner";
 
@@ -226,16 +227,20 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             endMinute: tr.end_minute
           }));
         
+        // Ensure startCondition.type and stopCondition.type are "AND" or "OR"
+        const startType = sequence.start_condition_type === "AND" ? "AND" : "OR";
+        const stopType = sequence.stop_condition_type === "AND" ? "AND" : "OR";
+        
         return {
           id: sequence.id,
           name: sequence.name,
           instanceId: sequence.instance_id,
           startCondition: {
-            type: sequence.start_condition_type,
+            type: startType as "AND" | "OR",
             tags: sequence.start_condition_tags
           },
           stopCondition: {
-            type: sequence.stop_condition_type,
+            type: stopType as "AND" | "OR",
             tags: sequence.stop_condition_tags
           },
           status: sequence.status,
@@ -403,15 +408,21 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
       
+      console.log("Adding sequence:", sequenceData);
+      
+      // Ensure start and stop condition types are valid
+      const startType = sequenceData.startCondition.type;
+      const stopType = sequenceData.stopCondition.type;
+      
       // First create the sequence
       const { data: seqData, error: seqError } = await supabase
         .from('sequences')
         .insert({
           instance_id: sequenceData.instanceId,
           name: sequenceData.name,
-          start_condition_type: sequenceData.startCondition.type,
+          start_condition_type: startType,
           start_condition_tags: sequenceData.startCondition.tags,
-          stop_condition_type: sequenceData.stopCondition.type,
+          stop_condition_type: stopType,
           stop_condition_tags: sequenceData.stopCondition.tags,
           status: sequenceData.status,
           created_by: user.id
@@ -421,11 +432,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       
       if (seqError) throw seqError;
       
+      console.log("Sequence created:", seqData);
+      
       // Then create the stages
       for (let i = 0; i < sequenceData.stages.length; i++) {
         const stage = sequenceData.stages[i];
         
-        const { error: stageError } = await supabase
+        const { data: stageData, error: stageError } = await supabase
           .from('sequence_stages')
           .insert({
             sequence_id: seqData.id,
@@ -436,26 +449,30 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             delay: stage.delay,
             delay_unit: stage.delayUnit,
             order_index: i
-          });
+          })
+          .select();
         
         if (stageError) throw stageError;
+        console.log("Stage created:", stageData);
       }
       
       // Finally, add time restrictions
       for (const restriction of sequenceData.timeRestrictions) {
-        const { error: restrictionError } = await supabase
+        const { data: restrictionData, error: restrictionError } = await supabase
           .from('sequence_time_restrictions')
           .insert({
             sequence_id: seqData.id,
             time_restriction_id: restriction.id
-          });
+          })
+          .select();
         
         if (restrictionError) throw restrictionError;
+        console.log("Restriction added:", restrictionData);
       }
       
       toast.success(`Sequência "${sequenceData.name}" criada com sucesso`);
       
-      // Importante: fazer um refresh completo dos dados para garantir que as novas sequências apareçam
+      // Fazer um refresh completo dos dados para garantir que as novas sequências apareçam
       await refreshData();
     } catch (error: any) {
       console.error("Error creating sequence:", error);
@@ -475,10 +492,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         if (sequenceData.name) updateData.name = sequenceData.name;
         if (sequenceData.status) updateData.status = sequenceData.status;
         if (sequenceData.startCondition) {
+          // Ensure valid "AND" or "OR" type
           updateData.start_condition_type = sequenceData.startCondition.type;
           updateData.start_condition_tags = sequenceData.startCondition.tags;
         }
         if (sequenceData.stopCondition) {
+          // Ensure valid "AND" or "OR" type
           updateData.stop_condition_type = sequenceData.stopCondition.type;
           updateData.stop_condition_tags = sequenceData.stopCondition.tags;
         }
