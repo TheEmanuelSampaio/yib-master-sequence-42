@@ -17,6 +17,7 @@ import Contacts from "./pages/Contacts";
 import Messages from "./pages/Messages";
 import Instances from "./pages/Instances";
 import Settings from "./pages/Settings";
+import UserManagement from "./pages/UserManagement";
 import ApiDocs from "./pages/ApiDocs";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
@@ -41,6 +42,7 @@ const App = () => (
                   <Route path="/contacts" element={<MainLayout><Contacts /></MainLayout>} />
                   <Route path="/messages" element={<MainLayout><Messages /></MainLayout>} />
                   <Route path="/instances" element={<MainLayout><Instances /></MainLayout>} />
+                  <Route path="/users" element={<MainLayout><UserManagement /></MainLayout>} />
                   <Route path="/settings" element={<MainLayout><Settings /></MainLayout>} />
                   <Route path="/api-docs" element={<MainLayout><ApiDocs /></MainLayout>} />
                 </Route>

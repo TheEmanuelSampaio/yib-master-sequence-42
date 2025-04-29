@@ -3,3 +3,6 @@ project_id = "jrgckmtzgeakzyiwghgm"
 
 [functions.tag-change]
 verify_jwt = false
+
+[functions.update-profile-structure]
+verify_jwt = false
