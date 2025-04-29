@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
-import { Clock, PlusCircle, MoreVertical, Edit, Trash2, CheckCircle, Save } from "lucide-react";
+import { Clock, PlusCircle, MoreVertical, Edit, Trash2, CheckCircle, Save, X } from "lucide-react";
 import { TimeRestriction } from "@/types";
 import { useToast } from "@/components/ui/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
