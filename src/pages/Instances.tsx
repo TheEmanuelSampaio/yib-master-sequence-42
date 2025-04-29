@@ -1,4 +1,14 @@
+import { useState } from "react";
 import { useApp } from '@/context/AppContext';
+import {
+  PlusCircle,
+  Settings,
+  Copy,
+  CheckCircle,
+  AlertTriangle
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Card,
   CardContent,
@@ -6,96 +16,79 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Switch } from '@/components/ui/switch';
-import { toast } from 'sonner';
-import { useState } from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Pencil, Trash2, Plus, Check, AlertCircle } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { Badge } from '@/components/ui/badge';
+} from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
+import { Label } from "@/components/ui/label";
 
 export default function Instances() {
   const { instances, currentInstance, addInstance, updateInstance, deleteInstance, setCurrentInstance } = useApp();
-  const [newInstanceForm, setNewInstanceForm] = useState({
-    name: '',
-    evolutionApiUrl: '',
-    apiKey: '',
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [formState, setFormState] = useState({
+    name: "",
+    evolutionApiUrl: "",
+    apiKey: ""
   });
-  const [editInstanceForm, setEditInstanceForm] = useState({
-    id: '',
-    name: '',
-    evolutionApiUrl: '',
-    apiKey: '',
-    active: true,
-  });
-  const [isNewDialogOpen, setIsNewDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  
-  const handleNewInstance = () => {
-    if (!newInstanceForm.name || !newInstanceForm.evolutionApiUrl || !newInstanceForm.apiKey) {
+  const [isCopied, setIsCopied] = useState(false);
+
+  const handleCopyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
+  };
+
+  // When adding a new instance
+  const handleAddInstance = () => {
+    if (!formState.name || !formState.evolutionApiUrl || !formState.apiKey) {
       toast.error("Preencha todos os campos obrigatórios");
       return;
     }
     
     addInstance({
-      name: newInstanceForm.name,
-      evolutionApiUrl: newInstanceForm.evolutionApiUrl,
-      apiKey: newInstanceForm.apiKey,
-      active: true,
+      name: formState.name,
+      evolutionApiUrl: formState.evolutionApiUrl,
+      apiKey: formState.apiKey,
+      active: true
     });
     
-    setNewInstanceForm({
-      name: '',
-      evolutionApiUrl: '',
-      apiKey: '',
+    setFormState({
+      name: "",
+      evolutionApiUrl: "",
+      apiKey: ""
     });
     
-    setIsNewDialogOpen(false);
+    setShowAddDialog(false);
   };
-  
-  const openEditDialog = (instance: any) => {
-    setEditInstanceForm({
-      id: instance.id,
-      name: instance.name,
-      evolutionApiUrl: instance.evolutionApiUrl,
-      apiKey: instance.apiKey,
-      active: instance.active,
-    });
-    setIsEditDialogOpen(true);
+
+  // When updating an instance
+  const handleUpdateInstance = (id: string, data: Partial<Omit<Instance, "id" | "createdAt" | "updatedAt">>) => {
+    updateInstance(id, data);
   };
-  
-  const handleEditInstance = () => {
-    if (!editInstanceForm.name || !editInstanceForm.evolutionApiUrl || !editInstanceForm.apiKey) {
-      toast.error("Preencha todos os campos obrigatórios");
-      return;
-    }
-    
-    updateInstance(editInstanceForm.id, {
-      name: editInstanceForm.name,
-      evolutionApiUrl: editInstanceForm.evolutionApiUrl,
-      apiKey: editInstanceForm.apiKey,
-      active: editInstanceForm.active,
-    });
-    
-    setIsEditDialogOpen(false);
-  };
-  
+
+  // When deleting an instance
   const handleDeleteInstance = (id: string) => {
     deleteInstance(id);
   };
-  
-  const handleSetCurrentInstance = (instance: any) => {
-    setCurrentInstance(instance);
-    toast.success(`Instância "${instance.name}" selecionada`);
-  };
-  
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col">
@@ -105,242 +98,203 @@ export default function Instances() {
         </p>
       </div>
       
-      <div className="flex items-center justify-between">
-        <div className="w-[400px]">
-          <Tabs defaultValue="all">
-            <TabsList className="w-full">
-              <TabsTrigger value="all" className="flex-1">Todas ({instances.length})</TabsTrigger>
-              <TabsTrigger value="active" className="flex-1">Ativas ({instances.filter(i => i.active).length})</TabsTrigger>
-              <TabsTrigger value="inactive" className="flex-1">Inativas ({instances.filter(i => !i.active).length})</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
-        
-        <Dialog open={isNewDialogOpen} onOpenChange={setIsNewDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Nova Instância
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Adicionar Nova Instância</DialogTitle>
-              <DialogDescription>
-                Informe os dados de conexão da sua instância da Evolution API.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="name">Nome da Instância</Label>
-                <Input
-                  id="name"
-                  value={newInstanceForm.name}
-                  onChange={(e) => setNewInstanceForm({ ...newInstanceForm, name: e.target.value })}
-                  placeholder="Minha Instância WhatsApp"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="evolutionApiUrl">URL da Evolution API</Label>
-                <Input
-                  id="evolutionApiUrl"
-                  value={newInstanceForm.evolutionApiUrl}
-                  onChange={(e) => setNewInstanceForm({ ...newInstanceForm, evolutionApiUrl: e.target.value })}
-                  placeholder="https://evolution-api.exemplo.com"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="apiKey">Chave da API</Label>
-                <Input
-                  id="apiKey"
-                  value={newInstanceForm.apiKey}
-                  onChange={(e) => setNewInstanceForm({ ...newInstanceForm, apiKey: e.target.value })}
-                  placeholder="sua-chave-api-aqui"
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsNewDialogOpen(false)}>Cancelar</Button>
-              <Button onClick={handleNewInstance}>Adicionar</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
-      
-      <Tabs defaultValue="all">
-        <TabsContent value="all" className="mt-6">
-          {renderInstanceList(instances)}
-        </TabsContent>
-        
-        <TabsContent value="active" className="mt-6">
-          {renderInstanceList(instances.filter(i => i.active))}
-        </TabsContent>
-        
-        <TabsContent value="inactive" className="mt-6">
-          {renderInstanceList(instances.filter(i => !i.active))}
-        </TabsContent>
-      </Tabs>
-      
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Editar Instância</DialogTitle>
-            <DialogDescription>
-              Atualize os dados da sua instância da Evolution API.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="edit-name">Nome da Instância</Label>
-              <Input
-                id="edit-name"
-                value={editInstanceForm.name}
-                onChange={(e) => setEditInstanceForm({ ...editInstanceForm, name: e.target.value })}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="edit-url">URL da Evolution API</Label>
-              <Input
-                id="edit-url"
-                value={editInstanceForm.evolutionApiUrl}
-                onChange={(e) => setEditInstanceForm({ ...editInstanceForm, evolutionApiUrl: e.target.value })}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="edit-key">Chave da API</Label>
-              <Input
-                id="edit-key"
-                value={editInstanceForm.apiKey}
-                onChange={(e) => setEditInstanceForm({ ...editInstanceForm, apiKey: e.target.value })}
-              />
-            </div>
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="active"
-                checked={editInstanceForm.active}
-                onCheckedChange={(checked) => setEditInstanceForm({ ...editInstanceForm, active: checked })}
-              />
-              <Label htmlFor="active">Instância Ativa</Label>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleEditInstance}>Salvar Alterações</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-
-  function renderInstanceList(instanceList: any[]) {
-    if (instanceList.length === 0) {
-      return (
-        <Card className="p-8 flex flex-col items-center justify-center text-center">
-          <div className="rounded-full bg-muted p-3 mb-4">
-            <AlertCircle className="h-6 w-6 text-muted-foreground" />
-          </div>
-          <h3 className="font-semibold text-lg mb-1">
-            Nenhuma instância encontrada
-          </h3>
-          <p className="text-muted-foreground mb-4">
-            Crie sua primeira instância para começar a usar o Master Sequence
-          </p>
-          <Button onClick={() => setIsNewDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Nova Instância
-          </Button>
-        </Card>
-      );
-    }
-    
-    return (
-      <div className="grid gap-6 grid-cols-1 md:grid-cols-3 lg:grid-cols-4">
-        {instanceList.map(instance => (
-          <Card key={instance.id} className={currentInstance?.id === instance.id ? "border-primary" : ""}>
-            <CardHeader className="pb-3">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center">
-                  <CardTitle className="text-lg">{instance.name}</CardTitle>
-                </div>
-                {!instance.active && (
-                  <Badge variant="outline" className="ml-2 text-xs">Inativa</Badge>
-                )}
-              </div>
-              <CardDescription>
-                Criada {formatDistanceToNow(new Date(instance.createdAt), { 
-                  addSuffix: true,
-                  locale: ptBR
-                })}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pb-3">
-              <div className="space-y-1.5">
+      <Card>
+        <CardHeader>
+          <CardTitle>Instância Ativa</CardTitle>
+          <CardDescription>
+            Informações da instância ativa no momento
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {currentInstance ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-xs text-muted-foreground">URL da API</Label>
-                  <p className="text-sm truncate">{instance.evolutionApiUrl}</p>
+                  <p className="text-sm font-medium">Nome</p>
+                  <p className="text-muted-foreground">{currentInstance.name}</p>
                 </div>
                 <div>
-                  <Label className="text-xs text-muted-foreground">Status</Label>
-                  <div className="flex items-center space-x-2">
-                    <div className={`w-2 h-2 rounded-full ${instance.active ? "bg-green-500" : "bg-red-500"}`} />
-                    <p className="text-sm">{instance.active ? "Online" : "Offline"}</p>
+                  <p className="text-sm font-medium">Status</p>
+                  <Badge variant={currentInstance.active ? "default" : "outline"}>
+                    {currentInstance.active ? "Ativa" : "Inativa"}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Evolution API URL</p>
+                  <div className="flex items-center">
+                    <p className="text-muted-foreground break-all">{currentInstance.evolutionApiUrl}</p>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="ml-2"
+                      onClick={() => handleCopyToClipboard(currentInstance.evolutionApiUrl)}
+                      disabled={isCopied}
+                    >
+                      {isCopied ? (
+                        <CheckCircle className="h-4 w-4" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm font-medium">API Key</p>
+                  <div className="flex items-center">
+                    <p className="text-muted-foreground break-all">{currentInstance.apiKey}</p>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="ml-2"
+                      onClick={() => handleCopyToClipboard(currentInstance.apiKey)}
+                      disabled={isCopied}
+                    >
+                      {isCopied ? (
+                        <CheckCircle className="h-4 w-4" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
+                    </Button>
                   </div>
                 </div>
               </div>
-            </CardContent>
-            <CardFooter className="flex flex-col space-y-2">
-              <div className="flex w-full space-x-2">
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  className="flex-1"
-                  onClick={() => openEditDialog(instance)}
-                >
-                  <Pencil className="h-4 w-4 mr-2" />
-                  Editar
-                </Button>
-                
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="ghost" size="sm" className="flex-1 text-red-500">
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Excluir
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Tem certeza?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Esta ação irá excluir permanentemente a instância "{instance.name}" 
-                        e todos os dados relacionados a ela.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                      <AlertDialogAction 
-                        onClick={() => handleDeleteInstance(instance.id)}
-                        className="bg-red-500 hover:bg-red-600"
-                      >
-                        Excluir
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </div>
-              
-              {currentInstance?.id !== instance.id ? (
-                <Button variant="outline" className="w-full" onClick={() => handleSetCurrentInstance(instance)}>
-                  Selecionar
-                </Button>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              Nenhuma instância ativa selecionada
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      
+      <div className="flex justify-end">
+        <Button onClick={() => setShowAddDialog(true)}>
+          <PlusCircle className="h-4 w-4 mr-2" />
+          Adicionar Instância
+        </Button>
+      </div>
+      
+      <Card>
+        <CardHeader>
+          <CardTitle>Gerenciar Instâncias</CardTitle>
+          <CardDescription>
+            Lista de instâncias cadastradas
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ScrollArea className="h-[300px]">
+            <div className="space-y-4">
+              {instances.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Nenhuma instância cadastrada
+                </div>
               ) : (
-                <Button variant="outline" className="w-full" disabled>
-                  <Check className="h-4 w-4 mr-1" /> Selecionada
-                </Button>
+                instances.map(instance => (
+                  <div key={instance.id} className="flex items-center justify-between border-b pb-3">
+                    <div className="space-y-1">
+                      <p className="font-medium">{instance.name}</p>
+                      <p className="text-sm text-muted-foreground">{instance.evolutionApiUrl}</p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Button 
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setCurrentInstance(instance)}
+                      >
+                        Selecionar
+                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <Settings className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <DropdownMenuItem className="text-red-500">
+                                  Excluir
+                                </DropdownMenuItem>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Excluir instância?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Tem certeza de que deseja excluir esta instância? Esta ação não pode ser desfeita.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                  <AlertDialogAction 
+                                    onClick={() => handleDeleteInstance(instance.id)}
+                                    className="bg-red-500 hover:bg-red-600"
+                                  >
+                                    Excluir
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+                ))
               )}
+            </div>
+          </ScrollArea>
+        </CardContent>
+      </Card>
+      
+      {/* Add Instance Dialog */}
+      {showAddDialog && (
+        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center">
+          <Card className="max-w-md w-full">
+            <CardHeader>
+              <CardTitle>Adicionar Nova Instância</CardTitle>
+              <CardDescription>
+                Preencha os campos abaixo para adicionar uma nova instância
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-2">
+                <Label htmlFor="name">Nome</Label>
+                <Input 
+                  id="name" 
+                  placeholder="Nome da Instância" 
+                  value={formState.name}
+                  onChange={(e) => setFormState({...formState, name: e.target.value})}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="evolutionApiUrl">Evolution API URL</Label>
+                <Input 
+                  id="evolutionApiUrl" 
+                  placeholder="URL da Evolution API" 
+                  value={formState.evolutionApiUrl}
+                  onChange={(e) => setFormState({...formState, evolutionApiUrl: e.target.value})}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="apiKey">API Key</Label>
+                <Input 
+                  id="apiKey" 
+                  placeholder="Chave de API" 
+                  value={formState.apiKey}
+                  onChange={(e) => setFormState({...formState, apiKey: e.target.value})}
+                />
+              </div>
+            </CardContent>
+            <CardFooter className="flex justify-end">
+              <Button variant="ghost" onClick={() => setShowAddDialog(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleAddInstance}>Adicionar</Button>
             </CardFooter>
           </Card>
-        ))}
-      </div>
-    );
-  }
+        </div>
+      )}
+    </div>
+  );
 }
