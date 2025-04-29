@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useApp } from '@/context/AppContext';
 import { Search, User, Tag, CheckCircle2, Clock, AlertCircle, ChevronDown, MoreVertical } from "lucide-react";
@@ -39,10 +40,15 @@ import { Contact, ContactSequence } from '@/types';
 import { cn } from '@/lib/utils';
 
 export default function Contacts() {
-  const { contacts, sequences, contactSequences, getContactSequences } = useApp();
+  const { contacts, sequences, contactSequences } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [showSequences, setShowSequences] = useState(false);
+  
+  // Helper function to get contact sequences
+  const getContactSequences = (contactId: string) => {
+    return contactSequences.filter(seq => seq.contactId === contactId);
+  };
   
   // Filter contacts based on search
   const filteredContacts = contacts.filter(contact =>

@@ -1,3 +1,4 @@
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useApp } from '@/context/AppContext';
 import { Badge } from '@/components/ui/badge';
@@ -6,7 +7,12 @@ import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 export function RecentContacts() {
-  const { contacts, getContactSequences } = useApp();
+  const { contacts, contactSequences } = useApp();
+
+  // Helper function to get contact sequences
+  const getContactSequences = (contactId: string) => {
+    return contactSequences.filter(seq => seq.contactId === contactId);
+  };
 
   // Get contacts with recent activity
   const contactsWithActivity = contacts

@@ -1,5 +1,6 @@
 
 import { useApp } from '@/context/AppContext';
+import { useAuth } from '@/context/AuthContext';
 import { ThemeToggle } from '@/components/theme/ThemeToggle';
 import { 
   DropdownMenu, 
@@ -24,7 +25,8 @@ interface HeaderProps {
 }
 
 export function Header({ sidebarCollapsed }: HeaderProps) {
-  const { user, instances, currentInstance, setCurrentInstance } = useApp();
+  const { instances, currentInstance, setCurrentInstance } = useApp();
+  const { user, logout } = useAuth();
 
   const handleInstanceChange = (instanceId: string) => {
     const instance = instances.find(inst => inst.id === instanceId);
@@ -60,14 +62,14 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
           <DropdownMenuTrigger asChild>
             <button className="outline-none">
               <Avatar className="h-8 w-8 border-2 border-primary bg-primary">
-                <AvatarFallback className="text-primary-foreground">{user?.name?.charAt(0)}</AvatarFallback>
+                <AvatarFallback className="text-primary-foreground">{user?.accountName?.charAt(0)}</AvatarFallback>
               </Avatar>
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <div className="flex items-center justify-start gap-2 p-2">
               <div className="flex flex-col space-y-1 leading-none">
-                <p className="font-medium text-sm">{user?.name}</p>
+                <p className="font-medium text-sm">{user?.accountName}</p>
                 <p className="text-xs text-muted-foreground">{user?.email}</p>
               </div>
             </div>
@@ -77,7 +79,7 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
               <Link to="/settings">Configurações</Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="cursor-pointer">Sair</DropdownMenuItem>
+            <DropdownMenuItem className="cursor-pointer" onClick={() => logout()}>Sair</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

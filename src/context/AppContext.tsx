@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
@@ -11,6 +10,8 @@ import {
   ContactSequence,
   Client,
   User,
+  DailyStats,
+  StageProgress
 } from "@/types";
 import { toast } from "sonner";
 
@@ -25,6 +26,7 @@ interface AppContextType {
   tags: string[];
   timeRestrictions: TimeRestriction[];
   users: User[];
+  stats: DailyStats[];
   setCurrentInstance: (instance: Instance) => void;
   addInstance: (instance: Omit<Instance, "id" | "createdAt" | "updatedAt" | "createdBy">) => void;
   updateInstance: (id: string, instance: Partial<Instance>) => void;
@@ -35,7 +37,8 @@ interface AppContextType {
   addTimeRestriction: (restriction: Omit<TimeRestriction, "id">) => void;
   updateTimeRestriction: (id: string, restriction: Partial<TimeRestriction>) => void;
   deleteTimeRestriction: (id: string) => void;
-  addContact: (contact: Omit<Contact, "id" | "createdAt" | "updatedAt">) => void;
+  addContact: (contact: Contact) => void;
+  getContactSequences: (contactId: string) => ContactSequence[];
   addClient: (client: Omit<Client, "id" | "createdAt" | "updatedAt" | "createdBy">) => void;
   updateClient: (id: string, client: Partial<Client>) => void;
   deleteClient: (id: string) => void;
@@ -61,6 +64,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [tags, setTags] = useState<string[]>([]);
   const [timeRestrictions, setTimeRestrictions] = useState<TimeRestriction[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [stats, setStats] = useState<DailyStats[]>([]);
+
+  // Get contact sequences helper function
+  const getContactSequences = (contactId: string): ContactSequence[] => {
+    return contactSequences.filter(cs => cs.contactId === contactId);
+  };
 
   // Fetch data when auth user changes
   useEffect(() => {
@@ -78,6 +87,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       setTags([]);
       setTimeRestrictions([]);
       setUsers([]);
+      setStats([]);
     }
   }, [user]);
 
@@ -582,7 +592,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const addContact = async (contactData: Omit<Contact, "id" | "createdAt" | "updatedAt">) => {
+  const addContact = async (contactData: Contact) => {
     try {
       const { error } = await supabase
         .from('contacts')
@@ -826,6 +836,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     tags,
     timeRestrictions,
     users,
+    stats,
     setCurrentInstance,
     addInstance,
     updateInstance,
@@ -837,6 +848,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     updateTimeRestriction,
     deleteTimeRestriction,
     addContact,
+    getContactSequences,
     addClient,
     updateClient,
     deleteClient,

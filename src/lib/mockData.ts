@@ -4,8 +4,9 @@ import { Instance, Sequence, User, Contact, DailyStats, TimeRestriction, TagCond
 // User mock data
 export const user: User = {
   id: "user-1",
-  name: "John Doe",
   email: "john@example.com",
+  accountName: "John Doe",
+  role: "super_admin",
   avatar: "/avatar.png"
 };
 
@@ -17,6 +18,8 @@ export const instances: Instance[] = [
     evolutionApiUrl: "https://api.example.com/evolution",
     apiKey: "api-key-1",
     active: true,
+    clientId: "client-1",
+    createdBy: "user-1",
     createdAt: "2023-12-01T10:00:00Z",
     updatedAt: "2023-12-01T10:00:00Z"
   },
@@ -26,6 +29,8 @@ export const instances: Instance[] = [
     evolutionApiUrl: "https://api2.example.com/evolution",
     apiKey: "api-key-2",
     active: true,
+    clientId: "client-2",
+    createdBy: "user-1",
     createdAt: "2023-12-15T14:30:00Z",
     updatedAt: "2023-12-15T14:30:00Z"
   }
@@ -180,50 +185,60 @@ export const contacts: Contact[] = [
     name: "Carlos Silva",
     phoneNumber: "5511999887766",
     tags: ["lead", "interessado", "orçamento"],
-    accountId: 1001,
-    accountName: "Empresa XYZ",
+    clientId: "client-1",
     inboxId: 101,
-    conversationId: 5001
+    conversationId: 5001,
+    displayId: 1001,
+    createdAt: "2023-12-01T10:00:00Z",
+    updatedAt: "2023-12-01T10:00:00Z"
   },
   {
     id: "16088",
     name: "Maria Oliveira",
     phoneNumber: "5511988776655",
     tags: ["cliente", "comprou"],
-    accountId: 1002,
-    accountName: "Loja ABC",
+    clientId: "client-2",
     inboxId: 102,
-    conversationId: 5002
+    conversationId: 5002,
+    displayId: 1002,
+    createdAt: "2023-12-01T11:00:00Z",
+    updatedAt: "2023-12-01T11:00:00Z"
   },
   {
     id: "16089",
     name: "João Santos",
     phoneNumber: "5511977665544",
     tags: ["lead", "novo"],
-    accountId: 1003,
-    accountName: "Consultoria XWZ",
+    clientId: "client-1",
     inboxId: 103,
-    conversationId: 5003
+    conversationId: 5003,
+    displayId: 1003,
+    createdAt: "2023-12-02T09:00:00Z",
+    updatedAt: "2023-12-02T09:00:00Z"
   },
   {
     id: "16090",
     name: "Ana Pereira",
     phoneNumber: "5511966554433",
     tags: ["abandonou"],
-    accountId: 1001,
-    accountName: "Empresa XYZ",
+    clientId: "client-1",
     inboxId: 101,
-    conversationId: 5004
+    conversationId: 5004,
+    displayId: 1004,
+    createdAt: "2023-12-03T14:00:00Z",
+    updatedAt: "2023-12-03T14:00:00Z"
   },
   {
     id: "16091",
     name: "Lucas Costa",
     phoneNumber: "5511955443322",
     tags: ["cliente", "comprou", "retorno"],
-    accountId: 1002,
-    accountName: "Loja ABC",
+    clientId: "client-2",
     inboxId: 102,
-    conversationId: 5005
+    conversationId: 5005,
+    displayId: 1005,
+    createdAt: "2023-12-04T16:00:00Z",
+    updatedAt: "2023-12-04T16:00:00Z"
   }
 ];
 
@@ -231,6 +246,7 @@ export const contacts: Contact[] = [
 export const stats: DailyStats[] = [
   {
     date: "2023-12-01",
+    instanceId: "instance-1",
     messagesScheduled: 25,
     messagesSent: 22,
     messagesFailed: 3,
@@ -239,6 +255,7 @@ export const stats: DailyStats[] = [
   },
   {
     date: "2023-12-02",
+    instanceId: "instance-1",
     messagesScheduled: 32,
     messagesSent: 30,
     messagesFailed: 2,
@@ -247,6 +264,7 @@ export const stats: DailyStats[] = [
   },
   {
     date: "2023-12-03",
+    instanceId: "instance-1",
     messagesScheduled: 18,
     messagesSent: 17,
     messagesFailed: 1,
@@ -255,6 +273,7 @@ export const stats: DailyStats[] = [
   },
   {
     date: "2023-12-04",
+    instanceId: "instance-1",
     messagesScheduled: 41,
     messagesSent: 38,
     messagesFailed: 3,
@@ -263,6 +282,7 @@ export const stats: DailyStats[] = [
   },
   {
     date: "2023-12-05",
+    instanceId: "instance-1",
     messagesScheduled: 29,
     messagesSent: 27,
     messagesFailed: 2,
@@ -271,6 +291,7 @@ export const stats: DailyStats[] = [
   },
   {
     date: "2023-12-06",
+    instanceId: "instance-1",
     messagesScheduled: 35,
     messagesSent: 33,
     messagesFailed: 2,
@@ -279,6 +300,7 @@ export const stats: DailyStats[] = [
   },
   {
     date: "2023-12-07",
+    instanceId: "instance-1",
     messagesScheduled: 43,
     messagesSent: 40,
     messagesFailed: 3,

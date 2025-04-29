@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Instance } from "@/types";
+import { Instance, Client } from "@/types";
 import { toast } from "sonner";
 import {
   ContextMenu,
@@ -24,13 +24,21 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export default function Instances() {
-  const { instances, addInstance, updateInstance, deleteInstance, currentInstance, setCurrentInstance } = useApp();
+  const { instances, clients, addInstance, updateInstance, deleteInstance, currentInstance, setCurrentInstance } = useApp();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [evolutionApiUrl, setEvolutionApiUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
+  const [clientId, setClientId] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<"all" | "active" | "inactive">("all");
   const [editInstance, setEditInstance] = useState<Instance | null>(null);
@@ -55,7 +63,7 @@ export default function Instances() {
   }, [open]);
   
   const handleAddInstance = () => {
-    if (!name || !evolutionApiUrl || !apiKey) {
+    if (!name || !evolutionApiUrl || !apiKey || !clientId) {
       toast.error("Preencha todos os campos obrigatórios");
       return;
     }
@@ -65,6 +73,7 @@ export default function Instances() {
       evolutionApiUrl,
       apiKey,
       active: true,
+      clientId
     });
     
     resetForm();
@@ -74,6 +83,7 @@ export default function Instances() {
     setName("");
     setEvolutionApiUrl("");
     setApiKey("");
+    setClientId("");
     setOpen(false);
     setIsEditing(false);
     setEditInstance(null);
@@ -86,6 +96,7 @@ export default function Instances() {
     setName(instance.name);
     setEvolutionApiUrl(instance.evolutionApiUrl);
     setApiKey(instance.apiKey);
+    setClientId(instance.clientId);
     setIsEditing(true);
     setOpen(true);
   };
@@ -93,7 +104,7 @@ export default function Instances() {
   const handleUpdateInstance = () => {
     if (!editInstance) return;
     
-    if (!name || !evolutionApiUrl || !apiKey) {
+    if (!name || !evolutionApiUrl || !apiKey || !clientId) {
       toast.error("Preencha todos os campos obrigatórios");
       return;
     }
@@ -102,7 +113,8 @@ export default function Instances() {
       name,
       evolutionApiUrl,
       apiKey,
-      active: editInstance.active
+      active: editInstance.active,
+      clientId
     });
     
     toast.success(`Instância "${name}" atualizada com sucesso`);
@@ -237,6 +249,23 @@ export default function Instances() {
               <Input id="name" value={name} onChange={(e) => setName(e.target.value)} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="client" className="text-right text-sm">
+                Cliente
+              </Label>
+              <Select value={clientId} onValueChange={setClientId}>
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Selecione um cliente" />
+                </SelectTrigger>
+                <SelectContent>
+                  {clients.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.accountName} (ID: {client.accountId})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="evolutionApiUrl" className="text-right text-sm">
                 URL da API
               </Label>
@@ -301,76 +330,84 @@ export default function Instances() {
     
     return (
       <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-        {instances.map((instance) => (
-          <Card key={instance.id} className="hover:shadow-md transition-shadow">
-            <CardHeader className="pb-1">
-              <CardTitle className="mb-3">{instance.name}</CardTitle>
-              <CardDescription className="flex items-center">
-                {instance.active ? 
-                  <Power className="h-4 w-4 text-green-500 mr-2" /> : 
-                  <PowerOff className="h-4 w-4 text-destructive mr-2" />
-                }
-                <Badge variant={instance.active ? "default" : "destructive"}>
-                  {instance.active ? "Ativa" : "Inativa"}
-                </Badge>
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <div className="space-y-1">
-                <Label className="text-sm font-medium">URL da API</Label>
-                <p className="text-sm text-muted-foreground break-all">{instance.evolutionApiUrl}</p>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-sm font-medium">API Key</Label>
-                <p className="text-sm text-muted-foreground break-all">{instance.apiKey}</p>
-              </div>
-            </CardContent>
-            <CardFooter className="flex justify-between items-center">
-              <Button 
-                variant={currentInstance?.id === instance.id ? "default" : "outline"} 
-                onClick={() => handleSelectInstance(instance)}
-              >
-                {currentInstance?.id === instance.id ? "Selecionada" : "Selecionar"}
-              </Button>
-              
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon">
-                    <MoreVertical className="h-4 w-4" />
-                    <span className="sr-only">Ações</span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => startEditing(instance)} className="cursor-pointer">
-                    <Pencil className="h-4 w-4 mr-2" />
-                    Editar
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleToggleInstance(instance)} className="cursor-pointer">
-                    {instance.active ? (
-                      <>
-                        <PowerOff className="h-4 w-4 mr-2" />
-                        Desativar
-                      </>
-                    ) : (
-                      <>
-                        <Power className="h-4 w-4 mr-2" />
-                        Ativar
-                      </>
-                    )}
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem 
-                    onClick={() => deleteInstance(instance.id)} 
-                    className="text-destructive cursor-pointer"
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Excluir
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </CardFooter>
-          </Card>
-        ))}
+        {instances.map((instance) => {
+          const clientName = clients.find(c => c.id === instance.clientId)?.accountName || "Cliente desconhecido";
+          
+          return (
+            <Card key={instance.id} className="hover:shadow-md transition-shadow">
+              <CardHeader className="pb-1">
+                <CardTitle className="mb-3">{instance.name}</CardTitle>
+                <CardDescription className="flex items-center">
+                  {instance.active ? 
+                    <Power className="h-4 w-4 text-green-500 mr-2" /> : 
+                    <PowerOff className="h-4 w-4 text-destructive mr-2" />
+                  }
+                  <Badge variant={instance.active ? "default" : "destructive"}>
+                    {instance.active ? "Ativa" : "Inativa"}
+                  </Badge>
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="space-y-1">
+                  <Label className="text-sm font-medium">Cliente</Label>
+                  <p className="text-sm text-muted-foreground">{clientName}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-sm font-medium">URL da API</Label>
+                  <p className="text-sm text-muted-foreground break-all">{instance.evolutionApiUrl}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-sm font-medium">API Key</Label>
+                  <p className="text-sm text-muted-foreground break-all">{instance.apiKey}</p>
+                </div>
+              </CardContent>
+              <CardFooter className="flex justify-between items-center">
+                <Button 
+                  variant={currentInstance?.id === instance.id ? "default" : "outline"} 
+                  onClick={() => handleSelectInstance(instance)}
+                >
+                  {currentInstance?.id === instance.id ? "Selecionada" : "Selecionar"}
+                </Button>
+                
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                      <MoreVertical className="h-4 w-4" />
+                      <span className="sr-only">Ações</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => startEditing(instance)} className="cursor-pointer">
+                      <Pencil className="h-4 w-4 mr-2" />
+                      Editar
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleToggleInstance(instance)} className="cursor-pointer">
+                      {instance.active ? (
+                        <>
+                          <PowerOff className="h-4 w-4 mr-2" />
+                          Desativar
+                        </>
+                      ) : (
+                        <>
+                          <Power className="h-4 w-4 mr-2" />
+                          Ativar
+                        </>
+                      )}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      onClick={() => deleteInstance(instance.id)} 
+                      className="text-destructive cursor-pointer"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Excluir
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </CardFooter>
+            </Card>
+          );
+        })}
         
         <Card 
           className="border-dashed h-full flex items-center justify-center cursor-pointer hover:bg-secondary/50 transition-colors"

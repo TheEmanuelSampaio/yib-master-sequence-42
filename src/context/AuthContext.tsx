@@ -201,7 +201,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setup_completed: true,
           setup_completed_at: new Date().toISOString()
         })
-        .eq('id', 1);
+        .eq('id', '1');
       
       if (error) throw error;
       
