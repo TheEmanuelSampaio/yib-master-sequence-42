@@ -126,14 +126,16 @@ export default function Instances() {
       </div>
       
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="relative w-full sm:max-w-sm">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+        <div className="relative w-full sm:max-w-sm flex items-center">
           <Input
             placeholder="Buscar instâncias..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-8"
+            className="w-full"
           />
+          <Button variant="ghost" className="h-9 px-2 text-muted-foreground absolute right-0">
+            <Search className="h-4 w-4" />
+          </Button>
         </div>
         
         <Button onClick={() => {
@@ -169,12 +171,15 @@ export default function Instances() {
         </TabsContent>
       </Tabs>
       
-      <Dialog open={open} onOpenChange={(isOpen) => {
-        if (!isOpen) {
-          resetForm();
-        }
-        setOpen(isOpen);
-      }}>
+      <Dialog 
+        open={open} 
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            resetForm();
+          }
+          setOpen(isOpen);
+        }}
+      >
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>{isEditing ? 'Editar Instância' : 'Adicionar Instância'}</DialogTitle>
