@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useApp } from '@/context/AppContext';
 import {
@@ -41,29 +40,19 @@ import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 export default function Sequences() {
-  const { sequences, currentInstance, addSequence, updateSequence, deleteSequence, refreshData } = useApp();
+  const { sequences, currentInstance, addSequence, updateSequence, deleteSequence, refreshData, isDataInitialized } = useApp();
   const [isCreateMode, setIsCreateMode] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [currentSequence, setCurrentSequence] = useState<Sequence | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [dataInitialized, setDataInitialized] = useState(false);
   
-  // Fetch data only once on mount and when currentInstance changes
+  // Fetch data only if not initialized yet
   useEffect(() => {
-    if (!dataInitialized && currentInstance) {
+    if (!isDataInitialized && currentInstance) {
       console.log("Sequences page - loading initial data");
-      refreshData().then(() => {
-        setDataInitialized(true);
-      });
+      refreshData();
     }
-  }, [refreshData, currentInstance, dataInitialized]);
-  
-  // Reset initialization flag when instance changes
-  useEffect(() => {
-    return () => {
-      setDataInitialized(false);
-    };
-  }, [currentInstance?.id]);
+  }, [refreshData, currentInstance, isDataInitialized]);
   
   const instanceSequences = sequences
     .filter(seq => seq.instanceId === currentInstance?.id)
@@ -84,9 +73,6 @@ export default function Sequences() {
       await addSequence(sequence);
       setIsCreateMode(false);
     }
-    
-    // Refresh data after adding/updating sequence
-    refreshData();
   };
   
   const handleEditSequence = (sequence: Sequence) => {

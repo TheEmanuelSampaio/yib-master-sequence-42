@@ -19,26 +19,23 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 
 interface HeaderProps {
   sidebarCollapsed: boolean;
 }
 
 export function Header({ sidebarCollapsed }: HeaderProps) {
-  const { instances, currentInstance, setCurrentInstance, refreshData } = useApp();
+  const { instances, currentInstance, setCurrentInstance, refreshData, isDataInitialized } = useApp();
   const { user, logout } = useAuth();
-  const [dataLoaded, setDataLoaded] = useState(false);
 
-  // Carregar dados apenas uma vez quando o componente montar
+  // Carregar dados apenas se ainda não foram inicializados e temos um usuário
   useEffect(() => {
-    if (user && !dataLoaded && (!instances || instances.length === 0)) {
+    if (user && !isDataInitialized) {
       console.log("Header - Initial data load");
-      refreshData().then(() => {
-        setDataLoaded(true);
-      });
+      refreshData();
     }
-  }, [user, instances, refreshData, dataLoaded]);
+  }, [user, refreshData, isDataInitialized]);
 
   const handleInstanceChange = (instanceId: string) => {
     const instance = instances?.find(inst => inst.id === instanceId);

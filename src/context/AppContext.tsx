@@ -1,3 +1,4 @@
+
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
@@ -49,6 +50,7 @@ interface AppContextType {
   addTag: (tagName: string) => Promise<void>;
   deleteTag: (tagName: string) => Promise<void>;
   refreshData: () => Promise<void>;
+  isDataInitialized: boolean;
 }
 
 export const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -68,6 +70,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [users, setUsers] = useState<User[]>([]);
   const [stats, setStats] = useState<DailyStats[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isDataInitialized, setIsDataInitialized] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState(0);
 
   // Get contact sequences helper function
   const getContactSequences = (contactId: string): ContactSequence[] => {
@@ -76,9 +80,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   // Fetch data when auth user changes
   useEffect(() => {
-    if (user) {
+    if (user && !isDataInitialized) {
+      console.log("Initial data load after authentication");
       refreshData();
-    } else {
+    } else if (!user) {
       // Clear data when user logs out
       setClients([]);
       setInstances([]);
@@ -91,14 +96,23 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       setTimeRestrictions([]);
       setUsers([]);
       setStats([]);
+      setIsDataInitialized(false);
     }
-  }, [user]);
+  }, [user, isDataInitialized]);
 
   const refreshData = async () => {
     if (!user || isRefreshing) return;
     
+    // Prevent rapid consecutive refreshes (throttle to once every 3 seconds)
+    const now = Date.now();
+    if (now - lastRefresh < 3000 && isDataInitialized) {
+      console.log("Refresh throttled - too soon since last refresh");
+      return;
+    }
+    
     try {
       setIsRefreshing(true);
+      setLastRefresh(now);
       console.log("Refreshing data...");
       
       // Fetch clients
@@ -198,7 +212,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       
       if (sequencesError) throw sequencesError;
       
-      console.log("Sequences fetched:", sequencesData);
+      // Reduced logging verbosity
+      console.log(`Sequences fetched: ${sequencesData.length}`);
       
       const typedSequences: Sequence[] = sequencesData.map(sequence => {
         // Transformar os estágios no formato correto
@@ -257,7 +272,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       });
       
       setSequences(typedSequences);
-      console.log("Sequences set:", typedSequences);
       
       // Fetch users (only for super_admin)
       if (user.role === 'super_admin') {
@@ -286,6 +300,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         setUsers(usersWithEmails);
       }
       
+      // Set initialized state to true after successful data load
+      setIsDataInitialized(true);
       console.log("Data refresh completed successfully");
       
     } catch (error) {
@@ -975,6 +991,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     addTag,
     deleteTag,
     refreshData,
+    isDataInitialized,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

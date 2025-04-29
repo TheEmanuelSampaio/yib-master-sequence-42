@@ -5,28 +5,17 @@ import { Check, Clock, Activity, Ban } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 
 export function SequenceOverview() {
-  const { sequences, currentInstance, refreshData } = useApp();
-  const [dataInitialized, setDataInitialized] = useState(false);
+  const { sequences, currentInstance, refreshData, isDataInitialized } = useApp();
 
-  // Recarregar dados apenas uma vez quando o componente montar ou quando a instância mudar
+  // Recarregar dados apenas se necessário quando a instância mudar
   useEffect(() => {
-    if (!dataInitialized && currentInstance) {
-      console.log("SequenceOverview - initial data loading");
-      refreshData().then(() => {
-        setDataInitialized(true);
-      });
+    if (currentInstance && !isDataInitialized) {
+      refreshData();
     }
-  }, [currentInstance, refreshData, dataInitialized]);
-
-  // Reset initialization flag when instance changes
-  useEffect(() => {
-    return () => {
-      setDataInitialized(false);
-    };
-  }, [currentInstance?.id]);
+  }, [currentInstance, refreshData, isDataInitialized]);
 
   // Filter sequences for current instance
   const instanceSequences = currentInstance && sequences ? 
