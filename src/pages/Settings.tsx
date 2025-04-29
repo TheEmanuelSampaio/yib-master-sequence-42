@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
-import { Clock, PlusCircle, MoreVertical, Edit, Trash2, CheckCircle, Save, X, Plus } from "lucide-react";
+import { Clock, PlusCircle, MoreVertical, Edit, Trash2, CheckCircle, Save, X } from "lucide-react";
 import { TimeRestriction } from "@/types";
 import { useToast } from "@/components/ui/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -23,11 +23,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 export default function Settings() {
-  const { timeRestrictions, sequences, addTimeRestriction, updateTimeRestriction, removeTimeRestriction, tags, addTag, removeTag } = useApp();
+  const { timeRestrictions, sequences, addTimeRestriction, updateTimeRestriction, removeTimeRestriction } = useApp();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("general");
   const [editingRestrictionId, setEditingRestrictionId] = useState<string | null>(null);
-  const [newTag, setNewTag] = useState("");
   
   const [newRestriction, setNewRestriction] = useState<Omit<TimeRestriction, "id">>({
     name: "",
@@ -140,17 +139,6 @@ export default function Settings() {
       ...prev,
       [id]: { ...prev[id], ...updates }
     }));
-  };
-
-  const handleAddTag = () => {
-    if (!newTag.trim()) return;
-    
-    addTag(newTag.trim());
-    setNewTag('');
-  };
-
-  const handleRemoveTag = (tag: string) => {
-    removeTag(tag);
   };
 
   return (
@@ -661,46 +649,52 @@ export default function Settings() {
         </TabsContent>
 
         <TabsContent value="tags" className="space-y-4 mt-6">
-          {/* Tags content - updated to match the provided image */}
-          <Card className="bg-background">
+          {/* Tags content */}
+          <Card>
             <CardHeader>
               <CardTitle>Gerenciamento de Tags</CardTitle>
               <CardDescription>
-                Adicione e remova tags disponíveis para uso nas sequências
+                Configure as tags disponíveis no sistema
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex gap-2">
-                <Input 
-                  placeholder="Digite o nome da tag" 
-                  value={newTag}
-                  onChange={(e) => setNewTag(e.target.value)}
-                />
-                <Button onClick={handleAddTag} size="icon" className="bg-teal-500 hover:bg-teal-600">
-                  <Plus className="h-4 w-4" />
-                  <span className="sr-only">Adicionar</span>
-                </Button>
-              </div>
-              
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Label className="text-sm">Tags Disponíveis ({tags.length})</Label>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Adicionar Nova Tag</Label>
+                  <div className="flex space-x-2">
+                    <Input placeholder="Digite o nome da tag" />
+                    <Button>Adicionar</Button>
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {tags.map((tag) => (
-                    <Badge key={tag} variant="secondary" className="px-3 py-1 flex items-center gap-1 bg-background border">
-                      {tag}
-                      <button 
-                        className="ml-1 hover:bg-background rounded-full p-1"
-                        onClick={() => handleRemoveTag(tag)}
-                      >
-                        <Trash2 className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+                
+                <div className="space-y-2">
+                  <Label>Tags Disponíveis</Label>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge className="px-2 py-1">
+                      cliente-novo
+                      <button className="ml-1 hover:bg-primary-foreground/20 rounded-full p-1">
+                        <X className="h-3 w-3" />
                       </button>
                     </Badge>
-                  ))}
+                    <Badge className="px-2 py-1">
+                      interessado
+                      <button className="ml-1 hover:bg-primary-foreground/20 rounded-full p-1">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                    <Badge className="px-2 py-1">
+                      lead-quente
+                      <button className="ml-1 hover:bg-primary-foreground/20 rounded-full p-1">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  </div>
                 </div>
               </div>
             </CardContent>
+            <CardFooter>
+              <Button>Salvar Alterações</Button>
+            </CardFooter>
           </Card>
         </TabsContent>
 

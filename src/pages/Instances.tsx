@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useApp } from '@/context/AppContext';
 import { Pencil, Search, MoreVertical, Power, PowerOff, Trash2, Plus, Laptop } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -28,8 +28,6 @@ import {
 export default function Instances() {
   const { instances, addInstance, updateInstance, deleteInstance, currentInstance, setCurrentInstance } = useApp();
   const [open, setOpen] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editingInstance, setEditingInstance] = useState<Instance | null>(null);
   const [name, setName] = useState("");
   const [evolutionApiUrl, setEvolutionApiUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
@@ -51,31 +49,12 @@ export default function Instances() {
     
     resetForm();
   };
-
-  const handleEditInstance = () => {
-    if (!editingInstance) return;
-    
-    if (!name || !evolutionApiUrl || !apiKey) {
-      toast.error("Preencha todos os campos obrigatórios");
-      return;
-    }
-
-    updateInstance(editingInstance.id, {
-      name,
-      evolutionApiUrl,
-      apiKey,
-    });
-    
-    resetForm();
-  };
   
   const resetForm = () => {
     setName("");
     setEvolutionApiUrl("");
     setApiKey("");
     setOpen(false);
-    setIsEditing(false);
-    setEditingInstance(null);
   };
   
   const handleToggleInstance = (instance: Instance) => {
@@ -85,22 +64,6 @@ export default function Instances() {
   const handleSelectInstance = (instance: Instance) => {
     setCurrentInstance(instance);
     toast.success(`Instância "${instance.name}" selecionada`);
-  };
-
-  const openEditDialog = (instance: Instance) => {
-    setIsEditing(true);
-    setEditingInstance(instance);
-    setName(instance.name);
-    setEvolutionApiUrl(instance.evolutionApiUrl);
-    setApiKey(instance.apiKey);
-    setOpen(true);
-  };
-
-  const handleDialogClose = () => {
-    // Using setTimeout to avoid the React hooks error
-    setTimeout(() => {
-      resetForm();
-    }, 0);
   };
 
   // Filter instances based on search and active status
@@ -130,49 +93,53 @@ export default function Instances() {
         </p>
       </div>
       
-      <div className="relative w-full max-w-sm">
-        <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Buscar instâncias..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-10"
-        />
-      </div>
-      
-      <div className="flex justify-between items-center">
-        <Tabs 
-          defaultValue="all" 
-          value={activeTab} 
-          onValueChange={(value) => setActiveTab(value as "all" | "active" | "inactive")}
-          className="w-full"
-        >
-          <TabsList>
-            <TabsTrigger value="all">Todas ({instances.length})</TabsTrigger>
-            <TabsTrigger value="active">Ativas ({activeInstances.length})</TabsTrigger>
-            <TabsTrigger value="inactive">Inativas ({inactiveInstances.length})</TabsTrigger>
-          </TabsList>
-        </Tabs>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="relative w-full sm:max-w-sm">
+          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar instâncias..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-8"
+          />
+        </div>
         
-        <Button onClick={() => { setIsEditing(false); setOpen(true); }}>
+        <Button onClick={() => setOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
           Nova Instância
         </Button>
       </div>
       
-      <TabsContent value={activeTab} className="mt-0 p-0 border-none">
-        {renderInstanceList(filteredInstances)}
-      </TabsContent>
+      <Tabs 
+        defaultValue="all" 
+        value={activeTab} 
+        onValueChange={(value) => setActiveTab(value as "all" | "active" | "inactive")}
+      >
+        <TabsList>
+          <TabsTrigger value="all">Todas ({instances.length})</TabsTrigger>
+          <TabsTrigger value="active">Ativas ({activeInstances.length})</TabsTrigger>
+          <TabsTrigger value="inactive">Inativas ({inactiveInstances.length})</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="all" className="mt-4">
+          {renderInstanceList(filteredInstances)}
+        </TabsContent>
+        
+        <TabsContent value="active" className="mt-4">
+          {renderInstanceList(filteredInstances)}
+        </TabsContent>
+        
+        <TabsContent value="inactive" className="mt-4">
+          {renderInstanceList(filteredInstances)}
+        </TabsContent>
+      </Tabs>
       
-      <Dialog open={open} onOpenChange={(isOpen) => {
-        if (!isOpen) handleDialogClose();
-        else setOpen(isOpen);
-      }}>
+      <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>{isEditing ? "Editar" : "Adicionar"} Instância</DialogTitle>
+            <DialogTitle>Adicionar Instância</DialogTitle>
             <DialogDescription>
-              {isEditing ? "Edite os dados da instância do Evolution API." : "Adicione uma nova instância do Evolution API para gerenciar as sequências."}
+              Adicione uma nova instância do Evolution API para gerenciar as sequências.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -180,12 +147,7 @@ export default function Instances() {
               <Label htmlFor="name" className="text-right">
                 Nome
               </Label>
-              <Input 
-                id="name" 
-                value={name} 
-                onChange={(e) => setName(e.target.value)} 
-                className="col-span-3" 
-              />
+              <Input id="name" value={name} onChange={(e) => setName(e.target.value)} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="evolutionApiUrl" className="text-right">
@@ -202,25 +164,14 @@ export default function Instances() {
               <Label htmlFor="apiKey" className="text-right">
                 API Key
               </Label>
-              <Input 
-                id="apiKey" 
-                type="password" 
-                value={apiKey} 
-                onChange={(e) => setApiKey(e.target.value)} 
-                className="col-span-3" 
-              />
+              <Input id="apiKey" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} className="col-span-3" />
             </div>
           </div>
           <DialogFooter>
-            <Button type="button" variant="secondary" onClick={handleDialogClose}>
+            <Button type="button" variant="secondary" onClick={resetForm}>
               Cancelar
             </Button>
-            <Button 
-              type="submit" 
-              onClick={isEditing ? handleEditInstance : handleAddInstance}
-            >
-              {isEditing ? "Salvar" : "Adicionar"}
-            </Button>
+            <Button type="submit" onClick={handleAddInstance}>Adicionar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -243,7 +194,7 @@ export default function Instances() {
               : "Crie sua primeira instância para começar a automatizar seu follow-up"}
           </p>
           {!searchTerm && (
-            <Button onClick={() => { setIsEditing(false); setOpen(true); }}>
+            <Button onClick={() => setOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
               Nova Instância
             </Button>
@@ -259,21 +210,21 @@ export default function Instances() {
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle>{instance.name}</CardTitle>
-              </div>
-              <div className="flex items-center mt-1">
-                {instance.active ? 
-                  <Power className="h-4 w-4 text-green-500 mr-1" /> : 
-                  <PowerOff className="h-4 w-4 text-destructive mr-1" />
-                }
-                <Badge variant={instance.active ? "default" : "destructive"}>
-                  {instance.active ? "Ativa" : "Inativa"}
-                </Badge>
+                <div className="flex items-center">
+                  {instance.active ? 
+                    <Power className="h-4 w-4 text-green-500 mr-1" /> : 
+                    <PowerOff className="h-4 w-4 text-destructive mr-1" />
+                  }
+                  <Badge variant={instance.active ? "default" : "destructive"}>
+                    {instance.active ? "Ativa" : "Inativa"}
+                  </Badge>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-2">
               <div className="space-y-1">
                 <Label className="text-xs font-medium">URL da API</Label>
-                <p className="text-sm text-muted-foreground break-all">{instance.evolutionApiUrl}</p>
+                <p className="text-sm text-muted-foreground">{instance.evolutionApiUrl}</p>
               </div>
               <div className="space-y-1">
                 <Label className="text-xs font-medium">API Key</Label>
@@ -296,7 +247,7 @@ export default function Instances() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => openEditDialog(instance)} className="cursor-pointer">
+                  <DropdownMenuItem onClick={() => setOpen(true)} className="cursor-pointer">
                     <Pencil className="h-4 w-4 mr-2" />
                     Editar
                   </DropdownMenuItem>
@@ -329,7 +280,7 @@ export default function Instances() {
         
         <Card 
           className="border-dashed h-full flex items-center justify-center cursor-pointer hover:bg-secondary/50 transition-colors"
-          onClick={() => { setIsEditing(false); setOpen(true); }}
+          onClick={() => setOpen(true)}
         >
           <CardContent className="flex flex-col items-center justify-center space-y-2 p-4">
             <Plus className="h-6 w-6 text-muted-foreground" />
