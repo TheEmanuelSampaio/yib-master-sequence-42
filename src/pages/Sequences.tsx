@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useApp } from '@/context/AppContext';
 import {
   Activity,
@@ -40,11 +40,16 @@ import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 export default function Sequences() {
-  const { sequences, currentInstance, addSequence, updateSequence, deleteSequence } = useApp();
+  const { sequences, currentInstance, addSequence, updateSequence, deleteSequence, refreshData } = useApp();
   const [isCreateMode, setIsCreateMode] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [currentSequence, setCurrentSequence] = useState<Sequence | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Fetch data on mount and when currentInstance changes
+  useEffect(() => {
+    refreshData();
+  }, [refreshData, currentInstance]);
   
   const instanceSequences = sequences
     .filter(seq => seq.instanceId === currentInstance?.id)
@@ -56,15 +61,18 @@ export default function Sequences() {
   const activeSequences = instanceSequences.filter(seq => seq.status === 'active');
   const inactiveSequences = instanceSequences.filter(seq => seq.status === 'inactive');
   
-  const handleSaveSequence = (sequence: Omit<Sequence, "id" | "createdAt" | "updatedAt">) => {
+  const handleSaveSequence = async (sequence: Omit<Sequence, "id" | "createdAt" | "updatedAt">) => {
     if (isEditMode && currentSequence) {
-      updateSequence(currentSequence.id, sequence);
+      await updateSequence(currentSequence.id, sequence);
       setIsEditMode(false);
       setCurrentSequence(null);
     } else {
-      addSequence(sequence);
+      await addSequence(sequence);
       setIsCreateMode(false);
     }
+    
+    // Refresh data after adding/updating sequence
+    refreshData();
   };
   
   const handleEditSequence = (sequence: Sequence) => {

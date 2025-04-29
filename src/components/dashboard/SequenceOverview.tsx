@@ -5,9 +5,15 @@ import { Check, Clock, Activity, Ban } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useEffect } from 'react';
 
 export function SequenceOverview() {
-  const { sequences, currentInstance } = useApp();
+  const { sequences, currentInstance, refreshData } = useApp();
+
+  // Recarregar dados quando o componente montar
+  useEffect(() => {
+    refreshData();
+  }, [refreshData]);
 
   // Filter sequences for current instance
   const instanceSequences = sequences.filter(seq => 

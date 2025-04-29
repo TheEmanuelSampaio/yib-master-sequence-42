@@ -96,6 +96,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     if (!user) return;
     
     try {
+      console.log("Refreshing data...");
+      
       // Fetch clients
       const { data: clientsData, error: clientsError } = await supabase
         .from('clients')
@@ -177,6 +179,75 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       }));
       
       setTimeRestrictions(typedRestrictions);
+      
+      // Fetch sequences and their stages
+      const { data: sequencesData, error: sequencesError } = await supabase
+        .from('sequences')
+        .select(`
+          *,
+          sequence_stages (*),
+          sequence_time_restrictions (
+            *,
+            time_restrictions (*)
+          )
+        `)
+        .order('created_at', { ascending: false });
+      
+      if (sequencesError) throw sequencesError;
+      
+      console.log("Sequences fetched:", sequencesData);
+      
+      const typedSequences: Sequence[] = sequencesData.map(sequence => {
+        // Transformar os estágios no formato correto
+        const stages = sequence.sequence_stages
+          .sort((a: any, b: any) => a.order_index - b.order_index)
+          .map((stage: any) => ({
+            id: stage.id,
+            name: stage.name,
+            type: stage.type,
+            content: stage.content,
+            typebotStage: stage.typebot_stage,
+            delay: stage.delay,
+            delayUnit: stage.delay_unit
+          }));
+          
+        // Transformar as restrições de tempo
+        const timeRestrictions = sequence.sequence_time_restrictions
+          .map((str: any) => str.time_restrictions)
+          .filter(Boolean)
+          .map((tr: any) => ({
+            id: tr.id,
+            name: tr.name,
+            active: tr.active,
+            days: tr.days,
+            startHour: tr.start_hour,
+            startMinute: tr.start_minute,
+            endHour: tr.end_hour,
+            endMinute: tr.end_minute
+          }));
+        
+        return {
+          id: sequence.id,
+          name: sequence.name,
+          instanceId: sequence.instance_id,
+          startCondition: {
+            type: sequence.start_condition_type,
+            tags: sequence.start_condition_tags
+          },
+          stopCondition: {
+            type: sequence.stop_condition_type,
+            tags: sequence.stop_condition_tags
+          },
+          status: sequence.status,
+          stages,
+          timeRestrictions,
+          createdAt: sequence.created_at,
+          updatedAt: sequence.updated_at
+        };
+      });
+      
+      setSequences(typedSequences);
+      console.log("Sequences set:", typedSequences);
       
       // Fetch users (only for super_admin)
       if (user.role === 'super_admin') {
@@ -384,8 +455,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       
       toast.success(`Sequência "${sequenceData.name}" criada com sucesso`);
       
-      // Refresh sequences
-      refreshData();
+      // Importante: fazer um refresh completo dos dados para garantir que as novas sequências apareçam
+      await refreshData();
     } catch (error: any) {
       console.error("Error creating sequence:", error);
       toast.error(`Erro ao criar sequência: ${error.message}`);
