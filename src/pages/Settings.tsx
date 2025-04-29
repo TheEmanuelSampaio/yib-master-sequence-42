@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useApp } from "@/context/AppContext";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,9 @@ export default function Settings() {
   });
   
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+
+  // Store editing restrictions in a map outside of the render loop
+  const [editingRestrictions, setEditingRestrictions] = useState<Record<string, TimeRestriction>>({});
   
   // Helper functions
   const getDayName = (day: number) => {
@@ -115,6 +118,27 @@ export default function Settings() {
       endHour: 8,
       endMinute: 0,
     });
+  };
+
+  // Initialize or update editing restriction when starting to edit
+  const startEditing = (restriction: TimeRestriction) => {
+    setEditingRestrictionId(restriction.id);
+    setEditingRestrictions(prev => ({
+      ...prev,
+      [restriction.id]: { ...restriction }
+    }));
+  };
+  
+  const cancelEditing = () => {
+    setEditingRestrictionId(null);
+  };
+
+  // Update an editing restriction
+  const updateEditingRestriction = (id: string, updates: Partial<TimeRestriction>) => {
+    setEditingRestrictions(prev => ({
+      ...prev,
+      [id]: { ...prev[id], ...updates }
+    }));
   };
 
   return (
@@ -377,16 +401,7 @@ export default function Settings() {
               {timeRestrictions.map((restriction) => {
                 const sequencesUsingThis = getSequencesUsingRestriction(restriction.id);
                 const isEditing = editingRestrictionId === restriction.id;
-                const [editingRestriction, setEditingRestriction] = useState<TimeRestriction>({...restriction});
-                
-                const startEditing = () => {
-                  setEditingRestrictionId(restriction.id);
-                  setEditingRestriction({...restriction});
-                };
-                
-                const cancelEditing = () => {
-                  setEditingRestrictionId(null);
-                };
+                const editingRestriction = editingRestrictions[restriction.id] || { ...restriction };
                 
                 return (
                   <Card key={restriction.id}>
@@ -402,8 +417,7 @@ export default function Settings() {
                           {isEditing ? (
                             <Input
                               value={editingRestriction.name}
-                              onChange={(e) => setEditingRestriction({
-                                ...editingRestriction,
+                              onChange={(e) => updateEditingRestriction(restriction.id, {
                                 name: e.target.value
                               })}
                               className="max-w-[200px]"
@@ -440,7 +454,7 @@ export default function Settings() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={startEditing} className="cursor-pointer">
+                              <DropdownMenuItem onClick={() => startEditing(restriction)} className="cursor-pointer">
                                 <Edit className="h-4 w-4 mr-2" />
                                 Editar
                               </DropdownMenuItem>
@@ -464,8 +478,7 @@ export default function Settings() {
                             <Switch
                               id={`restriction-active-${restriction.id}`}
                               checked={editingRestriction.active}
-                              onCheckedChange={(checked) => setEditingRestriction({
-                                ...editingRestriction,
+                              onCheckedChange={(checked) => updateEditingRestriction(restriction.id, {
                                 active: checked
                               })}
                             />
@@ -480,8 +493,7 @@ export default function Settings() {
                               value={editingRestriction.days.map(d => d.toString())}
                               onValueChange={(value) => {
                                 if (value.length > 0) {
-                                  setEditingRestriction({
-                                    ...editingRestriction,
+                                  updateEditingRestriction(restriction.id, {
                                     days: value.map(v => parseInt(v))
                                   });
                                 }
@@ -516,9 +528,8 @@ export default function Settings() {
                                 <Select
                                   value={editingRestriction.startHour.toString()}
                                   onValueChange={(value) => 
-                                    setEditingRestriction({
-                                      ...editingRestriction,
-                                      startHour: parseInt(value),
+                                    updateEditingRestriction(restriction.id, {
+                                      startHour: parseInt(value)
                                     })
                                   }
                                 >
@@ -537,9 +548,8 @@ export default function Settings() {
                                 <Select
                                   value={editingRestriction.startMinute.toString()}
                                   onValueChange={(value) => 
-                                    setEditingRestriction({
-                                      ...editingRestriction,
-                                      startMinute: parseInt(value),
+                                    updateEditingRestriction(restriction.id, {
+                                      startMinute: parseInt(value)
                                     })
                                   }
                                 >
@@ -562,9 +572,8 @@ export default function Settings() {
                                 <Select
                                   value={editingRestriction.endHour.toString()}
                                   onValueChange={(value) => 
-                                    setEditingRestriction({
-                                      ...editingRestriction,
-                                      endHour: parseInt(value),
+                                    updateEditingRestriction(restriction.id, {
+                                      endHour: parseInt(value)
                                     })
                                   }
                                 >
@@ -583,9 +592,8 @@ export default function Settings() {
                                 <Select
                                   value={editingRestriction.endMinute.toString()}
                                   onValueChange={(value) => 
-                                    setEditingRestriction({
-                                      ...editingRestriction,
-                                      endMinute: parseInt(value),
+                                    updateEditingRestriction(restriction.id, {
+                                      endMinute: parseInt(value)
                                     })
                                   }
                                 >

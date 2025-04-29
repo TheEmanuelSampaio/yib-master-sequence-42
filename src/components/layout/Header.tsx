@@ -38,9 +38,9 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
       "h-16 border-b border-border flex items-center justify-between px-4",
       "bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
     )}>
-      <div className="flex items-center">
+      <div className="flex items-center gap-4">
         <h1 className={cn(
-          "font-semibold text-foreground transition-opacity duration-300 mr-4", 
+          "font-semibold text-foreground transition-opacity duration-300", 
           sidebarCollapsed ? "opacity-100" : "opacity-0 hidden md:block"
         )}>
           Master Sequence
@@ -66,8 +66,8 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="outline-none">
-              <Avatar className="h-8 w-8 border-2 border-primary bg-primary text-primary-foreground">
-                <AvatarFallback className="text-white">{user?.name?.charAt(0)}</AvatarFallback>
+              <Avatar className="h-8 w-8 border-2 border-primary bg-primary">
+                <AvatarFallback className="text-primary-foreground">{user?.name?.charAt(0)}</AvatarFallback>
               </Avatar>
             </button>
           </DropdownMenuTrigger>
