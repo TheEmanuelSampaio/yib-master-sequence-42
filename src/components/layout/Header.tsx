@@ -38,7 +38,7 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
       "h-16 border-b border-border flex items-center justify-between px-4",
       "bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
     )}>
-      <div className="flex items-center space-x-4">
+      <div className="flex items-center gap-4">
         <h1 className={cn(
           "font-semibold text-foreground transition-opacity duration-300", 
           sidebarCollapsed ? "opacity-100" : "opacity-0 hidden md:block"

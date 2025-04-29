@@ -1,7 +1,7 @@
 
 import { useState } from "react";
 import { useApp } from '@/context/AppContext';
-import { Tag, PlusCircle, Trash2, AlertCircle } from "lucide-react";
+import { Tag, PlusCircle, Trash2, AlertCircle, Laptop, Edit, MoreVertical, MessageCircle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -10,12 +10,37 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useTheme } from '@/components/theme/ThemeProvider';
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuSeparator, 
+  DropdownMenuTrigger 
+} from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 export default function Settings() {
-  const { tags, addTag, removeTag } = useApp();
+  const { tags, addTag, removeTag, restrictions, removeRestriction, sequences } = useApp();
   const { theme, setTheme } = useTheme();
   
   const [newTag, setNewTag] = useState("");
+  const [showSequences, setShowSequences] = useState(false);
+  const [selectedRestriction, setSelectedRestriction] = useState<any>(null);
   
   const handleAddTag = () => {
     if (newTag.trim() !== "") {
@@ -26,6 +51,21 @@ export default function Settings() {
   
   const handleRemoveTag = (tag: string) => {
     removeTag(tag);
+  };
+
+  const getRestrictionUsage = (restrictionId: string) => {
+    const usedIn = sequences.filter(sequence => 
+      sequence.restrictions.some(r => r.restrictionId === restrictionId)
+    );
+    return {
+      count: usedIn.length,
+      sequences: usedIn
+    };
+  };
+
+  const handleShowSequences = (restriction: any) => {
+    setSelectedRestriction(restriction);
+    setShowSequences(true);
   };
 
   return (
@@ -41,6 +81,7 @@ export default function Settings() {
         <TabsList>
           <TabsTrigger value="general">Geral</TabsTrigger>
           <TabsTrigger value="tags">Tags</TabsTrigger>
+          <TabsTrigger value="restrictions">Restrições</TabsTrigger>
           <TabsTrigger value="about">Sobre</TabsTrigger>
         </TabsList>
         
@@ -159,6 +200,92 @@ export default function Settings() {
           </Card>
         </TabsContent>
         
+        <TabsContent value="restrictions" className="space-y-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle>Gerenciamento de Restrições</CardTitle>
+              <CardDescription>
+                Visualize e gerencie as restrições utilizadas nas sequências
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[200px]">Nome</TableHead>
+                      <TableHead>Descrição</TableHead>
+                      <TableHead className="w-[100px]">Uso</TableHead>
+                      <TableHead className="w-[80px] text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {restrictions && restrictions.length > 0 ? restrictions.map((restriction) => {
+                      const usage = getRestrictionUsage(restriction.id);
+                      
+                      return (
+                        <TableRow key={restriction.id}>
+                          <TableCell className="font-medium">{restriction.name}</TableCell>
+                          <TableCell className="text-muted-foreground">{restriction.description}</TableCell>
+                          <TableCell>
+                            {usage.count > 0 ? (
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="text-blue-500 p-0 h-auto"
+                                onClick={() => handleShowSequences(restriction)}
+                              >
+                                {usage.count} sequência{usage.count > 1 ? 's' : ''}
+                              </Button>
+                            ) : (
+                              <span className="text-muted-foreground text-sm">Não utilizada</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem className="cursor-pointer">
+                                  <Edit className="h-4 w-4 mr-2" />
+                                  Editar
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  className="cursor-pointer text-destructive focus:text-destructive"
+                                  onClick={() => removeRestriction(restriction.id)}
+                                  disabled={usage.count > 0}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Excluir
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    }) : (
+                      <TableRow>
+                        <TableCell colSpan={4} className="h-24 text-center">
+                          <div className="flex flex-col items-center justify-center space-y-1">
+                            <AlertCircle className="h-6 w-6 text-muted-foreground" />
+                            <p className="text-muted-foreground">Nenhuma restrição encontrada</p>
+                            <p className="text-xs text-muted-foreground">
+                              As restrições são criadas ao configurar sequências
+                            </p>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
         <TabsContent value="about" className="space-y-4">
           <Card>
             <CardHeader>
@@ -202,6 +329,44 @@ export default function Settings() {
           </Card>
         </TabsContent>
       </Tabs>
+      
+      <Dialog open={showSequences} onOpenChange={setShowSequences}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center">
+              <MessageCircle className="h-5 w-5 mr-2" />
+              Sequências que utilizam esta restrição
+            </DialogTitle>
+            <DialogDescription>
+              {selectedRestriction?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nome da Sequência</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {selectedRestriction && getRestrictionUsage(selectedRestriction.id).sequences.map((sequence) => (
+                    <TableRow key={sequence.id}>
+                      <TableCell>{sequence.name}</TableCell>
+                      <TableCell>
+                        <Badge variant={sequence.active ? "success" : "destructive"}>
+                          {sequence.active ? "Ativa" : "Inativa"}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

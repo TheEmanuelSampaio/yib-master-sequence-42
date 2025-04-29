@@ -16,6 +16,7 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function Instances() {
   const { instances, addInstance, updateInstance, deleteInstance, currentInstance, setCurrentInstance } = useApp();
@@ -24,6 +25,7 @@ export default function Instances() {
   const [evolutionApiUrl, setEvolutionApiUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [activeTab, setActiveTab] = useState<"all" | "active" | "inactive">("all");
   
   const handleAddInstance = () => {
     if (!name || !evolutionApiUrl || !apiKey) {
@@ -57,21 +59,43 @@ export default function Instances() {
     toast.success(`Instância "${instance.name}" selecionada`);
   };
 
-  const filteredInstances = instances.filter(
-    instance => instance.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                instance.evolutionApiUrl.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredInstances = instances.filter(instance => {
+    // Filter by search term
+    const matchesSearch = 
+      instance.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      instance.evolutionApiUrl.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    // Filter by active status
+    if (activeTab === "active" && !instance.active) return false;
+    if (activeTab === "inactive" && instance.active) return false;
+    
+    return matchesSearch;
+  });
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Instâncias</h1>
-          <p className="text-muted-foreground">
-            Gerencie as instâncias do Evolution API
-          </p>
-        </div>
-        <div className="relative w-64">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Instâncias</h1>
+        <p className="text-muted-foreground">
+          Gerencie as instâncias do Evolution API
+        </p>
+      </div>
+      
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <Tabs 
+          defaultValue="all" 
+          value={activeTab} 
+          onValueChange={(value) => setActiveTab(value as "all" | "active" | "inactive")}
+          className="w-full sm:w-auto"
+        >
+          <TabsList className="grid w-full grid-cols-3 sm:w-auto">
+            <TabsTrigger value="all">Todas</TabsTrigger>
+            <TabsTrigger value="active">Ativas</TabsTrigger>
+            <TabsTrigger value="inactive">Inativas</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        
+        <div className="relative w-full sm:w-64">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Buscar instâncias..."
@@ -101,7 +125,7 @@ export default function Instances() {
                     </div>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">URL da API</Label>
+                    <Label className="text-xs font-medium text-muted-foreground">URL da API</Label>
                     <CardDescription>{instance.evolutionApiUrl}</CardDescription>
                   </div>
                 </CardHeader>

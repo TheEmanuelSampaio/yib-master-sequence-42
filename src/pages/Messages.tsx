@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useApp } from '@/context/AppContext';
 import { Search, Filter, Calendar, CheckCircle, XCircle, AlertCircle, MessageCircle, FileCode, Bot } from "lucide-react";
@@ -44,12 +43,12 @@ import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
-type MessageStatusFilter = 'all' | 'pending' | 'processing' | 'sent' | 'failed' | 'persistent_error';
+type MessageStatus = 'pending' | 'processing' | 'sent' | 'failed' | 'persistent_error';
 
 export default function Messages() {
   const { scheduledMessages, contacts, sequences } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<MessageStatusFilter>('all');
+  const [statusFilters, setStatusFilters] = useState<MessageStatus[]>([]);
   const [showMessageContent, setShowMessageContent] = useState(false);
   const [selectedMessage, setSelectedMessage] = useState<any>(null);
   
@@ -70,7 +69,8 @@ export default function Messages() {
   });
   
   const filteredMessages = messagesWithDetails.filter(message => {
-    if (statusFilter !== 'all' && message.status !== statusFilter) {
+    // If we have status filters and the message status is not in the filter list
+    if (statusFilters.length > 0 && !statusFilters.includes(message.status as MessageStatus)) {
       return false;
     }
     
@@ -90,6 +90,16 @@ export default function Messages() {
   const sortedMessages = [...filteredMessages].sort(
     (a, b) => new Date(b.scheduledTime).getTime() - new Date(a.scheduledTime).getTime()
   );
+  
+  const handleToggleStatusFilter = (status: MessageStatus) => {
+    setStatusFilters(prev => {
+      if (prev.includes(status)) {
+        return prev.filter(s => s !== status);
+      } else {
+        return [...prev, status];
+      }
+    });
+  };
   
   const StatusBadge = ({ status }: { status: string }) => {
     switch (status) {
@@ -192,17 +202,9 @@ export default function Messages() {
                 <div className="space-y-1">
                   <div className="flex items-center space-x-2">
                     <Checkbox 
-                      id="all" 
-                      checked={statusFilter === 'all'} 
-                      onCheckedChange={() => setStatusFilter('all')}
-                    />
-                    <label htmlFor="all" className="text-sm">Todos</label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox 
                       id="pending" 
-                      checked={statusFilter === 'pending'} 
-                      onCheckedChange={() => setStatusFilter(statusFilter === 'pending' ? 'all' : 'pending')}
+                      checked={statusFilters.includes('pending')} 
+                      onCheckedChange={() => handleToggleStatusFilter('pending')}
                     />
                     <label htmlFor="pending" className="text-sm">
                       <Badge variant="outline" className="bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-500/30">
@@ -213,8 +215,8 @@ export default function Messages() {
                   <div className="flex items-center space-x-2">
                     <Checkbox 
                       id="processing" 
-                      checked={statusFilter === 'processing'} 
-                      onCheckedChange={() => setStatusFilter(statusFilter === 'processing' ? 'all' : 'processing')}
+                      checked={statusFilters.includes('processing')} 
+                      onCheckedChange={() => handleToggleStatusFilter('processing')}
                     />
                     <label htmlFor="processing" className="text-sm">
                       <Badge variant="outline" className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30">
@@ -225,8 +227,8 @@ export default function Messages() {
                   <div className="flex items-center space-x-2">
                     <Checkbox 
                       id="sent" 
-                      checked={statusFilter === 'sent'} 
-                      onCheckedChange={() => setStatusFilter(statusFilter === 'sent' ? 'all' : 'sent')}
+                      checked={statusFilters.includes('sent')} 
+                      onCheckedChange={() => handleToggleStatusFilter('sent')}
                     />
                     <label htmlFor="sent" className="text-sm">
                       <Badge variant="outline" className="bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30">
@@ -237,8 +239,8 @@ export default function Messages() {
                   <div className="flex items-center space-x-2">
                     <Checkbox 
                       id="failed" 
-                      checked={statusFilter === 'failed'} 
-                      onCheckedChange={() => setStatusFilter(statusFilter === 'failed' ? 'all' : 'failed')}
+                      checked={statusFilters.includes('failed')} 
+                      onCheckedChange={() => handleToggleStatusFilter('failed')}
                     />
                     <label htmlFor="failed" className="text-sm">
                       <Badge variant="outline" className="bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30">
@@ -249,8 +251,8 @@ export default function Messages() {
                   <div className="flex items-center space-x-2">
                     <Checkbox 
                       id="persistent_error" 
-                      checked={statusFilter === 'persistent_error'} 
-                      onCheckedChange={() => setStatusFilter(statusFilter === 'persistent_error' ? 'all' : 'persistent_error')}
+                      checked={statusFilters.includes('persistent_error')} 
+                      onCheckedChange={() => handleToggleStatusFilter('persistent_error')}
                     />
                     <label htmlFor="persistent_error" className="text-sm">
                       <Badge variant="outline" className="bg-gray-500/20 text-gray-700 dark:text-gray-400 border-gray-500/30">
