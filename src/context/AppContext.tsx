@@ -568,7 +568,28 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       
       // Update time restrictions if provided
       if (sequenceData.timeRestrictions) {
-        // First delete all existing restrictions
+        // First, validate that all restriction IDs exist in the database
+        if (sequenceData.timeRestrictions.length > 0) {
+          const restrictionIds = sequenceData.timeRestrictions.map(r => r.id);
+          
+          // Check if all restriction IDs exist
+          const { data: existingRestrictions, error: checkError } = await supabase
+            .from('time_restrictions')
+            .select('id')
+            .in('id', restrictionIds);
+          
+          if (checkError) throw checkError;
+          
+          if (!existingRestrictions || existingRestrictions.length !== restrictionIds.length) {
+            // Some restrictions don't exist, identify which ones
+            const existingIds = existingRestrictions?.map(r => r.id) || [];
+            const missingIds = restrictionIds.filter(id => !existingIds.includes(id));
+            
+            throw new Error(`Algumas restrições de horário não existem no banco de dados: ${missingIds.join(', ')}`);
+          }
+        }
+        
+        // Delete all existing restrictions for this sequence
         const { error: deleteRestError } = await supabase
           .from('sequence_time_restrictions')
           .delete()
@@ -576,7 +597,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         
         if (deleteRestError) throw deleteRestError;
         
-        // Then create the new restrictions
+        // Then create the new restrictions - only if there are valid ones
         for (const restriction of sequenceData.timeRestrictions) {
           const { error: restrictionError } = await supabase
             .from('sequence_time_restrictions')
