@@ -126,14 +126,16 @@ export default function Instances() {
       </div>
       
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="relative w-full sm:max-w-sm flex items-center">
-          <Input
-            placeholder="Buscar instâncias..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full"
-          />
-          <Button variant="ghost" className="h-9 px-2 text-muted-foreground absolute right-0">
+        <div className="flex w-full sm:max-w-sm items-center gap-2">
+          <div className="relative w-full">
+            <Input
+              placeholder="Buscar instâncias..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full"
+            />
+          </div>
+          <Button variant="ghost" size="icon" className="flex-shrink-0">
             <Search className="h-4 w-4" />
           </Button>
         </div>
@@ -171,11 +173,14 @@ export default function Instances() {
         </TabsContent>
       </Tabs>
       
+      {/* Fixed Dialog handling to prevent UI freezing after editing */}
       <Dialog 
         open={open} 
         onOpenChange={(isOpen) => {
           if (!isOpen) {
-            resetForm();
+            setTimeout(() => {
+              resetForm();
+            }, 100);
           }
           setOpen(isOpen);
         }}
@@ -215,7 +220,12 @@ export default function Instances() {
             </div>
           </div>
           <DialogFooter>
-            <Button type="button" variant="secondary" onClick={resetForm}>
+            <Button type="button" variant="secondary" onClick={() => {
+              setOpen(false);
+              setTimeout(() => {
+                resetForm();
+              }, 100);
+            }}>
               Cancelar
             </Button>
             <Button type="submit" onClick={isEditing ? handleUpdateInstance : handleAddInstance}>
