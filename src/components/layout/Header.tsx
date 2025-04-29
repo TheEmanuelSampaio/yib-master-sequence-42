@@ -1,5 +1,6 @@
 
 import { useApp } from '@/context/AppContext';
+import { useAuth } from '@/context/AuthContext';
 import { ThemeToggle } from '@/components/theme/ThemeToggle';
 import { 
   DropdownMenu, 
@@ -17,14 +18,16 @@ import {
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 interface HeaderProps {
   sidebarCollapsed: boolean;
 }
 
 export function Header({ sidebarCollapsed }: HeaderProps) {
-  const { user, instances, currentInstance, setCurrentInstance } = useApp();
+  const { user, profile, signOut } = useAuth();
+  const { instances, currentInstance, setCurrentInstance } = useApp();
+  const navigate = useNavigate();
 
   const handleInstanceChange = (instanceId: string) => {
     const instance = instances.find(inst => inst.id === instanceId);
@@ -44,11 +47,17 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
             <SelectValue placeholder="Selecionar instância" />
           </SelectTrigger>
           <SelectContent>
-            {instances.map((instance) => (
-              <SelectItem key={instance.id} value={instance.id}>
-                {instance.name}
-              </SelectItem>
-            ))}
+            {instances.length === 0 ? (
+              <div className="py-2 px-2 text-sm text-muted-foreground">
+                Nenhuma instância configurada
+              </div>
+            ) : (
+              instances.map((instance) => (
+                <SelectItem key={instance.id} value={instance.id}>
+                  {instance.name}
+                </SelectItem>
+              ))
+            )}
           </SelectContent>
         </Select>
       </div>
@@ -60,14 +69,18 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
           <DropdownMenuTrigger asChild>
             <button className="outline-none">
               <Avatar className="h-8 w-8 border-2 border-primary bg-primary">
-                <AvatarFallback className="text-primary-foreground">{user?.name?.charAt(0)}</AvatarFallback>
+                <AvatarFallback className="text-primary-foreground">
+                  {profile?.first_name?.charAt(0) || user?.email?.charAt(0) || '?'}
+                </AvatarFallback>
               </Avatar>
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <div className="flex items-center justify-start gap-2 p-2">
               <div className="flex flex-col space-y-1 leading-none">
-                <p className="font-medium text-sm">{user?.name}</p>
+                <p className="font-medium text-sm">
+                  {profile?.first_name ? `${profile.first_name} ${profile.last_name || ''}` : user?.email}
+                </p>
                 <p className="text-xs text-muted-foreground">{user?.email}</p>
               </div>
             </div>
@@ -77,7 +90,9 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
               <Link to="/settings">Configurações</Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="cursor-pointer">Sair</DropdownMenuItem>
+            <DropdownMenuItem className="cursor-pointer" onClick={signOut}>
+              Sair
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
