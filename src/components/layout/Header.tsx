@@ -39,12 +39,6 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
       "bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
     )}>
       <div className="flex items-center gap-4">
-        {sidebarCollapsed && (
-          <h1 className="font-semibold text-foreground">
-            Master Sequence
-          </h1>
-        )}
-        
         <Select onValueChange={handleInstanceChange} value={currentInstance?.id}>
           <SelectTrigger className="w-[180px] md:w-[220px]">
             <SelectValue placeholder="Selecionar instância" />

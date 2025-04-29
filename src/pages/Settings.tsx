@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
-import { Clock, PlusCircle, MoreVertical, Edit, Trash2, CheckCircle, Save, X } from "lucide-react";
+import { Clock, PlusCircle, MoreVertical, Edit, Trash2, CheckCircle, Save, X, Plus } from "lucide-react";
 import { TimeRestriction } from "@/types";
 import { useToast } from "@/components/ui/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -37,6 +37,10 @@ export default function Settings() {
     endHour: 8,
     endMinute: 0,
   });
+  
+  // For tag management
+  const [newTag, setNewTag] = useState("");
+  const [tags, setTags] = useState<string[]>(["lead", "cliente", "interessado", "abandonou", "comprou", "orçamento", "novo", "retorno"]);
   
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 
@@ -77,6 +81,30 @@ export default function Settings() {
       title: "Sucesso",
       description: "Restrição de horário adicionada com sucesso",
     });
+  };
+
+  const handleAddTag = () => {
+    if (!newTag.trim()) return;
+    if (tags.includes(newTag.trim())) {
+      toast({
+        title: "Erro",
+        description: "Esta tag já existe",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    setTags([...tags, newTag.trim()]);
+    setNewTag("");
+    
+    toast({
+      title: "Sucesso",
+      description: "Tag adicionada com sucesso",
+    });
+  };
+  
+  const handleRemoveTag = (tag: string) => {
+    setTags(tags.filter(t => t !== tag));
   };
 
   const handleUpdateRestriction = (restriction: TimeRestriction) => {
@@ -649,52 +677,55 @@ export default function Settings() {
         </TabsContent>
 
         <TabsContent value="tags" className="space-y-4 mt-6">
-          {/* Tags content */}
+          {/* Tags content - restored to previous interface */}
           <Card>
             <CardHeader>
               <CardTitle>Gerenciamento de Tags</CardTitle>
               <CardDescription>
-                Configure as tags disponíveis no sistema
+                Adicione e remova tags disponíveis para uso nas sequências
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Adicionar Nova Tag</Label>
+                  <Label htmlFor="new-tag">Adicionar Nova Tag</Label>
                   <div className="flex space-x-2">
-                    <Input placeholder="Digite o nome da tag" />
-                    <Button>Adicionar</Button>
+                    <Input 
+                      id="new-tag" 
+                      placeholder="Digite o nome da tag" 
+                      value={newTag}
+                      onChange={(e) => setNewTag(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleAddTag();
+                        }
+                      }}
+                    />
+                    <Button onClick={handleAddTag}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Adicionar
+                    </Button>
                   </div>
                 </div>
                 
                 <div className="space-y-2">
-                  <Label>Tags Disponíveis</Label>
+                  <Label>Tags Disponíveis ({tags.length})</Label>
                   <div className="flex flex-wrap gap-2">
-                    <Badge className="px-2 py-1">
-                      cliente-novo
-                      <button className="ml-1 hover:bg-primary-foreground/20 rounded-full p-1">
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                    <Badge className="px-2 py-1">
-                      interessado
-                      <button className="ml-1 hover:bg-primary-foreground/20 rounded-full p-1">
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                    <Badge className="px-2 py-1">
-                      lead-quente
-                      <button className="ml-1 hover:bg-primary-foreground/20 rounded-full p-1">
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
+                    {tags.map(tag => (
+                      <Badge key={tag} className="px-2 py-1 flex items-center">
+                        {tag}
+                        <button 
+                          className="ml-2 hover:bg-primary-foreground/20 rounded-full p-0.5"
+                          onClick={() => handleRemoveTag(tag)}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
                   </div>
                 </div>
               </div>
             </CardContent>
-            <CardFooter>
-              <Button>Salvar Alterações</Button>
-            </CardFooter>
           </Card>
         </TabsContent>
 

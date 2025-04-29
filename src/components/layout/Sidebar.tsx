@@ -62,16 +62,18 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     >
       <div className="flex items-center justify-between h-16 px-4 border-b border-sidebar-border">
         <div className={cn("flex items-center", collapsed && "justify-center w-full")}>
-          {!collapsed && (
-            <span className="text-xl font-semibold text-sidebar-foreground">
-              Master Sequence
-            </span>
-          )}
-          {collapsed && (
-            <span className="text-xl font-semibold text-sidebar-foreground">
-              MS
-            </span>
-          )}
+          <div className="flex items-center justify-center">
+            <img 
+              src="https://minios3.yearsinbox.com/chatwoot/Ico%20Years%20In%20Box%20250px.png" 
+              alt="Years In Box" 
+              className="h-10 w-10 rounded-full object-cover"
+            />
+            {!collapsed && (
+              <span className="text-xl font-semibold text-sidebar-foreground ml-2">
+                Master Sequence
+              </span>
+            )}
+          </div>
         </div>
       </div>
       <button
