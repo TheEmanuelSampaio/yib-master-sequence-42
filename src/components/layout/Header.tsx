@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 
 interface HeaderProps {
@@ -65,8 +65,7 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="outline-none">
-              <Avatar className="h-8 w-8">
-                <AvatarImage src={user?.avatar} alt={user?.name} />
+              <Avatar className="h-8 w-8 bg-primary text-primary-foreground">
                 <AvatarFallback>{user?.name?.charAt(0)}</AvatarFallback>
               </Avatar>
             </button>

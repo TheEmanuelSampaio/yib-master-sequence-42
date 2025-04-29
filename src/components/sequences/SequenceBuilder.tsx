@@ -1,5 +1,6 @@
+
 import { useState } from "react";
-import { PlusCircle, Clock, Trash2, AlertCircle, ChevronDown, ChevronUp, MessageCircle, FileCode, Bot, X } from "lucide-react";
+import { PlusCircle, Clock, Trash2, ChevronDown, ChevronUp, MessageCircle, FileCode, Bot, X, Edit, Save } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,10 +11,13 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/context/AppContext";
 import { Sequence, SequenceStage, TagCondition, TimeRestriction } from "@/types";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RestrictionItem } from "./RestrictionItem";
+import { StageItem } from "./StageItem";
 
 interface SequenceBuilderProps {
   sequence?: Sequence;
@@ -22,7 +26,7 @@ interface SequenceBuilderProps {
 }
 
 export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderProps) {
-  const { tags, currentInstance } = useApp();
+  const { tags, currentInstance, timeRestrictions: globalTimeRestrictions } = useApp();
   
   const [name, setName] = useState(sequence?.name || "");
   const [startCondition, setStartCondition] = useState<TagCondition>(
@@ -53,12 +57,17 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
   });
   
   const [newRestriction, setNewRestriction] = useState<Omit<TimeRestriction, "id">>({
+    name: "Nova restrição",
+    active: true,
     days: [1, 2, 3, 4, 5], // Monday to Friday
     startHour: 22,
     startMinute: 0,
     endHour: 8,
     endMinute: 0,
   });
+
+  const [editingStageId, setEditingStageId] = useState<string | null>(null);
+  const [stageToEdit, setStageToEdit] = useState<SequenceStage | null>(null);
   
   const addTag = (target: "start" | "stop", tag: string) => {
     if (!tag) return;
@@ -131,6 +140,23 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
   
   const removeStage = (id: string) => {
     setStages(stages.filter(stage => stage.id !== id));
+    if (editingStageId === id) {
+      setEditingStageId(null);
+      setStageToEdit(null);
+    }
+  };
+
+  const startEditingStage = (stage: SequenceStage) => {
+    setEditingStageId(stage.id);
+    setStageToEdit({...stage});
+  };
+
+  const updateStage = (updatedStage: SequenceStage) => {
+    setStages(stages.map(stage => 
+      stage.id === updatedStage.id ? updatedStage : stage
+    ));
+    setEditingStageId(null);
+    setStageToEdit(null);
   };
   
   const moveStage = (id: string, direction: "up" | "down") => {
@@ -159,6 +185,8 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
     
     // Reset form
     setNewRestriction({
+      name: "Nova restrição",
+      active: true,
       days: [1, 2, 3, 4, 5],
       startHour: 22,
       startMinute: 0,
@@ -169,6 +197,12 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
   
   const removeTimeRestriction = (id: string) => {
     setTimeRestrictions(timeRestrictions.filter(r => r.id !== id));
+  };
+
+  const updateTimeRestriction = (updatedRestriction: TimeRestriction) => {
+    setTimeRestrictions(timeRestrictions.map(r => 
+      r.id === updatedRestriction.id ? updatedRestriction : r
+    ));
   };
   
   const handleSubmit = () => {
@@ -209,668 +243,671 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
     return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
   };
   
-  const getStageIcon = (type: string) => {
-    switch (type) {
-      case "message":
-        return <MessageCircle className="h-4 w-4" />;
-      case "pattern":
-        return <FileCode className="h-4 w-4" />;
-      case "typebot":
-        return <Bot className="h-4 w-4" />;
-      default:
-        return <MessageCircle className="h-4 w-4" />;
-    }
+  const getActiveRestrictionCount = () => {
+    return timeRestrictions.filter(r => r.active).length;
   };
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
-        {/* Basic Info */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Informações Básicas</CardTitle>
-            <CardDescription>Configure os detalhes principais da sequência</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Nome da Sequência</Label>
-              <Input 
-                id="name" 
-                value={name} 
-                onChange={(e) => setName(e.target.value)} 
-                placeholder="Ex: Sequência de Boas-vindas"
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label>Status</Label>
-              <RadioGroup 
-                value={status}
-                onValueChange={(value) => setStatus(value as "active" | "inactive")}
-                className="flex items-center space-x-4"
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="active" id="active" />
-                  <Label htmlFor="active">Ativa</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="inactive" id="inactive" />
-                  <Label htmlFor="inactive">Inativa</Label>
-                </div>
-              </RadioGroup>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Time Restrictions */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <div>
-              <CardTitle>Restrições de Horário</CardTitle>
-              <CardDescription>Defina quando as mensagens não devem ser enviadas</CardDescription>
-            </div>
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button size="sm">
-                  <PlusCircle className="h-4 w-4 mr-1" /> Adicionar
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Adicionar Restrição de Horário</DialogTitle>
-                  <DialogDescription>
-                    Mensagens não serão enviadas nos dias e horários selecionados.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div>
-                    <Label>Dias da Semana</Label>
-                    <div className="grid grid-cols-4 gap-2 mt-2">
-                      {[0, 1, 2, 3, 4, 5, 6].map((day) => (
-                        <div key={day} className="flex items-center space-x-2">
-                          <input
-                            type="checkbox"
-                            id={`day-${day}`}
-                            checked={newRestriction.days.includes(day)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setNewRestriction({
-                                  ...newRestriction,
-                                  days: [...newRestriction.days, day],
-                                });
-                              } else {
-                                setNewRestriction({
-                                  ...newRestriction,
-                                  days: newRestriction.days.filter(d => d !== day),
-                                });
-                              }
-                            }}
-                            className="rounded"
-                          />
-                          <Label htmlFor={`day-${day}`} className="text-sm">
-                            {getDayName(day)}
-                          </Label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>Horário de Início</Label>
-                      <div className="flex mt-2 space-x-2">
-                        <Select
-                          value={newRestriction.startHour.toString()}
-                          onValueChange={(value) => 
-                            setNewRestriction({
-                              ...newRestriction,
-                              startHour: parseInt(value),
-                            })
-                          }
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {Array.from({ length: 24 }, (_, i) => (
-                              <SelectItem key={`start-hour-${i}`} value={i.toString()}>
-                                {i.toString().padStart(2, "0")}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <span className="flex items-center">:</span>
-                        <Select
-                          value={newRestriction.startMinute.toString()}
-                          onValueChange={(value) => 
-                            setNewRestriction({
-                              ...newRestriction,
-                              startMinute: parseInt(value),
-                            })
-                          }
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {[0, 15, 30, 45].map((minute) => (
-                              <SelectItem key={`start-min-${minute}`} value={minute.toString()}>
-                                {minute.toString().padStart(2, "0")}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <div>
-                      <Label>Horário de Término</Label>
-                      <div className="flex mt-2 space-x-2">
-                        <Select
-                          value={newRestriction.endHour.toString()}
-                          onValueChange={(value) => 
-                            setNewRestriction({
-                              ...newRestriction,
-                              endHour: parseInt(value),
-                            })
-                          }
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {Array.from({ length: 24 }, (_, i) => (
-                              <SelectItem key={`end-hour-${i}`} value={i.toString()}>
-                                {i.toString().padStart(2, "0")}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <span className="flex items-center">:</span>
-                        <Select
-                          value={newRestriction.endMinute.toString()}
-                          onValueChange={(value) => 
-                            setNewRestriction({
-                              ...newRestriction,
-                              endMinute: parseInt(value),
-                            })
-                          }
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {[0, 15, 30, 45].map((minute) => (
-                              <SelectItem key={`end-min-${minute}`} value={minute.toString()}>
-                                {minute.toString().padStart(2, "0")}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => {}}>Cancelar</Button>
-                  <Button onClick={addTimeRestriction}>Adicionar</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </CardHeader>
-          <CardContent>
-            {timeRestrictions.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-32 text-center">
-                <Clock className="h-8 w-8 text-muted-foreground mb-2" />
-                <p className="text-muted-foreground">
-                  Sem restrições de horário definidas
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  As mensagens serão enviadas em qualquer horário
-                </p>
-              </div>
-            ) : (
-              <ScrollArea className="h-32">
-                <div className="space-y-2">
-                  {timeRestrictions.map((restriction) => (
-                    <div
-                      key={restriction.id}
-                      className="flex items-center justify-between p-2 border rounded-md"
-                    >
-                      <div className="flex-1">
-                        <div className="flex flex-wrap gap-1 mb-1">
-                          {restriction.days.map((day) => (
-                            <Badge key={`day-${restriction.id}-${day}`} variant="outline" className="text-xs">
-                              {getDayName(day)}
-                            </Badge>
-                          ))}
-                        </div>
-                        <p className="text-sm">
-                          {formatTime(restriction.startHour, restriction.startMinute)} - {formatTime(restriction.endHour, restriction.endMinute)}
-                        </p>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeTimeRestriction(restriction.id)}
-                      >
-                        <Trash2 className="h-4 w-4 text-red-500" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-      
-      {/* Tag Conditions */}
-      <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
-        {/* Start Condition */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Badge className="mr-2 bg-green-600">Início</Badge>
-              Condição de Início
-            </CardTitle>
-            <CardDescription>
-              Define quando um contato deve entrar nesta sequência
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center space-x-2">
-              <Button 
-                variant="outline"
-                size="sm"
-                onClick={() => toggleConditionType("start")}
-              >
-                <span className="font-mono">{startCondition.type}</span>
-              </Button>
-              <span className="text-sm text-muted-foreground">
-                {startCondition.type === "AND" 
-                  ? "Contato precisa ter TODAS as tags selecionadas" 
-                  : "Contato precisa ter QUALQUER UMA das tags selecionadas"}
-              </span>
-            </div>
-            
-            <div className="space-y-2">
-              <div className="flex flex-wrap gap-2">
-                {startCondition.tags.map((tag) => (
-                  <Badge key={tag} className="bg-green-600">
-                    {tag}
-                    <button
-                      className="ml-1 hover:bg-green-700 rounded-full"
-                      onClick={() => removeTag("start", tag)}
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
-                ))}
-                {startCondition.tags.length === 0 && (
-                  <span className="text-sm text-muted-foreground">
-                    Nenhuma tag adicionada
-                  </span>
-                )}
-              </div>
-              
-              <div className="flex space-x-2">
-                <div className="relative flex-1">
-                  <Input
-                    value={newTag}
-                    onChange={(e) => setNewTag(e.target.value)}
-                    placeholder="Digite ou selecione uma tag"
-                    onFocus={() => setShowTagSelector("start")}
-                  />
-                  {showTagSelector === "start" && (
-                    <div className="absolute z-10 w-full max-h-32 overflow-y-auto mt-1 bg-card border rounded-md shadow-lg">
-                      {tags.filter(tag => !startCondition.tags.includes(tag)).length > 0 ? (
-                        tags
-                          .filter(tag => !startCondition.tags.includes(tag))
-                          .map(tag => (
-                            <button
-                              key={tag}
-                              className="w-full text-left px-3 py-1.5 hover:bg-accent text-sm"
-                              onClick={() => {
-                                addTag("start", tag);
-                                setShowTagSelector(null);
-                              }}
-                            >
-                              {tag}
-                            </button>
-                          ))
-                      ) : (
-                        <div className="px-3 py-1.5 text-sm text-muted-foreground">
-                          Sem tags disponíveis
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <Button 
-                  onClick={() => {
-                    addTag("start", newTag);
-                    setShowTagSelector(null);
-                  }}
-                >
-                  Adicionar
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      <Tabs defaultValue="basic">
+        <TabsList className="w-full">
+          <TabsTrigger value="basic" className="flex-1">Informações Básicas</TabsTrigger>
+          <TabsTrigger value="stages" className="flex-1">
+            Estágios
+            <Badge variant="secondary" className="ml-2">{stages.length}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="restrictions" className="flex-1">
+            Restrições de Horário
+            <Badge variant="secondary" className="ml-2">{getActiveRestrictionCount()}</Badge>
+          </TabsTrigger>
+        </TabsList>
         
-        {/* Stop Condition */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Badge className="mr-2 bg-red-600">Parada</Badge>
-              Condição de Parada
-            </CardTitle>
-            <CardDescription>
-              Define quando um contato deve ser removido desta sequência
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center space-x-2">
-              <Button 
-                variant="outline"
-                size="sm"
-                onClick={() => toggleConditionType("stop")}
-              >
-                <span className="font-mono">{stopCondition.type}</span>
-              </Button>
-              <span className="text-sm text-muted-foreground">
-                {stopCondition.type === "AND" 
-                  ? "Contato será removido se tiver TODAS as tags selecionadas" 
-                  : "Contato será removido se tiver QUALQUER UMA das tags selecionadas"}
-              </span>
-            </div>
-            
-            <div className="space-y-2">
-              <div className="flex flex-wrap gap-2">
-                {stopCondition.tags.map((tag) => (
-                  <Badge key={tag} className="bg-red-600">
-                    {tag}
-                    <button
-                      className="ml-1 hover:bg-red-700 rounded-full"
-                      onClick={() => removeTag("stop", tag)}
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
-                ))}
-                {stopCondition.tags.length === 0 && (
-                  <span className="text-sm text-muted-foreground">
-                    Nenhuma tag adicionada
-                  </span>
-                )}
-              </div>
-              
-              <div className="flex space-x-2">
-                <div className="relative flex-1">
-                  <Input
-                    value={newTag}
-                    onChange={(e) => setNewTag(e.target.value)}
-                    placeholder="Digite ou selecione uma tag"
-                    onFocus={() => setShowTagSelector("stop")}
+        <TabsContent value="basic" className="pt-6">
+          <div className="grid gap-6 grid-cols-1">
+            {/* Basic Info */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Informações Básicas</CardTitle>
+                <CardDescription>Configure os detalhes principais da sequência</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Nome da Sequência</Label>
+                  <Input 
+                    id="name" 
+                    value={name} 
+                    onChange={(e) => setName(e.target.value)} 
+                    placeholder="Ex: Sequência de Boas-vindas"
                   />
-                  {showTagSelector === "stop" && (
-                    <div className="absolute z-10 w-full max-h-32 overflow-y-auto mt-1 bg-card border rounded-md shadow-lg">
-                      {tags.filter(tag => !stopCondition.tags.includes(tag)).length > 0 ? (
-                        tags
-                          .filter(tag => !stopCondition.tags.includes(tag))
-                          .map(tag => (
-                            <button
-                              key={tag}
-                              className="w-full text-left px-3 py-1.5 hover:bg-accent text-sm"
-                              onClick={() => {
-                                addTag("stop", tag);
-                                setShowTagSelector(null);
-                              }}
-                            >
-                              {tag}
-                            </button>
-                          ))
-                      ) : (
-                        <div className="px-3 py-1.5 text-sm text-muted-foreground">
-                          Sem tags disponíveis
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
-                <Button 
-                  onClick={() => {
-                    addTag("stop", newTag);
-                    setShowTagSelector(null);
-                  }}
-                >
-                  Adicionar
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-      
-      {/* Stages */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Estágios da Sequência</CardTitle>
-          <CardDescription>
-            Defina as mensagens que serão enviadas e quando
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {stages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-6 text-center">
-              <AlertCircle className="h-8 w-8 text-muted-foreground mb-2" />
-              <p className="text-muted-foreground">
-                Nenhum estágio definido
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Adicione pelo menos um estágio à sua sequência
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {stages.map((stage, index) => (
-                <div
-                  key={stage.id}
-                  className="border rounded-md p-4 relative"
-                >
-                  <div className="absolute -left-3 -top-3 w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">
-                    {index + 1}
+                
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="status">Status</Label>
+                    <Switch
+                      id="status"
+                      checked={status === "active"}
+                      onCheckedChange={(checked) => setStatus(checked ? "active" : "inactive")}
+                    />
                   </div>
-                  
-                  <div className="flex justify-between items-start mb-3">
-                    <div>
-                      <h3 className="font-medium flex items-center">
-                        {stage.name}
-                        <Badge 
-                          variant="outline" 
-                          className={cn(
-                            "ml-2 flex items-center",
-                            stage.type === "message" && "bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-500/30",
-                            stage.type === "pattern" && "bg-purple-500/20 text-purple-700 dark:text-purple-400 border-purple-500/30",
-                            stage.type === "typebot" && "bg-orange-500/20 text-orange-700 dark:text-orange-400 border-orange-500/30"
-                          )}
-                        >
-                          {getStageIcon(stage.type)}
-                          <span className="ml-1 capitalize">{stage.type}</span>
-                        </Badge>
-                      </h3>
-                      <p className="text-sm text-muted-foreground flex items-center mt-1">
-                        <Clock className="h-3 w-3 mr-1" /> 
-                        Enviar após {stage.delay} {
-                          stage.delayUnit === "minutes" ? "minutos" :
-                          stage.delayUnit === "hours" ? "horas" : "dias"
-                        }
-                      </p>
-                    </div>
-                    <div className="flex space-x-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => moveStage(stage.id, "up")}
-                        disabled={index === 0}
-                      >
-                        <ChevronUp className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => moveStage(stage.id, "down")}
-                        disabled={index === stages.length - 1}
-                      >
-                        <ChevronDown className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeStage(stage.id)}
-                      >
-                        <Trash2 className="h-4 w-4 text-red-500" />
-                      </Button>
-                    </div>
-                  </div>
-                  
-                  <div className="bg-background/50 p-3 rounded-md border text-sm">
-                    {stage.type === "typebot" ? (
-                      <div className="flex items-center">
-                        <Bot className="h-4 w-4 mr-2 text-muted-foreground" />
-                        <a 
-                          href={stage.content} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-blue-500 hover:underline"
-                        >
-                          {stage.content}
-                        </a>
-                      </div>
-                    ) : (
-                      <div className="whitespace-pre-line">{stage.content}</div>
-                    )}
-                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {status === "active" ? "Sequência ativa" : "Sequência inativa"}
+                  </p>
                 </div>
-              ))}
-            </div>
-          )}
-          
-          {/* Add Stage */}
-          <Accordion type="single" collapsible>
-            <AccordionItem value="add-stage">
-              <AccordionTrigger className="py-2">
-                <div className="flex items-center">
-                  <PlusCircle className="h-4 w-4 mr-2" />
-                  <span>Adicionar Estágio</span>
-                </div>
-              </AccordionTrigger>
-              <AccordionContent>
-                <div className="space-y-4 pb-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="stage-name">Nome do Estágio</Label>
-                      <Input 
-                        id="stage-name" 
-                        value={newStage.name} 
-                        onChange={(e) => setNewStage({ ...newStage, name: e.target.value })}
-                        placeholder="Ex: Boas-vindas"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="stage-type">Tipo do Conteúdo</Label>
-                      <Select
-                        value={newStage.type}
-                        onValueChange={(value) => setNewStage({ 
-                          ...newStage, 
-                          type: value as "message" | "pattern" | "typebot" 
-                        })}
-                      >
-                        <SelectTrigger id="stage-type">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="message">Mensagem</SelectItem>
-                          <SelectItem value="pattern">Pattern</SelectItem>
-                          <SelectItem value="typebot">Typebot</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+              </CardContent>
+            </Card>
+
+            <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
+              {/* Start Condition */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Badge className="mr-2 bg-green-600">Início</Badge>
+                    Condição de Início
+                  </CardTitle>
+                  <CardDescription>
+                    Define quando um contato deve entrar nesta sequência
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <Button 
+                      variant="outline"
+                      size="sm"
+                      onClick={() => toggleConditionType("start")}
+                    >
+                      <span className="font-mono">{startCondition.type}</span>
+                    </Button>
+                    <span className="text-sm text-muted-foreground">
+                      {startCondition.type === "AND" 
+                        ? "Contato precisa ter TODAS as tags selecionadas" 
+                        : "Contato precisa ter QUALQUER UMA das tags selecionadas"}
+                    </span>
                   </div>
                   
                   <div className="space-y-2">
-                    <Label htmlFor="stage-content">
-                      {newStage.type === "message" ? "Mensagem" : 
-                       newStage.type === "pattern" ? "Pattern" : "Link do Typebot"}
-                    </Label>
-                    {newStage.type === "typebot" ? (
-                      <Input 
-                        id="stage-content" 
-                        value={newStage.content} 
-                        onChange={(e) => setNewStage({ ...newStage, content: e.target.value })}
-                        placeholder="https://typebot.io/seu-bot"
-                      />
-                    ) : (
-                      <Textarea 
-                        id="stage-content" 
-                        value={newStage.content} 
-                        onChange={(e) => setNewStage({ ...newStage, content: e.target.value })}
-                        rows={4}
-                        placeholder={
-                          newStage.type === "message" 
-                            ? "Digite sua mensagem. Use ${name} para incluir o nome do contato."
-                            : "IMAGE::https://example.com/produto-xyz.jpg||TEXT::Confira todos os detalhes!"
-                        }
-                      />
-                    )}
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="stage-delay">Atraso</Label>
-                      <Input 
-                        id="stage-delay" 
-                        type="number" 
-                        min="1"
-                        value={newStage.delay} 
-                        onChange={(e) => setNewStage({ 
-                          ...newStage, 
-                          delay: parseInt(e.target.value) || 60
-                        })}
-                      />
+                    <div className="flex flex-wrap gap-2">
+                      {startCondition.tags.map((tag) => (
+                        <Badge key={tag} className="bg-green-600">
+                          {tag}
+                          <button
+                            className="ml-1 hover:bg-green-700 rounded-full"
+                            onClick={() => removeTag("start", tag)}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                      {startCondition.tags.length === 0 && (
+                        <span className="text-sm text-muted-foreground">
+                          Nenhuma tag adicionada
+                        </span>
+                      )}
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="stage-delay-unit">Unidade</Label>
-                      <Select
-                        value={newStage.delayUnit}
-                        onValueChange={(value) => setNewStage({ 
-                          ...newStage, 
-                          delayUnit: value as "minutes" | "hours" | "days" 
-                        })}
+                    
+                    <div className="flex space-x-2">
+                      <div className="relative flex-1">
+                        <Input
+                          value={newTag}
+                          onChange={(e) => setNewTag(e.target.value)}
+                          placeholder="Digite ou selecione uma tag"
+                          onFocus={() => setShowTagSelector("start")}
+                        />
+                        {showTagSelector === "start" && (
+                          <div className="absolute z-10 w-full max-h-32 overflow-y-auto mt-1 bg-card border rounded-md shadow-lg">
+                            {tags.filter(tag => !startCondition.tags.includes(tag)).length > 0 ? (
+                              tags
+                                .filter(tag => !startCondition.tags.includes(tag))
+                                .map(tag => (
+                                  <button
+                                    key={tag}
+                                    className="w-full text-left px-3 py-1.5 hover:bg-accent text-sm"
+                                    onClick={() => {
+                                      addTag("start", tag);
+                                      setShowTagSelector(null);
+                                    }}
+                                  >
+                                    {tag}
+                                  </button>
+                                ))
+                            ) : (
+                              <div className="px-3 py-1.5 text-sm text-muted-foreground">
+                                Sem tags disponíveis
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <Button 
+                        onClick={() => {
+                          addTag("start", newTag);
+                          setShowTagSelector(null);
+                        }}
                       >
-                        <SelectTrigger id="stage-delay-unit">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="minutes">Minutos</SelectItem>
-                          <SelectItem value="hours">Horas</SelectItem>
-                          <SelectItem value="days">Dias</SelectItem>
-                        </SelectContent>
-                      </Select>
+                        Adicionar
+                      </Button>
                     </div>
                   </div>
+                </CardContent>
+              </Card>
+              
+              {/* Stop Condition */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Badge className="mr-2 bg-red-600">Parada</Badge>
+                    Condição de Parada
+                  </CardTitle>
+                  <CardDescription>
+                    Define quando um contato deve ser removido desta sequência
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <Button 
+                      variant="outline"
+                      size="sm"
+                      onClick={() => toggleConditionType("stop")}
+                    >
+                      <span className="font-mono">{stopCondition.type}</span>
+                    </Button>
+                    <span className="text-sm text-muted-foreground">
+                      {stopCondition.type === "AND" 
+                        ? "Contato será removido se tiver TODAS as tags selecionadas" 
+                        : "Contato será removido se tiver QUALQUER UMA das tags selecionadas"}
+                    </span>
+                  </div>
                   
-                  <Button onClick={addStage}>Adicionar Estágio</Button>
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap gap-2">
+                      {stopCondition.tags.map((tag) => (
+                        <Badge key={tag} className="bg-red-600">
+                          {tag}
+                          <button
+                            className="ml-1 hover:bg-red-700 rounded-full"
+                            onClick={() => removeTag("stop", tag)}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                      {stopCondition.tags.length === 0 && (
+                        <span className="text-sm text-muted-foreground">
+                          Nenhuma tag adicionada
+                        </span>
+                      )}
+                    </div>
+                    
+                    <div className="flex space-x-2">
+                      <div className="relative flex-1">
+                        <Input
+                          value={newTag}
+                          onChange={(e) => setNewTag(e.target.value)}
+                          placeholder="Digite ou selecione uma tag"
+                          onFocus={() => setShowTagSelector("stop")}
+                        />
+                        {showTagSelector === "stop" && (
+                          <div className="absolute z-10 w-full max-h-32 overflow-y-auto mt-1 bg-card border rounded-md shadow-lg">
+                            {tags.filter(tag => !stopCondition.tags.includes(tag)).length > 0 ? (
+                              tags
+                                .filter(tag => !stopCondition.tags.includes(tag))
+                                .map(tag => (
+                                  <button
+                                    key={tag}
+                                    className="w-full text-left px-3 py-1.5 hover:bg-accent text-sm"
+                                    onClick={() => {
+                                      addTag("stop", tag);
+                                      setShowTagSelector(null);
+                                    }}
+                                  >
+                                    {tag}
+                                  </button>
+                                ))
+                            ) : (
+                              <div className="px-3 py-1.5 text-sm text-muted-foreground">
+                                Sem tags disponíveis
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <Button 
+                        onClick={() => {
+                          addTag("stop", newTag);
+                          setShowTagSelector(null);
+                        }}
+                      >
+                        Adicionar
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </TabsContent>
+        
+        <TabsContent value="stages" className="pt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Estágios da Sequência</CardTitle>
+              <CardDescription>
+                Defina as mensagens que serão enviadas e quando
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {stages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-6 text-center">
+                  <Clock className="h-8 w-8 text-muted-foreground mb-2" />
+                  <p className="text-muted-foreground">
+                    Nenhum estágio definido
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Adicione pelo menos um estágio à sua sequência
+                  </p>
                 </div>
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
-        </CardContent>
-      </Card>
+              ) : (
+                <div className="space-y-4">
+                  {stages.map((stage, index) => (
+                    <StageItem 
+                      key={stage.id}
+                      stage={stage}
+                      index={index}
+                      isEditing={editingStageId === stage.id}
+                      stageToEdit={stageToEdit}
+                      onEdit={startEditingStage}
+                      onUpdate={updateStage}
+                      onCancel={() => {
+                        setEditingStageId(null);
+                        setStageToEdit(null);
+                      }}
+                      onRemove={removeStage}
+                      onMove={moveStage}
+                      isFirst={index === 0}
+                      isLast={index === stages.length - 1}
+                    />
+                  ))}
+                </div>
+              )}
+              
+              {/* Add Stage */}
+              <Accordion type="single" collapsible>
+                <AccordionItem value="add-stage">
+                  <AccordionTrigger className="py-2">
+                    <div className="flex items-center">
+                      <PlusCircle className="h-4 w-4 mr-2" />
+                      <span>Adicionar Estágio</span>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="space-y-4 pb-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="stage-name">Nome do Estágio</Label>
+                          <Input 
+                            id="stage-name" 
+                            value={newStage.name} 
+                            onChange={(e) => setNewStage({ ...newStage, name: e.target.value })}
+                            placeholder="Ex: Boas-vindas"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="stage-type">Tipo do Conteúdo</Label>
+                          <Select
+                            value={newStage.type}
+                            onValueChange={(value) => setNewStage({ 
+                              ...newStage, 
+                              type: value as "message" | "pattern" | "typebot" 
+                            })}
+                          >
+                            <SelectTrigger id="stage-type">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="message">Mensagem</SelectItem>
+                              <SelectItem value="pattern">Pattern</SelectItem>
+                              <SelectItem value="typebot">Typebot</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="stage-content">
+                          {newStage.type === "message" ? "Mensagem" : 
+                          newStage.type === "pattern" ? "Pattern" : "Link do Typebot"}
+                        </Label>
+                        {newStage.type === "typebot" ? (
+                          <div className="space-y-4">
+                            <Input 
+                              id="stage-content" 
+                              value={newStage.content} 
+                              onChange={(e) => setNewStage({ ...newStage, content: e.target.value })}
+                              placeholder="https://typebot.io/seu-bot"
+                            />
+                            <div className="space-y-2">
+                              <Label htmlFor="typebot-stage">Estágio do Typebot</Label>
+                              <Select
+                                value={newStage.typebotStage || "stg1"}
+                                onValueChange={(value) => setNewStage({
+                                  ...newStage,
+                                  typebotStage: value
+                                })}
+                              >
+                                <SelectTrigger id="typebot-stage">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="stg1">Estágio 1</SelectItem>
+                                  <SelectItem value="stg2">Estágio 2</SelectItem>
+                                  <SelectItem value="stg3">Estágio 3</SelectItem>
+                                  <SelectItem value="stg4">Estágio 4</SelectItem>
+                                  <SelectItem value="stg5">Estágio 5</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        ) : (
+                          <Textarea 
+                            id="stage-content" 
+                            value={newStage.content} 
+                            onChange={(e) => setNewStage({ ...newStage, content: e.target.value })}
+                            rows={4}
+                            placeholder={
+                              newStage.type === "message" 
+                                ? "Digite sua mensagem. Use ${name} para incluir o nome do contato."
+                                : "IMAGE::https://example.com/produto-xyz.jpg||TEXT::Confira todos os detalhes!"
+                            }
+                          />
+                        )}
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="stage-delay">Atraso</Label>
+                          <Input 
+                            id="stage-delay" 
+                            type="number" 
+                            min="1"
+                            value={newStage.delay} 
+                            onChange={(e) => setNewStage({ 
+                              ...newStage, 
+                              delay: parseInt(e.target.value) || 60
+                            })}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="stage-delay-unit">Unidade</Label>
+                          <Select
+                            value={newStage.delayUnit}
+                            onValueChange={(value) => setNewStage({ 
+                              ...newStage, 
+                              delayUnit: value as "minutes" | "hours" | "days" 
+                            })}
+                          >
+                            <SelectTrigger id="stage-delay-unit">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="minutes">Minutos</SelectItem>
+                              <SelectItem value="hours">Horas</SelectItem>
+                              <SelectItem value="days">Dias</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      
+                      <Button onClick={addStage}>Adicionar Estágio</Button>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="restrictions" className="pt-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Restrições de Horário</CardTitle>
+                  <CardDescription>Define quando as mensagens não serão enviadas</CardDescription>
+                </div>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button size="sm">
+                      <PlusCircle className="h-4 w-4 mr-2" />
+                      Nova Restrição
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Adicionar Restrição de Horário</DialogTitle>
+                      <DialogDescription>
+                        Mensagens não serão enviadas nos dias e horários selecionados.
+                      </DialogDescription>
+                    </DialogHeader>
+                    
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="restriction-name">Nome da Restrição</Label>
+                        <Input 
+                          id="restriction-name" 
+                          value={newRestriction.name} 
+                          onChange={(e) => setNewRestriction({ ...newRestriction, name: e.target.value })}
+                          placeholder="Ex: Horário comercial"
+                        />
+                      </div>
+                    
+                      <div className="flex items-center space-x-2">
+                        <Label htmlFor="restriction-active">Ativa</Label>
+                        <Switch
+                          id="restriction-active"
+                          checked={newRestriction.active}
+                          onCheckedChange={(checked) => setNewRestriction({
+                            ...newRestriction,
+                            active: checked
+                          })}
+                        />
+                      </div>
+                      
+                      <div>
+                        <Label>Dias da Semana</Label>
+                        <div className="grid grid-cols-4 gap-2 mt-2">
+                          {[0, 1, 2, 3, 4, 5, 6].map((day) => (
+                            <div key={day} className="flex items-center space-x-2">
+                              <input
+                                type="checkbox"
+                                id={`day-${day}`}
+                                checked={newRestriction.days.includes(day)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setNewRestriction({
+                                      ...newRestriction,
+                                      days: [...newRestriction.days, day],
+                                    });
+                                  } else {
+                                    setNewRestriction({
+                                      ...newRestriction,
+                                      days: newRestriction.days.filter(d => d !== day),
+                                    });
+                                  }
+                                }}
+                                className="rounded"
+                              />
+                              <Label htmlFor={`day-${day}`} className="text-sm">
+                                {getDayName(day)}
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label>Horário de Início</Label>
+                          <div className="flex mt-2 space-x-2">
+                            <Select
+                              value={newRestriction.startHour.toString()}
+                              onValueChange={(value) => 
+                                setNewRestriction({
+                                  ...newRestriction,
+                                  startHour: parseInt(value),
+                                })
+                              }
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {Array.from({ length: 24 }, (_, i) => (
+                                  <SelectItem key={`start-hour-${i}`} value={i.toString()}>
+                                    {i.toString().padStart(2, "0")}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <span className="flex items-center">:</span>
+                            <Select
+                              value={newRestriction.startMinute.toString()}
+                              onValueChange={(value) => 
+                                setNewRestriction({
+                                  ...newRestriction,
+                                  startMinute: parseInt(value),
+                                })
+                              }
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {[0, 15, 30, 45].map((minute) => (
+                                  <SelectItem key={`start-min-${minute}`} value={minute.toString()}>
+                                    {minute.toString().padStart(2, "0")}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <div>
+                          <Label>Horário de Término</Label>
+                          <div className="flex mt-2 space-x-2">
+                            <Select
+                              value={newRestriction.endHour.toString()}
+                              onValueChange={(value) => 
+                                setNewRestriction({
+                                  ...newRestriction,
+                                  endHour: parseInt(value),
+                                })
+                              }
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {Array.from({ length: 24 }, (_, i) => (
+                                  <SelectItem key={`end-hour-${i}`} value={i.toString()}>
+                                    {i.toString().padStart(2, "0")}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <span className="flex items-center">:</span>
+                            <Select
+                              value={newRestriction.endMinute.toString()}
+                              onValueChange={(value) => 
+                                setNewRestriction({
+                                  ...newRestriction,
+                                  endMinute: parseInt(value),
+                                })
+                              }
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {[0, 15, 30, 45].map((minute) => (
+                                  <SelectItem key={`end-min-${minute}`} value={minute.toString()}>
+                                    {minute.toString().padStart(2, "0")}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <DialogFooter>
+                      <div className="flex space-x-2">
+                        <Button variant="outline">Selecionar existente</Button>
+                        <Button onClick={addTimeRestriction}>Adicionar nova</Button>
+                      </div>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {timeRestrictions.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-32 text-center">
+                  <Clock className="h-8 w-8 text-muted-foreground mb-2" />
+                  <p className="text-muted-foreground">
+                    Sem restrições de horário definidas
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    As mensagens serão enviadas em qualquer horário
+                  </p>
+                </div>
+              ) : (
+                <ScrollArea className="h-[400px]">
+                  <div className="space-y-2">
+                    {timeRestrictions.map((restriction) => (
+                      <RestrictionItem
+                        key={restriction.id}
+                        restriction={restriction}
+                        onUpdate={updateTimeRestriction}
+                        onRemove={removeTimeRestriction}
+                      />
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
+            </CardContent>
+          </Card>
+          
+          {globalTimeRestrictions.length > 0 && (
+            <Card className="mt-6">
+              <CardHeader>
+                <CardTitle>Restrições Globais</CardTitle>
+                <CardDescription>Restrições de horário disponíveis para todas as sequências</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="h-[200px]">
+                  <div className="space-y-2">
+                    {globalTimeRestrictions.map((restriction) => (
+                      <RestrictionItem
+                        key={restriction.id}
+                        restriction={restriction}
+                        readonly
+                        onSelect={() => {
+                          if (!timeRestrictions.some(r => r.id === restriction.id)) {
+                            setTimeRestrictions([...timeRestrictions, restriction]);
+                          }
+                        }}
+                      />
+                    ))}
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+      </Tabs>
       
-      {/* Submit and Cancel */}
-      <div className="flex justify-end space-x-4">
+      <div className="flex justify-end space-x-4 mt-6">
         <Button variant="outline" onClick={onCancel}>
           Cancelar
         </Button>
