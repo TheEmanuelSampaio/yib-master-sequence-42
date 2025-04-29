@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useApp } from '@/context/AppContext';
 import { Pencil, Search, MoreVertical, Power, PowerOff, Trash2, Plus, Laptop } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,24 @@ export default function Instances() {
   const [editInstance, setEditInstance] = useState<Instance | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   
+  // Clean up any body styles when component unmounts
+  useEffect(() => {
+    return () => {
+      document.body.style.removeProperty('pointer-events');
+    };
+  }, []);
+  
+  // Fix for pointer-events issue when dialog closes
+  useEffect(() => {
+    if (!open) {
+      // Use setTimeout to ensure this happens after dialog animation completes
+      const timer = setTimeout(() => {
+        document.body.style.removeProperty('pointer-events');
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [open]);
+  
   const handleAddInstance = () => {
     if (!name || !evolutionApiUrl || !apiKey) {
       toast.error("Preencha todos os campos obrigatórios");
@@ -59,6 +77,8 @@ export default function Instances() {
     setOpen(false);
     setIsEditing(false);
     setEditInstance(null);
+    // Ensure pointer-events are enabled
+    document.body.style.removeProperty('pointer-events');
   };
 
   const startEditing = (instance: Instance) => {
@@ -126,14 +146,16 @@ export default function Instances() {
       </div>
       
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex w-full sm:max-w-sm gap-2">
-          <Input
-            placeholder="Buscar instâncias..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full"
-          />
-          <Button variant="ghost" size="icon" className="flex-shrink-0 text-muted-foreground">
+        <div className="flex w-full sm:max-w-sm items-center">
+          <div className="relative w-full">
+            <Input
+              placeholder="Buscar instâncias..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pr-10"
+            />
+          </div>
+          <Button variant="ghost" size="icon" className="ml-2 text-muted-foreground">
             <Search className="h-4 w-4" />
           </Button>
         </div>
@@ -171,18 +193,34 @@ export default function Instances() {
         </TabsContent>
       </Tabs>
       
-      {/* Fixed Dialog handling to prevent UI freezing and pointer-events issues */}
+      {/* Dialog handling with special focus on fixing pointer-events issue */}
       <Dialog 
         open={open} 
         onOpenChange={(isOpen) => {
-          // Just update the state without any delays
           setOpen(isOpen);
           if (!isOpen) {
-            resetForm();
+            // Force pointer-events back to normal on close
+            // Use setTimeout to ensure this happens after dialog animation completes
+            setTimeout(() => {
+              document.body.style.removeProperty('pointer-events');
+              resetForm();
+            }, 300);
           }
         }}
       >
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent 
+          className="sm:max-w-[425px]"
+          onInteractOutside={(e) => {
+            // Prevent any weird interaction issues
+            e.preventDefault();
+          }}
+          onEscapeKeyDown={() => {
+            // Ensure proper cleanup on escape key
+            setTimeout(() => {
+              document.body.style.removeProperty('pointer-events');
+            }, 300);
+          }}
+        >
           <DialogHeader>
             <DialogTitle>{isEditing ? 'Editar Instância' : 'Adicionar Instância'}</DialogTitle>
             <DialogDescription>
@@ -193,13 +231,13 @@ export default function Instances() {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="name" className="text-right text-base">
+              <Label htmlFor="name" className="text-right text-sm">
                 Nome
               </Label>
               <Input id="name" value={name} onChange={(e) => setName(e.target.value)} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="evolutionApiUrl" className="text-right text-base">
+              <Label htmlFor="evolutionApiUrl" className="text-right text-sm">
                 URL da API
               </Label>
               <Input
@@ -210,7 +248,7 @@ export default function Instances() {
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="apiKey" className="text-right text-base">
+              <Label htmlFor="apiKey" className="text-right text-sm">
                 API Key
               </Label>
               <Input id="apiKey" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} className="col-span-3" />
@@ -219,6 +257,10 @@ export default function Instances() {
           <DialogFooter>
             <Button type="button" variant="secondary" onClick={() => {
               setOpen(false);
+              // Force pointer-events back to normal
+              setTimeout(() => {
+                document.body.style.removeProperty('pointer-events');
+              }, 300);
               resetForm();
             }}>
               Cancelar
@@ -262,8 +304,8 @@ export default function Instances() {
         {instances.map((instance) => (
           <Card key={instance.id} className="hover:shadow-md transition-shadow">
             <CardHeader className="pb-1">
-              <CardTitle className="mb-1">{instance.name}</CardTitle>
-              <CardDescription className="flex items-center mt-2">
+              <CardTitle className="mb-3">{instance.name}</CardTitle>
+              <CardDescription className="flex items-center">
                 {instance.active ? 
                   <Power className="h-4 w-4 text-green-500 mr-2" /> : 
                   <PowerOff className="h-4 w-4 text-destructive mr-2" />
@@ -275,11 +317,11 @@ export default function Instances() {
             </CardHeader>
             <CardContent className="space-y-2">
               <div className="space-y-1">
-                <Label className="text-sm font-medium text-base">URL da API</Label>
+                <Label className="text-sm font-medium">URL da API</Label>
                 <p className="text-sm text-muted-foreground break-all">{instance.evolutionApiUrl}</p>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs font-medium text-base">API Key</Label>
+                <Label className="text-sm font-medium">API Key</Label>
                 <p className="text-sm text-muted-foreground break-all">{instance.apiKey}</p>
               </div>
             </CardContent>
