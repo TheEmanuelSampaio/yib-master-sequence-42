@@ -87,6 +87,12 @@ export default function UserManagement() {
       
       if (authError) throw authError;
       
+      if (!authUsers) {
+        setUsers([]);
+        setLoading(false);
+        return;
+      }
+      
       // Buscar informações adicionais (como email) de cada usuário
       const usersWithDetails = await Promise.all(
         authUsers.map(async (user) => {
@@ -98,16 +104,6 @@ export default function UserManagement() {
           
           if (rolesError) throw rolesError;
           
-          // Obter o email do usuário usando o admin api (não é possível pela API do cliente)
-          // Simulamos isso aqui usando o perfil, na vida real precisaria de uma função serverless
-          const { data: userData, error: userError } = await supabase
-            .from("profiles")
-            .select("id")
-            .eq("id", user.id)
-            .single();
-          
-          if (userError && userError.code !== "PGRST116") throw userError;
-          
           // Em uma implementação real, precisaríamos buscar o email através de uma função serverless
           // Por enquanto, vamos usar um mock baseado no id
           const mockEmail = `user-${user.id.substring(0, 8)}@example.com`;
@@ -115,9 +111,9 @@ export default function UserManagement() {
           return {
             id: user.id,
             email: mockEmail, // No mundo real, isso viria da serverless function
-            account_name: user.account_name,
+            account_name: user.account_name || "Usuário",
             created_at: user.created_at,
-            roles: userRoles.map(r => r.role)
+            roles: userRoles?.map(r => r.role) || []
           };
         })
       );

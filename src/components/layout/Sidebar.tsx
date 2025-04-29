@@ -18,9 +18,10 @@ import { useAuth } from "@/context/AuthContext";
 
 interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
   isCollapsed: boolean;
+  onToggle: () => void;
 }
 
-export function Sidebar({ className, isCollapsed }: SidebarProps) {
+export function Sidebar({ className, isCollapsed, onToggle }: SidebarProps) {
   const { pathname } = useLocation();
   const { isSuperAdmin, isAdmin } = useAuth();
 

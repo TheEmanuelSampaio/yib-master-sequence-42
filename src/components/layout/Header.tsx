@@ -70,7 +70,7 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
             <button className="outline-none">
               <Avatar className="h-8 w-8 border-2 border-primary bg-primary">
                 <AvatarFallback className="text-primary-foreground">
-                  {profile?.first_name?.charAt(0) || user?.email?.charAt(0) || '?'}
+                  {profile?.account_name?.charAt(0) || user?.email?.charAt(0) || '?'}
                 </AvatarFallback>
               </Avatar>
             </button>
@@ -79,7 +79,7 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
             <div className="flex items-center justify-start gap-2 p-2">
               <div className="flex flex-col space-y-1 leading-none">
                 <p className="font-medium text-sm">
-                  {profile?.first_name ? `${profile.first_name} ${profile.last_name || ''}` : user?.email}
+                  {profile?.account_name || user?.email}
                 </p>
                 <p className="text-xs text-muted-foreground">{user?.email}</p>
               </div>

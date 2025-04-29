@@ -115,6 +115,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          account_name: string | null
           created_at: string
           first_name: string | null
           id: string
@@ -122,6 +123,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          account_name?: string | null
           created_at?: string
           first_name?: string | null
           id: string
@@ -129,6 +131,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          account_name?: string | null
           created_at?: string
           first_name?: string | null
           id?: string
@@ -163,6 +166,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_alter_profiles_table: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      admin_update_trigger_function: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _user_id: string
