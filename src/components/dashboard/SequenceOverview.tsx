@@ -5,27 +5,33 @@ import { Check, Clock, Activity, Ban } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 export function SequenceOverview() {
   const { sequences, currentInstance, refreshData } = useApp();
+  const [dataInitialized, setDataInitialized] = useState(false);
 
-  // Recarregar dados quando o componente montar ou quando a instância mudar
+  // Recarregar dados apenas uma vez quando o componente montar ou quando a instância mudar
   useEffect(() => {
-    console.log("SequenceOverview - refreshing data");
-    if (currentInstance) {
-      refreshData();
+    if (!dataInitialized && currentInstance) {
+      console.log("SequenceOverview - initial data loading");
+      refreshData().then(() => {
+        setDataInitialized(true);
+      });
     }
-  }, [refreshData, currentInstance]);
+  }, [currentInstance, refreshData, dataInitialized]);
+
+  // Reset initialization flag when instance changes
+  useEffect(() => {
+    return () => {
+      setDataInitialized(false);
+    };
+  }, [currentInstance?.id]);
 
   // Filter sequences for current instance
   const instanceSequences = currentInstance && sequences ? 
     sequences.filter(seq => seq.instanceId === currentInstance.id) : 
     [];
-
-  console.log("SequenceOverview - sequences:", sequences);
-  console.log("SequenceOverview - current instance:", currentInstance);
-  console.log("SequenceOverview - instance sequences:", instanceSequences);
 
   const activeSequences = instanceSequences.filter(seq => seq.status === 'active');
   

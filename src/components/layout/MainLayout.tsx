@@ -30,8 +30,8 @@ export function MainLayout({ children }: MainLayoutProps) {
   }
 
   return (
-    <div className="min-h-screen flex">
-      <AppProvider>
+    <AppProvider>
+      <div className="min-h-screen flex">
         <div className="fixed h-screen z-10">
           <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
         </div>
@@ -41,7 +41,7 @@ export function MainLayout({ children }: MainLayoutProps) {
             {children}
           </main>
         </div>
-      </AppProvider>
-    </div>
+      </div>
+    </AppProvider>
   );
 }

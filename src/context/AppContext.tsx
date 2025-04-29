@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
@@ -68,6 +67,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [timeRestrictions, setTimeRestrictions] = useState<TimeRestriction[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [stats, setStats] = useState<DailyStats[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Get contact sequences helper function
   const getContactSequences = (contactId: string): ContactSequence[] => {
@@ -95,9 +95,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   }, [user]);
 
   const refreshData = async () => {
-    if (!user) return;
+    if (!user || isRefreshing) return;
     
     try {
+      setIsRefreshing(true);
       console.log("Refreshing data...");
       
       // Fetch clients
@@ -285,9 +286,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         setUsers(usersWithEmails);
       }
       
+      console.log("Data refresh completed successfully");
+      
     } catch (error) {
       console.error("Error fetching data:", error);
       toast.error("Erro ao carregar dados");
+    } finally {
+      setIsRefreshing(false);
     }
   };
 

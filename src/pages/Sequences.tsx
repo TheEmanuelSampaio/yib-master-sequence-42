@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useApp } from '@/context/AppContext';
 import {
@@ -45,11 +46,24 @@ export default function Sequences() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [currentSequence, setCurrentSequence] = useState<Sequence | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [dataInitialized, setDataInitialized] = useState(false);
   
-  // Fetch data on mount and when currentInstance changes
+  // Fetch data only once on mount and when currentInstance changes
   useEffect(() => {
-    refreshData();
-  }, [refreshData, currentInstance]);
+    if (!dataInitialized && currentInstance) {
+      console.log("Sequences page - loading initial data");
+      refreshData().then(() => {
+        setDataInitialized(true);
+      });
+    }
+  }, [refreshData, currentInstance, dataInitialized]);
+  
+  // Reset initialization flag when instance changes
+  useEffect(() => {
+    return () => {
+      setDataInitialized(false);
+    };
+  }, [currentInstance?.id]);
   
   const instanceSequences = sequences
     .filter(seq => seq.instanceId === currentInstance?.id)
