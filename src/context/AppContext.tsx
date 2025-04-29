@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { 
@@ -40,6 +39,10 @@ interface AppContextType {
   
   addTag: (tag: string) => void;
   removeTag: (tag: string) => void;
+  
+  addTimeRestriction: (restriction: Omit<TimeRestriction, "id">) => void;
+  updateTimeRestriction: (id: string, data: Partial<Omit<TimeRestriction, "id">>) => void;
+  removeTimeRestriction: (id: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -135,7 +138,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [sequencesList, setSequencesList] = useState<Sequence[]>(sequences);
   const [contactsList, setContactsList] = useState<Contact[]>(contacts);
   const [tagsList, setTagsList] = useState<string[]>(tags);
-  const [timeRestrictionsList] = useState<TimeRestriction[]>(globalTimeRestrictions);
+  const [timeRestrictionsList, setTimeRestrictionsList] = useState<TimeRestriction[]>(globalTimeRestrictions);
   const [contactSequencesList] = useState<ContactSequence[]>(mockContactSequences);
   
   // Instance management
@@ -306,6 +309,47 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     toast.success(`Tag "${tag}" removida com sucesso!`);
   };
   
+  // Time restriction management
+  const addTimeRestriction = (restriction: Omit<TimeRestriction, "id">) => {
+    const newRestriction = {
+      ...restriction,
+      id: uuidv4(),
+    };
+    
+    setTimeRestrictionsList(prev => [...prev, newRestriction]);
+    toast.success(`Restrição "${restriction.name}" adicionada com sucesso!`);
+  };
+  
+  const updateTimeRestriction = (id: string, data: Partial<Omit<TimeRestriction, "id">>) => {
+    setTimeRestrictionsList(prev => 
+      prev.map(restriction => 
+        restriction.id === id ? { 
+          ...restriction, 
+          ...data
+        } : restriction
+      )
+    );
+    
+    toast.success("Restrição atualizada com sucesso!");
+  };
+  
+  const removeTimeRestriction = (id: string) => {
+    const restriction = timeRestrictionsList.find(r => r.id === id);
+    
+    // Check if restriction is used in any sequence
+    const isUsedInSequence = sequencesList.some(seq => 
+      seq.timeRestrictions.some(r => r.id === id)
+    );
+    
+    if (isUsedInSequence) {
+      toast.error("Esta restrição está sendo utilizada em sequências e não pode ser removida.");
+      return;
+    }
+    
+    setTimeRestrictionsList(prev => prev.filter(r => r.id !== id));
+    toast.success(`Restrição "${restriction?.name}" removida com sucesso!`);
+  };
+  
   // Contact sequences
   const getContactSequences = (contactId: string) => {
     return contactSequencesList.filter(cs => cs.contactId === contactId);
@@ -343,7 +387,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         getContactSequences,
         
         addTag,
-        removeTag
+        removeTag,
+        
+        addTimeRestriction,
+        updateTimeRestriction,
+        removeTimeRestriction
       }}
     >
       {children}

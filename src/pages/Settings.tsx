@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/table";
 
 export default function Settings() {
-  const { tags, addTag, removeTag, restrictions, removeRestriction, sequences } = useApp();
+  const { tags, addTag, removeTag, timeRestrictions, removeTimeRestriction, sequences, updateTimeRestriction } = useApp();
   const { theme, setTheme } = useTheme();
   
   const [newTag, setNewTag] = useState("");
@@ -55,7 +55,7 @@ export default function Settings() {
 
   const getRestrictionUsage = (restrictionId: string) => {
     const usedIn = sequences.filter(sequence => 
-      sequence.restrictions.some(r => r.restrictionId === restrictionId)
+      sequence.timeRestrictions.some(r => r.id === restrictionId)
     );
     return {
       count: usedIn.length,
@@ -220,13 +220,18 @@ export default function Settings() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {restrictions && restrictions.length > 0 ? restrictions.map((restriction) => {
+                    {timeRestrictions && timeRestrictions.length > 0 ? timeRestrictions.map((restriction) => {
                       const usage = getRestrictionUsage(restriction.id);
                       
                       return (
                         <TableRow key={restriction.id}>
                           <TableCell className="font-medium">{restriction.name}</TableCell>
-                          <TableCell className="text-muted-foreground">{restriction.description}</TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {restriction.days.map(day => {
+                              const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+                              return dayNames[day];
+                            }).join(", ")} {restriction.startHour}:{restriction.startMinute.toString().padStart(2, '0')} - {restriction.endHour}:{restriction.endMinute.toString().padStart(2, '0')}
+                          </TableCell>
                           <TableCell>
                             {usage.count > 0 ? (
                               <Button 
@@ -255,7 +260,7 @@ export default function Settings() {
                                 </DropdownMenuItem>
                                 <DropdownMenuItem 
                                   className="cursor-pointer text-destructive focus:text-destructive"
-                                  onClick={() => removeRestriction(restriction.id)}
+                                  onClick={() => removeTimeRestriction(restriction.id)}
                                   disabled={usage.count > 0}
                                 >
                                   <Trash2 className="h-4 w-4 mr-2" />
@@ -355,8 +360,8 @@ export default function Settings() {
                     <TableRow key={sequence.id}>
                       <TableCell>{sequence.name}</TableCell>
                       <TableCell>
-                        <Badge variant={sequence.active ? "success" : "destructive"}>
-                          {sequence.active ? "Ativa" : "Inativa"}
+                        <Badge variant={sequence.status === "active" ? "success" : "destructive"}>
+                          {sequence.status === "active" ? "Ativa" : "Inativa"}
                         </Badge>
                       </TableCell>
                     </TableRow>
