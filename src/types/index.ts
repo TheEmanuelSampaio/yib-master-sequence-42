@@ -24,6 +24,8 @@ export interface TagCondition {
 
 export interface TimeRestriction {
   id: string;
+  name: string;
+  active: boolean;
   days: number[]; // 0 = Sunday, 1 = Monday, etc.
   startHour: number;
   startMinute: number;
@@ -33,6 +35,11 @@ export interface TimeRestriction {
 
 export type SequenceStageType = 'message' | 'pattern' | 'typebot';
 
+export interface TypebotStage {
+  id: number;
+  content: string;
+}
+
 export interface SequenceStage {
   id: string;
   name: string;
@@ -40,6 +47,7 @@ export interface SequenceStage {
   content: string;
   delay: number;
   delayUnit: 'minutes' | 'hours' | 'days';
+  typebotStage?: TypebotStage;
 }
 
 export type SequenceStatus = 'active' | 'inactive';

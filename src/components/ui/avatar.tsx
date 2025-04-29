@@ -1,3 +1,4 @@
+
 import * as React from "react"
 import * as AvatarPrimitive from "@radix-ui/react-avatar"
 
@@ -37,7 +38,7 @@ const AvatarFallback = React.forwardRef<
   <AvatarPrimitive.Fallback
     ref={ref}
     className={cn(
-      "flex h-full w-full items-center justify-center rounded-full bg-muted",
+      "flex h-full w-full items-center justify-center rounded-full bg-muted text-muted-foreground font-medium",
       className
     )}
     {...props}
@@ -45,4 +46,25 @@ const AvatarFallback = React.forwardRef<
 ))
 AvatarFallback.displayName = AvatarPrimitive.Fallback.displayName
 
-export { Avatar, AvatarImage, AvatarFallback }
+interface UserAvatarProps {
+  name: string;
+  className?: string;
+}
+
+const UserAvatar = ({ name, className }: UserAvatarProps) => {
+  const initials = name
+    ? name.split(' ')
+        .map(n => n[0])
+        .slice(0, 1)
+        .join('')
+        .toUpperCase()
+    : '?';
+
+  return (
+    <Avatar className={className}>
+      <AvatarFallback>{initials}</AvatarFallback>
+    </Avatar>
+  );
+};
+
+export { Avatar, AvatarImage, AvatarFallback, UserAvatar }
