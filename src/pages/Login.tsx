@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Navigate } from "react-router-dom";
+import { Spinner } from "@/components/layout/Spinner";
 
 export default function Login() {
   const { login, loading, user, setupCompleted } = useAuth();
@@ -13,6 +14,11 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Se o sistema ainda está carregando a autenticação inicial, mostrar spinner
+  if (loading && !isSubmitting) {
+    return <Spinner message="Verificando autenticação..." />;
+  }
 
   // Se o usuário já está autenticado, redirecionar para a página inicial
   if (user) {
@@ -31,7 +37,11 @@ export default function Login() {
     try {
       await login(email, password);
     } finally {
-      setIsSubmitting(false);
+      // Se o login não redirecionar (o que deve acontecer em caso de sucesso), 
+      // desativamos o estado de submissão
+      setTimeout(() => {
+        setIsSubmitting(false);
+      }, 2000);
     }
   };
 
@@ -71,8 +81,13 @@ export default function Login() {
             </div>
           </CardContent>
           <CardFooter>
-            <Button type="submit" className="w-full" disabled={isSubmitting || loading}>
-              {isSubmitting || loading ? "Entrando..." : "Entrar"}
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <span>Entrando...</span>
+                </div>
+              ) : "Entrar"}
             </Button>
           </CardFooter>
         </form>

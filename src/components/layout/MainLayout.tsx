@@ -15,14 +15,16 @@ export function MainLayout({ children }: MainLayoutProps) {
   const { loading, user, setupCompleted } = useAuth();
   
   if (loading) {
-    return <Spinner />;
+    return <Spinner message="Carregando aplicação..." />;
   }
   
   if (!user) {
+    console.log("MainLayout: No user found, redirecting to /login");
     return <Navigate to="/login" />;
   }
   
   if (setupCompleted === false) {
+    console.log("MainLayout: Setup not completed, redirecting to /setup");
     return <Navigate to="/setup" />;
   }
 

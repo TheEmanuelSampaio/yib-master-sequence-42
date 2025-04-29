@@ -25,14 +25,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [setupCompleted, setSetupCompleted] = useState<boolean | null>(null);
   const navigate = useNavigate();
 
-  // Timeout para evitar que o carregamento fique preso indefinidamente
+  // Timeout mais curto para evitar que o carregamento fique preso indefinidamente
   useEffect(() => {
     const timeout = setTimeout(() => {
       if (loading) {
         console.warn("Auth loading timeout reached - forcing load completion");
         setLoading(false);
       }
-    }, 5000); // 5 segundos de timeout
+    }, 3000); // Reduzido para 3 segundos
 
     return () => clearTimeout(timeout);
   }, [loading]);
@@ -45,18 +45,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .from('app_setup')
           .select('*')
           .limit(1)
-          .single();
+          .maybeSingle(); // Usando maybeSingle em vez de single para evitar erros
 
         if (error) {
           console.error("Error fetching app setup:", error);
-          // Definir como null mas não manter o carregamento
-          setSetupCompleted(null);
+          setSetupCompleted(false); // Definimos como false por padrão para permitir setup
         } else {
-          setSetupCompleted(data.setup_completed);
+          setSetupCompleted(data?.setup_completed || false);
         }
       } catch (error) {
         console.error("Error fetching app setup:", error);
-        setSetupCompleted(null);
+        setSetupCompleted(false);
       }
     };
 
@@ -70,40 +69,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Primeiro configura o listener de mudanças de autenticação
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log("Auth state changed:", event, session?.user?.id);
         if (session?.user) {
-          try {
-            // Busca os dados do perfil do usuário
-            const { data: profileData, error: profileError } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', session.user.id)
-              .single();
-            
-            if (profileError) {
-              console.error("Error fetching user profile:", profileError);
-              setUser(null);
-            } else {
-              const userWithProfile = {
-                id: session.user.id,
-                email: session.user.email || "",
-                accountName: profileData.account_name,
-                role: profileData.role,
-                avatar: "",
-              };
+          // Usando setTimeout para evitar bloqueios durante callbacks de autenticação
+          setTimeout(async () => {
+            try {
+              // Busca os dados do perfil do usuário
+              const { data: profileData, error: profileError } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', session.user.id)
+                .maybeSingle();
               
-              setUser(userWithProfile);
-              setIsSuper(profileData.role === "super_admin");
+              if (profileError) {
+                console.error("Error fetching user profile:", profileError);
+                setUser(null);
+              } else if (profileData) {
+                const userWithProfile = {
+                  id: session.user.id,
+                  email: session.user.email || "",
+                  accountName: profileData.account_name,
+                  role: profileData.role,
+                  avatar: "",
+                };
+                
+                setUser(userWithProfile);
+                setIsSuper(profileData.role === "super_admin");
+              } else {
+                console.warn("No profile found for user:", session.user.id);
+                setUser(null);
+              }
+            } catch (error) {
+              console.error("Error in auth state change:", error);
+              setUser(null);
+            } finally {
+              setLoading(false);
             }
-          } catch (error) {
-            console.error("Error in auth state change:", error);
-            setUser(null);
-          }
+          }, 0);
         } else {
           setUser(null);
           setIsSuper(false);
+          setLoading(false);
         }
-        
-        setLoading(false);
       }
     );
 
@@ -118,22 +125,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               .from('profiles')
               .select('*')
               .eq('id', session.user.id)
-              .single();
+              .maybeSingle();
 
             if (profileError) {
               console.error("Error fetching user profile:", profileError);
               setUser(null);
-            } else {
+            } else if (profileData) {
               const userWithProfile = {
                 id: session.user.id,
                 email: session.user.email || "",
-                accountName: profileData.account_name,
-                role: profileData.role,
+                accountName: profileData.account_name || "Usuário",
+                role: profileData.role || "admin",
                 avatar: "",
               };
               
               setUser(userWithProfile);
               setIsSuper(profileData.role === "super_admin");
+            } else {
+              console.warn("No profile found for user:", session.user.id);
+              setUser(null);
             }
           } catch (error) {
             console.error("Error fetching profile:", error);
@@ -150,7 +160,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     };
     
-    checkCurrentSession();
+    // Pequeno atraso para garantir que o listener de autenticação seja configurado primeiro
+    setTimeout(() => {
+      checkCurrentSession();
+    }, 100);
 
     return () => {
       subscription.unsubscribe();
@@ -171,9 +184,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       toast.success("Login bem-sucedido!");
     } catch (error: any) {
       toast.error(`Erro ao fazer login: ${error.message}`);
-    } finally {
-      setLoading(false);
+      setLoading(false); // Garantir que o loading seja desativado em caso de erro
     }
+    // Não usamos finally aqui porque o onAuthStateChange já vai desligar o loading
   };
 
   const signup = async (email: string, password: string, accountName: string, isSuper: boolean) => {
@@ -206,18 +219,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               setup_completed: true,
               setup_completed_at: new Date().toISOString()
             })
-            .eq('setup_completed', false);
+            .eq('id', '1');
           
-          if (setupError) throw setupError;
+          if (setupError) {
+            console.error("Error updating app setup:", setupError);
+          }
           
           setSetupCompleted(true);
         }
         
         toast.success("Conta criada com sucesso!");
+        navigate("/");
       }
     } catch (error: any) {
       toast.error(`Erro ao criar conta: ${error.message}`);
-      throw error;
     } finally {
       setLoading(false);
     }
