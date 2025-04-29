@@ -13,13 +13,15 @@ export function SequenceOverview() {
   // Recarregar dados quando o componente montar ou quando a instância mudar
   useEffect(() => {
     console.log("SequenceOverview - refreshing data");
-    refreshData();
+    if (currentInstance) {
+      refreshData();
+    }
   }, [refreshData, currentInstance]);
 
   // Filter sequences for current instance
-  const instanceSequences = sequences.filter(seq => 
-    seq.instanceId === currentInstance?.id
-  );
+  const instanceSequences = currentInstance && sequences ? 
+    sequences.filter(seq => seq.instanceId === currentInstance.id) : 
+    [];
 
   console.log("SequenceOverview - sequences:", sequences);
   console.log("SequenceOverview - current instance:", currentInstance);

@@ -19,14 +19,22 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
+import { useEffect } from 'react';
 
 interface HeaderProps {
   sidebarCollapsed: boolean;
 }
 
 export function Header({ sidebarCollapsed }: HeaderProps) {
-  const { instances, currentInstance, setCurrentInstance } = useApp();
+  const { instances, currentInstance, setCurrentInstance, refreshData } = useApp();
   const { user, logout } = useAuth();
+
+  useEffect(() => {
+    if (user && (!instances || instances.length === 0)) {
+      console.log("Header - No instances, refreshing data");
+      refreshData();
+    }
+  }, [user, instances, refreshData]);
 
   const handleInstanceChange = (instanceId: string) => {
     const instance = instances?.find(inst => inst.id === instanceId);

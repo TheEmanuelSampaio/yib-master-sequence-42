@@ -1,3 +1,4 @@
+
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
@@ -231,6 +232,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         const startType = sequence.start_condition_type === "AND" ? "AND" : "OR";
         const stopType = sequence.stop_condition_type === "AND" ? "AND" : "OR";
         
+        // Ensure status is "active" or "inactive"
+        const status = sequence.status === "active" ? "active" : "inactive";
+        
         return {
           id: sequence.id,
           name: sequence.name,
@@ -243,7 +247,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             type: stopType as "AND" | "OR",
             tags: sequence.stop_condition_tags
           },
-          status: sequence.status,
+          status: status as "active" | "inactive",
           stages,
           timeRestrictions,
           createdAt: sequence.created_at,
