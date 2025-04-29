@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -104,48 +103,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
 
     // Verifica sessão atual
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        // Busca dados do perfil do usuário
-        supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single()
-          .then(({ data: profileData, error: profileError }) => {
-            if (profileError) {
-              console.error("Error fetching user profile:", profileError);
-              setUser(null);
-              setLoading(false);
-              return;
-            }
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        if (session?.user) {
+          // Busca dados do perfil do usuário
+          return supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single()
+            .then(({ data: profileData, error: profileError }) => {
+              if (profileError) {
+                console.error("Error fetching user profile:", profileError);
+                setUser(null);
+                setLoading(false);
+                return;
+              }
 
-            const userWithProfile = {
-              id: session.user.id,
-              email: session.user.email || "",
-              accountName: profileData.account_name,
-              role: profileData.role,
-              avatar: "",
-            };
-            
-            setUser(userWithProfile);
-            setIsSuper(profileData.role === "super_admin");
-            setLoading(false);
-          })
-          .catch((error) => {
-            console.error("Unexpected error in getSession:", error);
-            setUser(null);
-            setLoading(false);
-          });
-      } else {
+              const userWithProfile = {
+                id: session.user.id,
+                email: session.user.email || "",
+                accountName: profileData.account_name,
+                role: profileData.role,
+                avatar: "",
+              };
+              
+              setUser(userWithProfile);
+              setIsSuper(profileData.role === "super_admin");
+              setLoading(false);
+            });
+        } else {
+          setUser(null);
+          setLoading(false);
+        }
+      })
+      .catch((error) => {
+        console.error("Error checking session:", error);
         setUser(null);
         setLoading(false);
-      }
-    }).catch((error) => {
-      console.error("Error checking session:", error);
-      setUser(null);
-      setLoading(false);
-    });
+      });
 
     return () => {
       subscription.unsubscribe();
