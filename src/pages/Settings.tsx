@@ -30,7 +30,7 @@ import { MultiSelect } from "@/components/ui/multi-select";
 import { TimeRestriction } from "@/types";
 
 export default function Settings() {
-  const { users, clients, tags, timeRestrictions, addUser, updateUser, deleteUser, addClient, updateClient, deleteClient, addTag, deleteTag, addTimeRestriction, updateTimeRestriction, deleteTimeRestriction } = useApp();
+  const { users, clients, tags, timeRestrictions, addUser, updateUser, deleteUser, addClient, updateClient, deleteClient, addTag, updateTimeRestriction, deleteTimeRestriction, addTimeRestriction } = useApp();
   const { user: currentUser, isSuper } = useAuth();
   const [openAddUser, setOpenAddUser] = useState(false);
   const [openAddClient, setOpenAddClient] = useState(false);
@@ -203,9 +203,7 @@ export default function Settings() {
     }
     
     try {
-      await addTag({
-        name: newTag.name,
-      });
+      await addTag(newTag.name);
       
       setNewTag({ name: "" });
       setOpenAddTag(false);
@@ -216,10 +214,14 @@ export default function Settings() {
     }
   };
 
-  const handleDeleteTag = async (id: string) => {
+  const handleDeleteTag = async (tagName: string) => {
     try {
-      await deleteTag(id);
-      toast.success("Tag removida com sucesso");
+      // We'll use the tagName directly instead of id
+      const { deleteTag } = useApp();
+      if (deleteTag) {
+        await deleteTag(tagName);
+        toast.success("Tag removida com sucesso");
+      }
     } catch (error) {
       console.error(error);
       toast.error("Erro ao remover tag");
@@ -723,13 +725,13 @@ export default function Settings() {
                 </TableHeader>
                 <TableBody>
                   {tags.map((tag) => (
-                    <TableRow key={tag.id}>
-                      <TableCell className="font-medium">{tag.name}</TableCell>
+                    <TableRow key={tag}>
+                      <TableCell className="font-medium">{tag}</TableCell>
                       <TableCell>
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleDeleteTag(tag.id)}
+                          onClick={() => handleDeleteTag(tag)}
                         >
                           <Trash2 className="h-4 w-4 text-red-500" />
                           <span className="sr-only">Excluir</span>
@@ -1184,4 +1186,3 @@ export default function Settings() {
     </div>
   );
 }
-
