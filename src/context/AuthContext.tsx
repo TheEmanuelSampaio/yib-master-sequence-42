@@ -24,34 +24,54 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isSuper, setIsSuper] = useState(false);
   const [setupCompleted, setSetupCompleted] = useState<boolean | null>(null);
   const navigate = useNavigate();
-
+  
+  // Verifica o status de setup da aplicação
   useEffect(() => {
     const getAppSetup = async () => {
-      const { data, error } = await supabase
-        .from('app_setup')
-        .select('*')
-        .limit(1)
-        .single();
-
-      if (error) {
-        console.error("Error fetching app setup:", error);
-      } else {
-        setSetupCompleted(data.setup_completed);
+      try {
+        const { data, error } = await supabase
+          .from('app_setup')
+          .select('*')
+          .limit(1)
+          .single();
+  
+        if (error) {
+          console.error("Error fetching app setup:", error);
+          // Se não conseguir determinar, assume que precisa de setup
+          setSetupCompleted(false);
+        } else {
+          setSetupCompleted(data.setup_completed);
+        }
+      } catch (error) {
+        console.error("Error in getAppSetup:", error);
+        setSetupCompleted(false);
+      } finally {
+        // Garante que o loading sempre termina, mesmo em caso de erro
+        // setLoading(false); // Será definido no useEffect de autenticação
       }
     };
 
     getAppSetup();
   }, []);
 
+  // Gerencia o estado de autenticação
   useEffect(() => {
-    setLoading(true);
+    let timeout: NodeJS.Timeout | null = null;
+    
+    // Define um timeout de segurança para garantir que o loading não fique infinito
+    timeout = setTimeout(() => {
+      if (loading) {
+        console.warn("Auth loading timeout reached - forcing load completion");
+        setLoading(false);
+      }
+    }, 5000); // 5 segundos de timeout máximo
 
-    // Subscribe to auth changes
+    // Inscreve-se para mudanças de estado de autenticação
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         if (session?.user) {
           try {
-            // Get user profile data
+            // Busca dados do perfil do usuário
             const { data: profileData, error: profileError } = await supabase
               .from('profiles')
               .select('*')
@@ -83,10 +103,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     );
 
-    // Check current session
+    // Verifica sessão atual
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
-        // Get user profile data
+        // Busca dados do perfil do usuário
         supabase
           .from('profiles')
           .select('*')
@@ -111,15 +131,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setUser(userWithProfile);
             setIsSuper(profileData.role === "super_admin");
             setLoading(false);
+          })
+          .catch((error) => {
+            console.error("Unexpected error in getSession:", error);
+            setUser(null);
+            setLoading(false);
           });
       } else {
         setUser(null);
         setLoading(false);
       }
+    }).catch((error) => {
+      console.error("Error checking session:", error);
+      setUser(null);
+      setLoading(false);
     });
 
     return () => {
       subscription.unsubscribe();
+      if (timeout) clearTimeout(timeout);
     };
   }, []);
 
