@@ -1,22 +1,29 @@
+
 import { useState } from "react";
 import { useApp } from '@/context/AppContext';
-import { Plus, Trash2, RefreshCw, Power, PowerOff } from "lucide-react";
+import { Pencil, Search, MoreVertical, Power, PowerOff, Trash2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Instance } from "@/types";
 import { toast } from "sonner";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 
 export default function Instances() {
-  const { instances, addInstance, updateInstance, deleteInstance, currentInstance } = useApp();
+  const { instances, addInstance, updateInstance, deleteInstance, currentInstance, setCurrentInstance } = useApp();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [evolutionApiUrl, setEvolutionApiUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
   
   const handleAddInstance = () => {
     if (!name || !evolutionApiUrl || !apiKey) {
@@ -45,48 +52,108 @@ export default function Instances() {
     updateInstance(instance.id, { active: !instance.active });
   };
 
+  const handleSelectInstance = (instance: Instance) => {
+    setCurrentInstance(instance);
+    toast.success(`Instância "${instance.name}" selecionada`);
+  };
+
+  const filteredInstances = instances.filter(
+    instance => instance.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                instance.evolutionApiUrl.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col">
-        <h1 className="text-2xl font-bold tracking-tight">Instâncias</h1>
-        <p className="text-muted-foreground">
-          Gerencie as instâncias do Evolution API
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Instâncias</h1>
+          <p className="text-muted-foreground">
+            Gerencie as instâncias do Evolution API
+          </p>
+        </div>
+        <div className="relative w-64">
+          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar instâncias..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-8"
+          />
+        </div>
       </div>
       
       <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-        {instances.map((instance) => (
-          <Card key={instance.id}>
-            <CardHeader>
-              <CardTitle>{instance.name}</CardTitle>
-              <CardDescription>{instance.evolutionApiUrl}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <div className="space-y-1">
-                <h4 className="text-sm font-medium">Status</h4>
-                <Badge variant={instance.active ? "success" : "destructive"}>
-                  {instance.active ? "Ativa" : "Inativa"}
-                </Badge>
-              </div>
-              
-              <div className="space-y-1">
-                <h4 className="text-sm font-medium">API Key</h4>
-                <p className="text-sm text-muted-foreground">{instance.apiKey}</p>
-              </div>
-            </CardContent>
-            <CardFooter className="flex justify-between items-center">
-              <Switch id={`instance-${instance.id}`} checked={instance.active} onCheckedChange={() => handleToggleInstance(instance)} />
-              
-              <div className="flex space-x-2">
-                <Button variant="outline" size="icon">
-                  <RefreshCw className="h-4 w-4" />
-                </Button>
-                <Button variant="destructive" size="icon" onClick={() => deleteInstance(instance.id)}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardFooter>
-          </Card>
+        {filteredInstances.map((instance) => (
+          <ContextMenu key={instance.id}>
+            <ContextMenuTrigger>
+              <Card key={instance.id} className="hover:shadow-md transition-shadow">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle>{instance.name}</CardTitle>
+                    <div className="flex items-center">
+                      {instance.active ? 
+                        <Power className="h-4 w-4 text-green-500 mr-1" /> : 
+                        <PowerOff className="h-4 w-4 text-destructive mr-1" />
+                      }
+                      <Badge variant={instance.active ? "success" : "destructive"}>
+                        {instance.active ? "Ativa" : "Inativa"}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">URL da API</Label>
+                    <CardDescription>{instance.evolutionApiUrl}</CardDescription>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <div className="space-y-1">
+                    <h4 className="text-sm font-medium">API Key</h4>
+                    <p className="text-sm text-muted-foreground">{instance.apiKey}</p>
+                  </div>
+                </CardContent>
+                <CardFooter className="flex justify-between items-center">
+                  <Button 
+                    variant={currentInstance?.id === instance.id ? "default" : "outline"} 
+                    onClick={() => handleSelectInstance(instance)}
+                  >
+                    {currentInstance?.id === instance.id ? "Selecionada" : "Selecionar"}
+                  </Button>
+                  
+                  <div className="flex space-x-2">
+                    <Button variant="outline" size="icon">
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardFooter>
+              </Card>
+            </ContextMenuTrigger>
+            <ContextMenuContent>
+              <ContextMenuItem onClick={() => setOpen(true)} className="cursor-pointer">
+                <Pencil className="h-4 w-4 mr-2" />
+                Editar
+              </ContextMenuItem>
+              <ContextMenuItem onClick={() => handleToggleInstance(instance)} className="cursor-pointer">
+                {instance.active ? (
+                  <>
+                    <PowerOff className="h-4 w-4 mr-2" />
+                    Desativar
+                  </>
+                ) : (
+                  <>
+                    <Power className="h-4 w-4 mr-2" />
+                    Ativar
+                  </>
+                )}
+              </ContextMenuItem>
+              <ContextMenuItem 
+                onClick={() => deleteInstance(instance.id)} 
+                className="text-destructive cursor-pointer"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Excluir
+              </ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
         ))}
         
         <Dialog open={open} onOpenChange={setOpen}>

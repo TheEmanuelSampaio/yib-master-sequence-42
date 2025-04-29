@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
+import { Link } from 'react-router-dom';
 
 interface HeaderProps {
   sidebarCollapsed: boolean;
@@ -44,9 +45,7 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
         )}>
           Master Sequence
         </h1>
-      </div>
-
-      <div className="flex items-center space-x-4">
+        
         <Select onValueChange={handleInstanceChange} value={currentInstance?.id}>
           <SelectTrigger className="w-[180px] md:w-[220px]">
             <SelectValue placeholder="Selecionar instância" />
@@ -59,13 +58,15 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
             ))}
           </SelectContent>
         </Select>
+      </div>
 
+      <div className="flex items-center space-x-4">
         <ThemeToggle />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="outline-none">
-              <Avatar className="h-8 w-8 bg-primary text-primary-foreground">
+              <Avatar className="h-8 w-8 bg-primary text-primary-foreground border-2 border-primary">
                 <AvatarFallback>{user?.name?.charAt(0)}</AvatarFallback>
               </Avatar>
             </button>
@@ -78,10 +79,12 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
               </div>
             </div>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>Perfil</DropdownMenuItem>
-            <DropdownMenuItem>Configurações</DropdownMenuItem>
+            <DropdownMenuItem className="cursor-pointer">Perfil</DropdownMenuItem>
+            <DropdownMenuItem className="cursor-pointer" asChild>
+              <Link to="/settings">Configurações</Link>
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>Sair</DropdownMenuItem>
+            <DropdownMenuItem className="cursor-pointer">Sair</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
