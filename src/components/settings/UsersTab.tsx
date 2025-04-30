@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -180,7 +179,7 @@ export const UsersTab = () => {
             {users.map((user) => (
               <TableRow key={user.id}>
                 <TableCell className="font-medium">{user.accountName}</TableCell>
-                <TableCell>{user.email || "—"}</TableCell>
+                <TableCell>{user.email}</TableCell>
                 <TableCell>
                   {user.role === 'super_admin' ? (
                     <div className="flex items-center">

@@ -6,37 +6,36 @@ import type { Database } from './types';
 const SUPABASE_URL = "https://mlwcupyfhtxdxcybwbmg.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1sd2N1cHlmaHR4ZHhjeWJ3Ym1nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU5NjA0OTcsImV4cCI6MjA2MTUzNjQ5N30.qWFbDo97BLdyWO0DvzbusDCPHXHUcgCGSs8OLW0ewJ8";
 
+// Definir o tipo de retorno da função RPC get_users_with_emails
+type UserWithEmail = {
+  id: string;
+  email: string;
+};
+
+// Estender o tipo SupabaseClient para incluir nossas funções RPC
+type CustomRPCFunctions = {
+  get_sequence_time_restrictions: (args: { seq_id: string }) => Promise<any[]>;
+  is_super_admin: () => Promise<boolean>;
+  get_users_with_emails: () => Promise<UserWithEmail[]>;
+};
+
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+  },
+  global: {
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  }
+});
 
 // Helper function to validate UUID strings
 export const isValidUUID = (uuid: string): boolean => {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   return uuidRegex.test(uuid);
 };
-
-// Define types for our custom RPC functions
-export type UserWithEmail = {
-  id: string;
-  email: string;
-};
-
-// Extend Database type to include custom RPC functions
-declare module '@supabase/supabase-js' {
-  interface SupabaseClient<Database> {
-    rpc<
-      RpcName extends 'get_users_with_emails' | 'get_sequence_time_restrictions' | 'is_super_admin',
-      Args extends Record<string, unknown> = Record<string, never>
-    >(
-      fn: RpcName,
-      args?: Args,
-      options?: any
-    ): RpcName extends 'get_users_with_emails'
-        ? Promise<{ data: UserWithEmail[] | null; error: Error | null }>
-        : RpcName extends 'get_sequence_time_restrictions'
-        ? Promise<{ data: any[] | null; error: Error | null }>
-        : Promise<{ data: boolean | null; error: Error | null }>;
-  }
-}
