@@ -47,7 +47,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
   const [timeRestrictions, setTimeRestrictions] = useState<TimeRestriction[]>(
     sequence?.timeRestrictions || []
   );
-  const [status, setStatus] = useState<"active" | "inactive">(
+  const [status, setStatus] = useState(
     sequence?.status || "active"
   );
   
@@ -59,7 +59,11 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
     type: "message",
     content: "",
     delay: 60,
-    delayUnit: "minutes",
+    delay_unit: "minutes",
+    sequence_id: "",
+    order_index: 0,
+    created_at: "",
+    typebot_stage: ""
   });
   
   const [newRestriction, setNewRestriction] = useState<Omit<TimeRestriction, "id">>({
@@ -70,7 +74,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
     startMinute: 0,
     endHour: 8,
     endMinute: 0,
-    isGlobal: false, // Por padrão, novas restrições são locais
+    isGlobal: false, // By default, new restrictions are local
   });
 
   const [showTagDialog, setShowTagDialog] = useState(false);
@@ -82,7 +86,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
   // Define dayNames for use throughout the component
   const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
   
-  // Filtra restrições globais disponíveis (que não estão já adicionadas à sequência)
+  // Filter available global restrictions (which are not already added to the sequence)
   const availableGlobalRestrictions = globalTimeRestrictions.filter(
     gr => !timeRestrictions.some(tr => tr.id === gr.id && tr.isGlobal)
   );
@@ -171,7 +175,11 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         type: "message",
         content: "",
         delay: 60,
-        delayUnit: "minutes",
+        delay_unit: "minutes",
+        sequence_id: "",
+        order_index: 0,
+        created_at: "",
+        typebot_stage: ""
       });
     } catch (error) {
       console.error("Erro ao adicionar estágio:", error);
@@ -269,7 +277,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
       const restriction: TimeRestriction = {
         ...newRestriction,
         id: uuidv4(),
-        isGlobal: false, // Sempre marca como restrição local
+        isGlobal: false, // Always mark as local restriction
       };
       
       setTimeRestrictions([...timeRestrictions, restriction]);
@@ -295,7 +303,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
 
   const addGlobalRestriction = (restriction: TimeRestriction) => {
     try {
-      // Verifica se já não existe na lista
+      // Check if already exists in the list
       if (timeRestrictions.some(r => r.id === restriction.id)) return;
       
       if (!restriction.id || !isValidUUID(restriction.id)) {
@@ -330,7 +338,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
 
   const updateLocalRestriction = (updatedRestriction: TimeRestriction) => {
     try {
-      // Apenas permite atualizar restrições locais
+      // Only allows updating local restrictions
       if (updatedRestriction.isGlobal) return;
       
       if (!updatedRestriction.id || !isValidUUID(updatedRestriction.id)) {
@@ -371,7 +379,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         return;
       }
       
-      // Validar a instanceId
+      // Validate instanceId
       if (!isValidUUID(currentInstance.id)) {
         console.error("ID de instância inválido:", currentInstance.id);
         toast.error("ID de instância inválido");
@@ -380,7 +388,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
       
       const newSequence: Omit<Sequence, "id" | "createdAt" | "updatedAt"> = {
         name,
-        instanceId: currentInstance.id,
+        instance_id: currentInstance.id,
         startCondition,
         stopCondition,
         stages,

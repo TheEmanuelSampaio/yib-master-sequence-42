@@ -1,13 +1,14 @@
+
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { Database } from '@/integrations/supabase/types';
-import { Instance, Sequence, Contact, ContactSequence } from '@/types';
+import { Instance, Sequence, Contact, ContactSequence, TimeRestriction } from '@/types';
 import { toast } from 'sonner';
 
 interface AppContextType {
   session: Session | null;
-  user: Database['public']['Tables']['users']['Row'] | null;
+  user: Database['public']['Tables']['profiles']['Row'] | null;
   loading: boolean;
   instances: Instance[];
   sequences: Sequence[];
@@ -16,9 +17,12 @@ interface AppContextType {
   currentInstance: Instance | null;
   isSuperAdmin: boolean;
   isDataInitialized: boolean;
+  stats: any[];
+  tags: string[];
+  timeRestrictions: TimeRestriction[];
   
   setSession: (session: Session | null) => void;
-  setUser: (user: Database['public']['Tables']['users']['Row'] | null) => void;
+  setUser: (user: Database['public']['Tables']['profiles']['Row'] | null) => void;
   setInstances: (instances: Instance[]) => void;
   setSequences: (sequences: Sequence[]) => void;
   setContacts: (contacts: Contact[]) => void;
@@ -35,14 +39,15 @@ interface AppContextType {
   deleteSequence: (id: string) => Promise<void>;
   deleteContact: (contactId: string) => Promise<void>;
   updateContact: (contactId: string, data: Partial<Omit<Contact, "id">>) => Promise<void>;
+  addTag: (tag: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-export const useAppContext = () => {
+export const useApp = () => {
   const context = useContext(AppContext);
   if (!context) {
-    throw new Error('useAppContext must be used within an AppProvider');
+    throw new Error('useApp must be used within an AppProvider');
   }
   return context;
 };
@@ -53,7 +58,7 @@ interface AppProviderProps {
 
 export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
-  const [user, setUser] = useState<Database['public']['Tables']['users']['Row'] | null>(null);
+  const [user, setUser] = useState<Database['public']['Tables']['profiles']['Row'] | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [instances, setInstances] = useState<Instance[]>([]);
   const [sequences, setSequences] = useState<Sequence[]>([]);
@@ -62,6 +67,16 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const [currentInstance, setCurrentInstance] = useState<Instance | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState<boolean>(false);
   const [isDataInitialized, setIsDataInitialized] = useState<boolean>(false);
+  const [stats, setStats] = useState<any[]>([]); // Added stats
+  const [tags, setTags] = useState<string[]>([]); // Added tags
+  const [timeRestrictions, setTimeRestrictions] = useState<TimeRestriction[]>([]); // Added time restrictions
+  
+  // Add a tag to the global tag list
+  const addTag = (tag: string) => {
+    if (!tags.includes(tag)) {
+      setTags(prev => [...prev, tag]);
+    }
+  };
   
   useEffect(() => {
     const fetchInitialData = async () => {
@@ -70,7 +85,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         // Fetch user details
         if (session?.user?.id) {
           const { data: userDetails, error: userError } = await supabase
-            .from('users')
+            .from('profiles')
             .select('*')
             .eq('id', session.user.id)
             .single();
@@ -103,7 +118,10 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
           await Promise.all([
             fetchSequences(currentInstance.id),
             fetchContacts(currentInstance.id),
-            fetchContactSequences(currentInstance.id)
+            fetchContactSequences(currentInstance.id),
+            fetchTags(), // Added tags fetch
+            fetchTimeRestrictions(), // Added time restrictions fetch
+            fetchStats(currentInstance.id) // Added stats fetch
           ]);
         }
         
@@ -142,7 +160,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
           await Promise.all([
             fetchSequences(currentInstance.id),
             fetchContacts(currentInstance.id),
-            fetchContactSequences(currentInstance.id)
+            fetchContactSequences(currentInstance.id),
+            fetchStats(currentInstance.id)
           ]);
         } catch (error) {
           console.error("Erro ao atualizar dados:", error);
@@ -158,6 +177,76 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       refresh();
     }
   }, [currentInstance]);
+  
+  // Fetch tags from the database or local data
+  const fetchTags = useCallback(async () => {
+    // Mock implementation using unique tags from contacts
+    const allTags: string[] = [];
+    contacts.forEach(contact => {
+      contact.tags?.forEach(tag => {
+        if (!allTags.includes(tag)) {
+          allTags.push(tag);
+        }
+      });
+    });
+    setTags(allTags);
+  }, [contacts]);
+
+  // Fetch time restrictions
+  const fetchTimeRestrictions = useCallback(async () => {
+    // In a real app, fetch from backend
+    const mockRestrictions: TimeRestriction[] = [
+      {
+        id: "1",
+        name: "Horário noturno",
+        active: true,
+        days: [0, 1, 2, 3, 4, 5, 6],
+        startHour: 22,
+        startMinute: 0,
+        endHour: 8,
+        endMinute: 0,
+        isGlobal: true
+      },
+      {
+        id: "2",
+        name: "Final de semana",
+        active: true,
+        days: [0, 6],
+        startHour: 0,
+        startMinute: 0,
+        endHour: 23,
+        endMinute: 59,
+        isGlobal: true
+      }
+    ];
+    
+    setTimeRestrictions(mockRestrictions);
+  }, []);
+
+  // Fetch stats
+  const fetchStats = useCallback(async (instanceId: string) => {
+    // In a real app, fetch from backend
+    const mockStats = [
+      {
+        date: new Date().toISOString().split('T')[0],
+        messagesSent: 45,
+        messagesScheduled: 12,
+        messagesFailed: 3,
+        newContacts: 8,
+        completedSequences: 2
+      },
+      {
+        date: new Date(Date.now() - 86400000).toISOString().split('T')[0], // Yesterday
+        messagesSent: 38,
+        messagesScheduled: 10,
+        messagesFailed: 2,
+        newContacts: 5,
+        completedSequences: 1
+      }
+    ];
+    
+    setStats(mockStats);
+  }, []);
   
   const fetchSequences = useCallback(async (instanceId: string) => {
     if (!instanceId) return;
@@ -215,7 +304,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         await Promise.all([
           fetchSequences(currentInstance.id),
           fetchContacts(currentInstance.id),
-          fetchContactSequences(currentInstance.id)
+          fetchContactSequences(currentInstance.id),
+          fetchStats(currentInstance.id)
         ]);
       } catch (error) {
         console.error("Erro ao atualizar dados:", error);
@@ -224,28 +314,28 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         setLoading(false);
       }
     }
-  }, [currentInstance, fetchSequences, fetchContacts, fetchContactSequences]);
+  }, [currentInstance, fetchSequences, fetchContacts, fetchContactSequences, fetchStats]);
   
-  // Função para adicionar uma nova instância
+  // Function to add a new instance
   const addInstance = async (instance: Omit<Instance, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
       setLoading(true);
       
-      // Simulação de criação de instância (remover em ambiente real)
+      // Simulation of instance creation (remove in real environment)
       const newInstance: Instance = {
-        id: Math.random().toString(36).substring(2, 15), // Gera um ID aleatório
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        id: Math.random().toString(36).substring(2, 15), // Generates a random ID
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
         ...instance,
       };
       
       setInstances(prev => [...prev, newInstance]);
       setCurrentInstance(newInstance);
       
-      // Em uma aplicação real, você faria uma chamada para a API aqui
+      // In a real application, you would make an API call here
       toast.success(`Instância "${instance.name}" criada com sucesso`);
       
-      // Exemplo de chamada para Supabase (adaptar conforme necessário)
+      // Example of a Supabase call (adapt as needed)
       // const { data, error } = await supabase
       //   .from('instances')
       //   .insert([instance])
@@ -261,26 +351,26 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     }
   };
   
-  // Função para atualizar uma instância existente
+  // Function to update an existing instance
   const updateInstance = async (id: string, updates: Partial<Instance>) => {
     try {
       setLoading(true);
       
       setInstances(prev =>
         prev.map(instance =>
-          instance.id === id ? { ...instance, ...updates, updatedAt: new Date().toISOString() } : instance
+          instance.id === id ? { ...instance, ...updates, updated_at: new Date().toISOString() } : instance
         )
       );
       
-      // Atualizar a instância atual se estiver sendo modificada
+      // Update current instance if being modified
       if (currentInstance?.id === id) {
         setCurrentInstance(prev => prev ? { ...prev, ...updates } : null);
       }
       
-      // Em uma aplicação real, você faria uma chamada para a API aqui
+      // In a real application, you would make an API call here
       toast.success(`Instância atualizada com sucesso`);
       
-      // Exemplo de chamada para Supabase (adaptar conforme necessário)
+      // Example of a Supabase call (adapt as needed)
       // const { data, error } = await supabase
       //   .from('instances')
       //   .update(updates)
@@ -297,23 +387,23 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     }
   };
   
-  // Função para remover uma instância
+  // Function to delete an instance
   const deleteInstance = async (id: string) => {
     try {
       setLoading(true);
       
-      // Remover a instância do estado local
+      // Remove the instance from local state
       setInstances(prev => prev.filter(instance => instance.id !== id));
       
-      // Se a instância atual for a que está sendo removida, deselecionar
+      // If the current instance is the one being removed, deselect it
       if (currentInstance?.id === id) {
         setCurrentInstance(null);
       }
       
-      // Em uma aplicação real, você faria uma chamada para a API aqui
+      // In a real application, you would make an API call here
       toast.success(`Instância excluída com sucesso`);
       
-      // Exemplo de chamada para Supabase (adaptar conforme necessário)
+      // Example of a Supabase call (adapt as needed)
       // const { error } = await supabase
       //   .from('instances')
       //   .delete()
@@ -328,29 +418,29 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     }
   };
   
-  // Função para adicionar uma nova sequência
+  // Function to add a new sequence
   const addSequence = async (sequence: Omit<Sequence, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
       setLoading(true);
       
-      // Simulação de criação de sequência (remover em ambiente real)
+      // Simulation of sequence creation (remove in real environment)
       const newSequence: Sequence = {
-        id: Math.random().toString(36).substring(2, 15), // Gera um ID aleatório
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        id: Math.random().toString(36).substring(2, 15), // Generates a random ID
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
         ...sequence,
         stages: sequence.stages.map(stage => ({
           ...stage,
-          id: Math.random().toString(36).substring(2, 15) // Gerar IDs aleatórios para os estágios
+          id: Math.random().toString(36).substring(2, 15) // Generate random IDs for stages
         }))
       };
       
       setSequences(prev => [...prev, newSequence]);
       
-      // Em uma aplicação real, você faria uma chamada para a API aqui
+      // In a real application, you would make an API call here
       toast.success(`Sequência "${sequence.name}" criada com sucesso`);
       
-      // Exemplo de chamada para Supabase (adaptar conforme necessário)
+      // Example of a Supabase call (adapt as needed)
       // const { data, error } = await supabase
       //   .from('sequences')
       //   .insert([sequence])
@@ -367,24 +457,24 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     }
   };
   
-  // Função para atualizar uma sequência existente
+  // Function to update an existing sequence
   const updateSequence = async (id: string, data: Partial<Sequence>) => {
     try {
       setLoading(true);
       
-      // Verificar se stages está sendo atualizado
+      // Check if stages is being updated
       if (data.stages) {
-        // Identificar os estágios que estão sendo removidos para verificar se estão em uso
+        // Identify stages being removed to check if they are in use
         const existingSequence = sequences.find(seq => seq.id === id);
         if (existingSequence) {
           const existingStageIds = existingSequence.stages.map(stage => stage.id);
           const newStageIds = data.stages.map(stage => stage.id);
           
-          // IDs dos estágios que estão sendo removidos
+          // IDs of stages being removed
           const removedStageIds = existingStageIds.filter(stageId => !newStageIds.includes(stageId));
           
-          // Verificar se algum contato está usando os estágios que estão sendo removidos como current_stage_id
-          // Na integração real com o backend, isso seria feito no servidor
+          // Check if any contact is using the stages being removed as current_stage_id
+          // In a real integration with the backend, this would be done on the server
           const contactsUsingRemovedStages = contactSequences.filter(
             cs => cs.currentStageId && removedStageIds.includes(cs.currentStageId)
           );
@@ -398,16 +488,16 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         }
       }
       
-      // Atualizar a sequência no estado local
+      // Update the sequence in local state
       setSequences(prev => prev.map(seq =>
         seq.id === id
-          ? { ...seq, ...data, updatedAt: new Date().toISOString() }
+          ? { ...seq, ...data, updated_at: new Date().toISOString() }
           : seq
       ));
       
-      // Em produção, implementar a atualização no backend
+      // In production, implement backend update
       
-      // Na versão com backend, a sequência seria atualizada no banco de dados
+      // In the version with backend, the sequence would be updated in the database
       // const { error } = await supabase
       //   .from("sequences")
       //   .update({
@@ -418,8 +508,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       
       // if (error) throw error;
       
-      // Depois seria necessário atualizar os estágios separadamente, removendo os obsoletos
-      // e adicionando os novos
+      // Then it would be necessary to separately update the stages,
+      // removing obsolete ones and adding new ones
       
       setLoading(false);
       return { success: true };
@@ -430,18 +520,18 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     }
   };
   
-  // Função para remover uma sequência
+  // Function to delete a sequence
   const deleteSequence = async (id: string) => {
     try {
       setLoading(true);
       
-      // Remover a sequência do estado local
+      // Remove the sequence from local state
       setSequences(prev => prev.filter(sequence => sequence.id !== id));
       
-      // Em uma aplicação real, você faria uma chamada para a API aqui
+      // In a real application, you would make an API call here
       toast.success(`Sequência excluída com sucesso`);
       
-      // Exemplo de chamada para Supabase (adaptar conforme necessário)
+      // Example of a Supabase call (adapt as needed)
       // const { error } = await supabase
       //   .from('sequences')
       //   .delete()
@@ -457,16 +547,16 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     }
   };
 
-  // Função para remover contato
+  // Function to delete a contact
   const deleteContact = async (contactId: string) => {
     try {
-      // Remover contato do estado local
+      // Remove the contact from local state
       setContacts(prevContacts => prevContacts.filter(contact => contact.id !== contactId));
       
-      // Em uma implementação real, aqui faria a chamada para remover o contato na API
+      // In a real implementation, you would make an API call here
       toast.success(`Contato excluído com sucesso`);
       
-      // Note: No ambiente de produção, você integraria isso com o backend
+      // Note: In a production environment, you would integrate this with the backend
       // const { error } = await supabase
       //  .from('contacts')
       //  .delete()
@@ -479,18 +569,18 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     }
   };
   
-  // Função para atualizar contato
+  // Function to update a contact
   const updateContact = async (contactId: string, data: Partial<Omit<Contact, "id">>) => {
     try {
-      // Atualizar contato no estado local
+      // Update the contact in local state
       setContacts(prevContacts => prevContacts.map(contact => 
         contact.id === contactId ? { ...contact, ...data } : contact
       ));
       
-      // Em uma implementação real, aqui faria a chamada para atualizar o contato na API
+      // In a real implementation, you would make an API call here
       toast.success(`Contato atualizado com sucesso`);
       
-      // Note: No ambiente de produção, você integraria isso com o backend
+      // Note: In a production environment, you would integrate this with the backend
       // const { error } = await supabase
       //  .from('contacts')
       //  .update(data)
@@ -516,6 +606,9 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         currentInstance,
         isSuperAdmin,
         isDataInitialized,
+        stats,
+        tags,
+        timeRestrictions,
         setSession,
         setUser,
         setInstances,
@@ -531,9 +624,9 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         addSequence,
         updateSequence,
         deleteSequence,
-        contacts,
         deleteContact,
         updateContact,
+        addTag
       }}
     >
       {children}
