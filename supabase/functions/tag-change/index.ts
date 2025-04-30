@@ -1,6 +1,10 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
+import { createSupabaseClient } from './client-utils.ts';
+import { handleClient } from './client-operations.ts';
+import { handleContact } from './contact-operations.ts';
+import { handleTags } from './tag-operations.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
 const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
@@ -74,255 +78,58 @@ Deno.serve(async (req) => {
     console.log(`[1. BODY] Processando dados: contactId=${contactId}, name=${contactName}, phoneNumber=${phoneNumber}, accountId=${accountId}, accountName=${accountName}, tags=${labels}`);
     
     // Buscar cliente com account_id
-    console.log(`[2. CLIENTE] Verificando cliente para accountId=${accountId}, accountName="${accountName}"`);
+    const clientResult = await handleClient(supabase, accountId, accountName, "system");
     
-    // Tentar como número primeiro
-    const { data: clientData, error: clientError } = await supabase
-      .from('clients')
-      .select('*')
-      .eq('account_id', Number(accountId))
-      .limit(1);
-    
-    if (clientError) {
+    if (!clientResult.success) {
       return new Response(
         JSON.stringify({ 
-          error: 'Erro ao buscar cliente', 
-          details: clientError.message 
+          error: clientResult.error, 
+          details: clientResult.details 
         }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: clientResult.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
     
-    let client = null;
-    
-    // Se não encontrou como número, tentar como string
-    if (!clientData || clientData.length === 0) {
-      const { data: clientDataStr, error: clientErrorStr } = await supabase
-        .from('clients')
-        .select('*')
-        .eq('account_id', String(accountId))
-        .limit(1);
-      
-      if (clientErrorStr) {
-        return new Response(
-          JSON.stringify({ 
-            error: 'Erro ao buscar cliente como string', 
-            details: clientErrorStr.message 
-          }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      } else if (clientDataStr && clientDataStr.length > 0) {
-        client = clientDataStr[0];
-      }
-    } else {
-      client = clientData[0];
-    }
-    
-    // Se ainda não encontrou o cliente, criar um novo
-    let creatorId = 'bacc7854-def1-4928-99c6-51b716de46b0'; // Default creator ID
-    
-    if (!client) {
-      console.log('[2. CLIENTE] Cliente não encontrado, criando um novo...');
-      const { data: newClient, error: createError } = await supabase
-        .from('clients')
-        .insert([
-          { 
-            account_id: accountId, 
-            account_name: accountName, 
-            created_by: creatorId, // Use um UUID válido aqui
-            creator_account_name: 'Sistema (Auto)'
-          }
-        ])
-        .select();
-      
-      if (createError) {
-        console.error(`[2. CLIENTE] Erro ao criar cliente: ${JSON.stringify(createError)}`);
-        return new Response(
-          JSON.stringify({ 
-            error: 'Erro ao criar cliente', 
-            details: createError.message 
-          }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      
-      client = newClient[0];
-    }
+    const client = clientResult.client;
     
     // Parse labels to tags array
     const tags = labels ? labels.split(',').map((tag: string) => tag.trim()).filter(Boolean) : [];
     
-    // Verificar se já existe um contato para esse número e account_id
-    const { data: existingContacts, error: contactQueryError } = await supabase
-      .from('contacts')
-      .select('*')
-      .eq('phone_number', phoneNumber)
-      .eq('client_id', client.id);
+    // Handle contact creation/update
+    const contactResult = await handleContact(
+      supabase, 
+      contactId, 
+      contactName, 
+      phoneNumber, 
+      client, 
+      conversationId,
+      displayId,
+      inboxId
+    );
     
-    if (contactQueryError) {
+    if (!contactResult.success) {
       return new Response(
         JSON.stringify({ 
-          error: 'Erro ao buscar contato', 
-          details: contactQueryError.message 
+          error: contactResult.error, 
+          details: contactResult.details 
         }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: contactResult.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
     
-    let contact = null;
+    const contact = contactResult.contact;
     
-    // Criar ou atualizar contato
-    if (!existingContacts || existingContacts.length === 0) {
-      const contactUniqueId = `${client.id}:${String(contactId)}`;
-      console.log(`[3. CONTATO] Criando novo contato: ${contactUniqueId}`);
-      
-      const { data: newContact, error: createContactError } = await supabase
-        .from('contacts')
-        .insert([
-          {
-            id: contactUniqueId, // ID único combinando cliente e ID do contato
-            client_id: client.id,
-            name: contactName,
-            phone_number: phoneNumber,
-            conversation_id: conversationId,
-            display_id: displayId,
-            inbox_id: inboxId
-          }
-        ])
-        .select();
-      
-      if (createContactError) {
-        return new Response(
-          JSON.stringify({ 
-            error: 'Erro ao criar contato', 
-            details: createContactError.message 
-          }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      
-      contact = newContact[0];
-      
-      // Increment daily stats for new contact
-      try {
-        await supabase.rpc('increment_daily_stats', { 
-          instance_id: null, 
-          stat_date: new Date().toISOString().split('T')[0],
-          new_contacts: 1 
-        });
-      } catch (statsError) {
-        console.error(`[ESTATÍSTICAS] Erro ao incrementar estatísticas: ${JSON.stringify(statsError)}`);
-      }
-    } else {
-      contact = existingContacts[0];
-      console.log(`[3. CONTATO] Contato existente encontrado: ${contact.id}`);
-      
-      // Atualizar informações do contato se necessário
-      const { error: updateContactError } = await supabase
-        .from('contacts')
-        .update({
-          name: contactName,
-          conversation_id: conversationId,
-          display_id: displayId,
-          inbox_id: inboxId
-        })
-        .eq('id', contact.id);
-      
-      if (updateContactError) {
-        return new Response(
-          JSON.stringify({ 
-            error: 'Erro ao atualizar contato', 
-            details: updateContactError.message 
-          }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-    }
+    // Handle tags
+    const tagsResult = await handleTags(supabase, tags, client, contact);
     
-    // Estatísticas para o payload de resposta
-    let tagsAdded = 0;
-    let existingTags = 0;
-    let tagErrors = 0;
-    
-    // 1. Verificar se as tags existem e criar as que não existem
-    if (tags.length > 0) {
-      console.log(`[4. TAGS] Processando ${tags.length} tags...`);
-      for (const tagName of tags) {
-        // Verificar se a tag já existe
-        const { data: existingTag, error: tagQueryError } = await supabase
-          .from('tags')
-          .select('*')
-          .eq('name', tagName)
-          .eq('created_by', client.created_by);
-        
-        if (tagQueryError) {
-          console.error(`[4. TAGS] Erro ao consultar tag ${tagName}: ${JSON.stringify(tagQueryError)}`);
-          tagErrors++;
-          continue;
-        }
-        
-        // Se a tag não existe, criá-la
-        if (!existingTag || existingTag.length === 0) {
-          try {
-            console.log(`[4. TAGS] Criando nova tag: ${tagName} (criador: ${client.created_by})`);
-            // Inserir tag usando a função RPC com os parâmetros na ordem correta
-            const { error: upsertError } = await supabase.rpc('insert_tag_if_not_exists_for_user', {
-              p_name: tagName,
-              p_created_by: client.created_by
-            });
-            
-            if (upsertError) {
-              console.error(`[4. TAGS] Erro ao criar tag ${tagName}: ${JSON.stringify(upsertError)}`);
-              tagErrors++;
-              continue;
-            } else {
-              tagsAdded++;
-            }
-          } catch (err) {
-            console.error(`[4. TAGS] Exceção ao criar tag ${tagName}: ${JSON.stringify(err)}`);
-            tagErrors++;
-            continue;
-          }
-        } else {
-          console.log(`[4. TAGS] Tag já existente: ${tagName}`);
-          existingTags++;
-        }
-      }
-    }
-    
-    // Atualizar tags do contato
-    if (tags.length > 0) {
-      console.log(`[4. TAGS] Atualizando tags do contato: ${contact.id}`);
-      // Primeiro remover tags existentes
-      const { error: deleteTagsError } = await supabase
-        .from('contact_tags')
-        .delete()
-        .eq('contact_id', contact.id);
-      
-      if (deleteTagsError) {
-        console.error(`[4. TAGS] Erro ao remover tags existentes: ${JSON.stringify(deleteTagsError)}`);
-        tagErrors++;
-      }
-      
-      // Inserir novas tags
-      const tagInserts = tags.map(tag => ({
-        contact_id: contact.id,
-        tag_name: tag
-      }));
-      
-      if (tagInserts.length > 0) {
-        console.log(`[4. TAGS] Inserindo ${tagInserts.length} novas tags para o contato`);
-        const { error: insertTagsError } = await supabase
-          .from('contact_tags')
-          .insert(tagInserts);
-        
-        if (insertTagsError) {
-          console.error(`[4. TAGS] Erro ao inserir novas tags: ${JSON.stringify(insertTagsError)}`);
-          tagErrors++;
-        } else {
-          console.log(`[4. TAGS] Tags adicionadas com sucesso`);
-        }
-      }
+    if (!tagsResult.success) {
+      return new Response(
+        JSON.stringify({ 
+          error: tagsResult.error, 
+          details: tagsResult.details 
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
     
     return new Response(
@@ -341,11 +148,7 @@ Deno.serve(async (req) => {
           name: contact.name,
           tags
         },
-        stats: {
-          tagsAdded,
-          existingTags,
-          tagErrors
-        }
+        stats: tagsResult.stats
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
