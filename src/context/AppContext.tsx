@@ -1066,7 +1066,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         .insert({
           account_id: clientData.accountId,
           account_name: clientData.accountName,
-          created_by: user.id
+          created_by: user.id,
+          creator_account_name: user.accountName || "Usuário" // Adicionar nome da conta do criador
         })
         .select()
         .single();
