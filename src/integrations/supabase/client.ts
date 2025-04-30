@@ -23,3 +23,20 @@ export type UserWithEmail = {
   email: string;
 };
 
+// Extend Database type to include custom RPC functions
+declare module '@supabase/supabase-js' {
+  interface SupabaseClient<Database> {
+    rpc<
+      RpcName extends 'get_users_with_emails' | 'get_sequence_time_restrictions' | 'is_super_admin',
+      Args extends Record<string, unknown> = Record<string, never>
+    >(
+      fn: RpcName,
+      args?: Args,
+      options?: SupabaseClientOptions
+    ): RpcName extends 'get_users_with_emails'
+        ? Promise<{ data: UserWithEmail[] | null; error: Error | null }>
+        : RpcName extends 'get_sequence_time_restrictions'
+        ? Promise<{ data: any[] | null; error: Error | null }>
+        : Promise<{ data: boolean | null; error: Error | null }>;
+  }
+}

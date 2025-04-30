@@ -458,7 +458,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         // Get user emails from auth.users through Supabase function or RPC
         // This is necessary because we cannot query auth.users directly from the client
         const { data: authUsersData, error: authUsersError } = await supabase
-          .rpc<UserWithEmail, Record<string, unknown>>('get_users_with_emails');
+          .rpc('get_users_with_emails');
           
         if (authUsersError) {
           console.error("Error fetching user emails:", authUsersError);
