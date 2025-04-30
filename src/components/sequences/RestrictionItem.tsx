@@ -13,10 +13,11 @@ import { Switch } from '@/components/ui/switch';
 
 interface RestrictionItemProps {
   restriction: TimeRestriction;
-  onRemove: (id: string) => void;
+  onRemove?: (id: string) => void;
   onUpdate?: (restriction: TimeRestriction) => void;
   selected?: boolean;
   onSelect?: () => void;
+  editable?: boolean;
 }
 
 export function RestrictionItem({
@@ -24,7 +25,8 @@ export function RestrictionItem({
   onRemove, 
   onUpdate,
   selected = false,
-  onSelect
+  onSelect,
+  editable = true
 }: RestrictionItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedRestriction, setEditedRestriction] = useState<TimeRestriction>({...restriction});
@@ -278,7 +280,7 @@ export function RestrictionItem({
       </div>
       
       <div className="flex items-center space-x-1">
-        {onUpdate && !restriction.isGlobal && (
+        {onUpdate && editable && !restriction.isGlobal && (
           <Button
             variant="ghost"
             size="icon"
@@ -309,14 +311,16 @@ export function RestrictionItem({
             )}
           </Button>
         ) : (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => onRemove(restriction.id)}
-          >
-            <Trash2 className="h-4 w-4 text-red-600" />
-            <span className="sr-only">Remover</span>
-          </Button>
+          onRemove && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onRemove(restriction.id)}
+            >
+              <Trash2 className="h-4 w-4 text-red-600" />
+              <span className="sr-only">Remover</span>
+            </Button>
+          )
         )}
       </div>
     </div>
