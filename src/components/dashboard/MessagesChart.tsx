@@ -13,10 +13,13 @@ import {
 } from 'recharts';
 
 export function MessagesChart() {
-  const { dailyStats } = useApp();
+  const { stats } = useApp();
 
+  // Ensure stats is an array before sorting
+  const statsArray = Array.isArray(stats) ? stats : [];
+  
   // Sort stats by date
-  const sortedStats = [...dailyStats].sort((a, b) => 
+  const sortedStats = [...statsArray].sort((a, b) => 
     new Date(a.date).getTime() - new Date(b.date).getTime()
   );
 
