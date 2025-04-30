@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useApp } from '@/context/AppContext';
 import {
@@ -12,8 +11,7 @@ import {
   MoreVertical,
   MessageCircle,
   FileCode,
-  Bot,
-  ArrowLeft
+  Bot
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,7 +38,6 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Sequence } from "@/types";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { toast } from "@/hooks/use-toast";
 
 export default function Sequences() {
   const { sequences, currentInstance, addSequence, updateSequence, deleteSequence, refreshData, isDataInitialized } = useApp();
@@ -68,33 +65,13 @@ export default function Sequences() {
   const inactiveSequences = instanceSequences.filter(seq => seq.status === 'inactive');
   
   const handleSaveSequence = async (sequence: Omit<Sequence, "id" | "createdAt" | "updatedAt">) => {
-    try {
-      if (isEditMode && currentSequence) {
-        await updateSequence(currentSequence.id, sequence);
-        setIsEditMode(false);
-        setCurrentSequence(null);
-        toast({
-          title: "Sequência atualizada",
-          description: `A sequência "${sequence.name}" foi atualizada com sucesso.`,
-          duration: 3000,
-        });
-      } else {
-        await addSequence(sequence);
-        setIsCreateMode(false);
-        toast({
-          title: "Sequência criada",
-          description: `A sequência "${sequence.name}" foi criada com sucesso.`,
-          duration: 3000,
-        });
-      }
-    } catch (error) {
-      console.error("Erro ao salvar sequência:", error);
-      toast({
-        title: "Erro ao salvar",
-        description: "Ocorreu um erro ao salvar a sequência.",
-        variant: "destructive",
-        duration: 3000,
-      });
+    if (isEditMode && currentSequence) {
+      await updateSequence(currentSequence.id, sequence);
+      setIsEditMode(false);
+      setCurrentSequence(null);
+    } else {
+      await addSequence(sequence);
+      setIsCreateMode(false);
     }
   };
   
@@ -103,27 +80,14 @@ export default function Sequences() {
     setIsEditMode(true);
   };
   
-  const handleToggleStatus = async (sequence: Sequence) => {
-    const newStatus = sequence.status === 'active' ? 'inactive' : 'active';
-    await updateSequence(sequence.id, {
-      status: newStatus
-    });
-    
-    toast({
-      title: `Sequência ${newStatus === 'active' ? 'ativada' : 'desativada'}`,
-      description: `A sequência "${sequence.name}" foi ${newStatus === 'active' ? 'ativada' : 'desativada'}.`,
-      duration: 3000,
+  const handleToggleStatus = (sequence: Sequence) => {
+    updateSequence(sequence.id, {
+      status: sequence.status === 'active' ? 'inactive' : 'active'
     });
   };
   
-  const handleDeleteSequence = async (id: string) => {
-    await deleteSequence(id);
-    
-    toast({
-      title: "Sequência excluída",
-      description: "A sequência foi excluída permanentemente.",
-      duration: 3000,
-    });
+  const handleDeleteSequence = (id: string) => {
+    deleteSequence(id);
   };
   
   const getStageIcon = (type: string) => {
@@ -142,12 +106,11 @@ export default function Sequences() {
   if (isCreateMode) {
     return (
       <div className="space-y-6">
-        <div className="flex items-center mb-6">
-          <Button variant="ghost" onClick={() => setIsCreateMode(false)} className="mr-2">
-            <ArrowLeft className="h-4 w-4 mr-1" />
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold tracking-tight">Nova Sequência</h1>
+          <Button variant="ghost" onClick={() => setIsCreateMode(false)}>
             Voltar
           </Button>
-          <h1 className="text-2xl font-bold tracking-tight">Nova Sequência</h1>
         </div>
         
         <SequenceBuilder 
@@ -161,19 +124,14 @@ export default function Sequences() {
   if (isEditMode && currentSequence) {
     return (
       <div className="space-y-6">
-        <div className="flex items-center mb-6">
-          <Button 
-            variant="ghost" 
-            onClick={() => {
-              setIsEditMode(false);
-              setCurrentSequence(null);
-            }}
-            className="mr-2"
-          >
-            <ArrowLeft className="h-4 w-4 mr-1" />
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold tracking-tight">Editar Sequência</h1>
+          <Button variant="ghost" onClick={() => {
+            setIsEditMode(false);
+            setCurrentSequence(null);
+          }}>
             Voltar
           </Button>
-          <h1 className="text-2xl font-bold tracking-tight">Editar Sequência</h1>
         </div>
         
         <SequenceBuilder 
