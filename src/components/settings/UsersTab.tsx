@@ -180,7 +180,7 @@ export const UsersTab = () => {
             {users.map((user) => (
               <TableRow key={user.id}>
                 <TableCell className="font-medium">{user.accountName}</TableCell>
-                <TableCell>{user.email || "—"}</TableCell>
+                <TableCell>{user.email}</TableCell>
                 <TableCell>
                   {user.role === 'super_admin' ? (
                     <div className="flex items-center">

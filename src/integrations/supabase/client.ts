@@ -16,27 +16,3 @@ export const isValidUUID = (uuid: string): boolean => {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   return uuidRegex.test(uuid);
 };
-
-// Define types for our custom RPC functions
-export type UserWithEmail = {
-  id: string;
-  email: string;
-};
-
-// Extend Database type to include custom RPC functions
-declare module '@supabase/supabase-js' {
-  interface SupabaseClient<Database> {
-    rpc<
-      RpcName extends 'get_users_with_emails' | 'get_sequence_time_restrictions' | 'is_super_admin',
-      Args extends Record<string, unknown> = Record<string, never>
-    >(
-      fn: RpcName,
-      args?: Args,
-      options?: any
-    ): RpcName extends 'get_users_with_emails'
-        ? Promise<{ data: UserWithEmail[] | null; error: Error | null }>
-        : RpcName extends 'get_sequence_time_restrictions'
-        ? Promise<{ data: any[] | null; error: Error | null }>
-        : Promise<{ data: boolean | null; error: Error | null }>;
-  }
-}
