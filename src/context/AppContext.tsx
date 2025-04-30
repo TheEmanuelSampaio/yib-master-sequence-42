@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
@@ -15,7 +14,7 @@ import {
   StageProgress,
   TagCondition
 } from "@/types";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/use-toast";
 
 interface AppContextType {
   clients: Client[];
@@ -389,7 +388,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         contactId: msg.contact_id,
         sequenceId: msg.sequence_id,
         stageId: msg.stage_id,
-        status: msg.status,
+        // Ensure status is one of the valid types
+        status: msg.status as "pending" | "processing" | "sent" | "failed" | "persistent_error",
         scheduledTime: msg.scheduled_time,
         rawScheduledTime: msg.raw_scheduled_time,
         sentAt: msg.sent_at,
