@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback, useRef } from "react";
 import { PlusCircle, Clock, X, Lock, Save, Check } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -390,7 +391,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
             </Button>
             <Button 
               onClick={handleSubmit}
-              variant="success"
+              variant="default"
               disabled={!hasUnsavedChanges}
               className="flex items-center gap-1"
             >
@@ -900,4 +901,204 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
                         </ToggleGroup>
                       </div>
                       
-                      <div className="grid grid
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Horário de Início</Label>
+                          <div className="flex space-x-2">
+                            <Select
+                              value={newRestriction.startHour.toString().padStart(2, '0')}
+                              onValueChange={(value) => setNewRestriction({
+                                ...newRestriction,
+                                startHour: parseInt(value)
+                              })}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {Array.from({ length: 24 }).map((_, i) => (
+                                  <SelectItem key={i} value={i.toString().padStart(2, '0')}>
+                                    {i.toString().padStart(2, '0')}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <span className="flex items-center">:</span>
+                            <Select
+                              value={newRestriction.startMinute.toString().padStart(2, '0')}
+                              onValueChange={(value) => setNewRestriction({
+                                ...newRestriction,
+                                startMinute: parseInt(value)
+                              })}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {Array.from({ length: 12 }).map((_, i) => (
+                                  <SelectItem key={i} value={(i * 5).toString().padStart(2, '0')}>
+                                    {(i * 5).toString().padStart(2, '0')}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Horário de Término</Label>
+                          <div className="flex space-x-2">
+                            <Select
+                              value={newRestriction.endHour.toString().padStart(2, '0')}
+                              onValueChange={(value) => setNewRestriction({
+                                ...newRestriction,
+                                endHour: parseInt(value)
+                              })}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {Array.from({ length: 24 }).map((_, i) => (
+                                  <SelectItem key={i} value={i.toString().padStart(2, '0')}>
+                                    {i.toString().padStart(2, '0')}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <span className="flex items-center">:</span>
+                            <Select
+                              value={newRestriction.endMinute.toString().padStart(2, '0')}
+                              onValueChange={(value) => setNewRestriction({
+                                ...newRestriction,
+                                endMinute: parseInt(value)
+                              })}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {Array.from({ length: 12 }).map((_, i) => (
+                                  <SelectItem key={i} value={(i * 5).toString().padStart(2, '0')}>
+                                    {(i * 5).toString().padStart(2, '0')}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <DialogFooter>
+                      <Button type="submit" onClick={addLocalRestriction}>
+                        Adicionar Restrição
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-6">
+                  {/* Restrições Locais */}
+                  <div className="bg-card border rounded-md p-4">
+                    <h3 className="font-medium mb-3">Restrições Locais</h3>
+                    <div className="space-y-3">
+                      {localRestrictions.length > 0 ? (
+                        localRestrictions.map((restriction) => (
+                          <RestrictionItem
+                            key={restriction.id}
+                            restriction={restriction}
+                            onRemove={removeTimeRestriction}
+                            onUpdate={updateLocalRestriction}
+                            editable={true}
+                          />
+                        ))
+                      ) : (
+                        <p className="text-sm text-muted-foreground">
+                          Nenhuma restrição local adicionada
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Restrições Globais */}
+                  <div className="bg-card border rounded-md p-4">
+                    <h3 className="font-medium mb-3">Restrições Globais Disponíveis</h3>
+                    <div className="space-y-3">
+                      {availableGlobalRestrictions.length > 0 ? (
+                        availableGlobalRestrictions.map((restriction) => (
+                          <div key={restriction.id} className="flex items-center justify-between p-3 bg-background border rounded-md">
+                            <div className="flex-grow">
+                              <RestrictionItem
+                                restriction={restriction}
+                                editable={false}
+                              />
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => addGlobalRestriction(restriction)}
+                            >
+                              <PlusCircle className="h-4 w-4 mr-2" />
+                              Adicionar
+                            </Button>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-muted-foreground">
+                          Nenhuma restrição global disponível
+                        </p>
+                      )}
+                    </div>
+                    
+                    <Separator className="my-4" />
+                    
+                    <h3 className="font-medium mb-3">Restrições Globais Adicionadas</h3>
+                    <div className="space-y-3">
+                      {globalRestrictions.length > 0 ? (
+                        globalRestrictions.map((restriction) => (
+                          <RestrictionItem
+                            key={restriction.id}
+                            restriction={restriction}
+                            onRemove={removeTimeRestriction}
+                            editable={false}
+                          />
+                        ))
+                      ) : (
+                        <p className="text-sm text-muted-foreground">
+                          Nenhuma restrição global adicionada
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
+      
+      {/* Dialog para alterações não salvas */}
+      <AlertDialog open={showUnsavedDialog} onOpenChange={setShowUnsavedDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Alterações não salvas</AlertDialogTitle>
+            <AlertDialogDescription>
+              Você tem alterações não salvas. Deseja sair sem salvar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={onCancel}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Sair sem salvar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
