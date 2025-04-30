@@ -1,3 +1,4 @@
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 
@@ -255,18 +256,32 @@ Deno.serve(async (req) => {
       try {
         // Verificar se a tag existe no sistema e criar se necessário
         try {
-          // Use RPC function para inserir tag se não existir
-          const { error: rpcError } = await supabase.rpc('insert_tag_if_not_exists_for_user', {
-            p_name: tag,
-            p_created_by: '00000000-0000-0000-0000-000000000000' // Sistema
-          });
-          
-          if (rpcError) {
-            console.error(`[TAGS] Erro ao inserir tag com RPC ${tag}: ${rpcError.message}`);
-            // Continuar mesmo com erro, já que a tag pode já existir
+          // Usar inserção direta em vez de RPC para evitar problemas com chave estrangeira
+          // A tag será criada com o primeiro usuário disponível em vez de um ID fixo
+          const { data: firstUser } = await supabase
+            .from('profiles')
+            .select('id')
+            .limit(1)
+            .single();
+            
+          if (firstUser) {
+            const { error: tagInsertError } = await supabase
+              .from('tags')
+              .insert({ 
+                name: tag,
+                created_by: firstUser.id
+              })
+              .on_conflict('name')
+              .do_nothing();
+              
+            if (tagInsertError && tagInsertError.code !== '23505') { // Ignorar violação de unicidade
+              console.error(`[TAGS] Erro ao inserir tag ${tag}: ${tagInsertError.message}`);
+            }
+          } else {
+            console.error(`[TAGS] Não foi possível criar a tag ${tag}: nenhum usuário encontrado`);
           }
         } catch (error) {
-          console.error(`[TAGS] Erro na execução de RPC para tag ${tag}: ${error.message}`);
+          console.error(`[TAGS] Erro na criação da tag ${tag}: ${error.message}`);
           // Continuar mesmo com erro
         }
         
@@ -311,6 +326,7 @@ Deno.serve(async (req) => {
     console.log(`[SEQUENCES] Verificando sequências elegíveis para o contato ${contactId}`);
     
     // Buscar todas as instâncias ativas do cliente
+    // CORREÇÃO: Aqui está o problema principal - precisamos garantir que estamos buscando corretamente as instâncias
     const { data: activeInstances, error: instanceError } = await supabase
       .from('instances')
       .select('id, name')
@@ -318,17 +334,32 @@ Deno.serve(async (req) => {
       .eq('active', true);
       
     if (instanceError) {
-      console.error(`[INSTANCES] Erro ao buscar instâncias: ${instanceError.message}`);
+      console.error(`[INSTANCES] Erro ao buscar instâncias: ${instanceError.message}`, instanceError);
       throw instanceError;
     }
     
-    console.log(`[INSTANCES] Encontradas ${activeInstances?.length || 0} instâncias ativas`);
+    console.log(`[INSTANCES] Encontradas ${activeInstances?.length || 0} instâncias ativas para cliente ${existingClient.id}`);
     
+    // Debug adicional para verificar se há instâncias
+    const { data: allInstances } = await supabase
+      .from('instances')
+      .select('id, name, client_id, active');
+      
+    console.log(`[INSTANCES DEBUG] Total de instâncias no banco: ${allInstances?.length || 0}`);
+    if (allInstances && allInstances.length > 0) {
+      console.log(`[INSTANCES DEBUG] Primeira instância: ID=${allInstances[0].id}, Nome=${allInstances[0].name}, Cliente=${allInstances[0].client_id}, Ativa=${allInstances[0].active}`);
+    }
+      
     if (!activeInstances || activeInstances.length === 0) {
       return new Response(
         JSON.stringify({ 
           success: true, 
           message: 'Contato processado com sucesso, mas nenhuma instância ativa encontrada.',
+          debug: {
+            clientId: existingClient.id,
+            totalInstancesInDb: allInstances?.length || 0,
+            activeFilter: { client_id: existingClient.id, active: true }
+          },
           details: {
             contactId,
             tagsAdded: tagsToAdd.length,
@@ -473,7 +504,7 @@ Deno.serve(async (req) => {
               .eq('sequence_id', sequence.id)
               .order('order_index', { ascending: true })
               .limit(1)
-              .single();
+              .maybeSingle();
               
             if (stageError) {
               console.error(`[STAGE] Erro ao buscar primeiro estágio da sequência: ${stageError.message}`);

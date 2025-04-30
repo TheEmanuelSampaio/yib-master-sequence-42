@@ -1,3 +1,4 @@
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useApp } from '@/context/AppContext';
 import { Check, Clock, Activity, Ban, AlertCircle } from 'lucide-react';
@@ -31,7 +32,7 @@ export function SequenceOverview() {
       
       // Formato correto do payload com chatwootData
       const testData = {
-        chatwootData: {
+        data: {
           accountData: {
             accountId: 1,
             accountName: "Teste Master Sequence"
