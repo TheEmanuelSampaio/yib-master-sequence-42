@@ -21,6 +21,8 @@ import { StageItem } from "./StageItem";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
+import { v4 as uuidv4 } from "uuid";
+import { isValidUUID } from "@/integrations/supabase/client";
 
 interface SequenceBuilderProps {
   sequence?: Sequence;
@@ -154,139 +156,245 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
   const addStage = () => {
     if (!newStage.name || !newStage.content) return;
     
-    const stage: SequenceStage = {
-      ...newStage,
-      id: crypto.randomUUID(),
-    };
-    
-    setStages([...stages, stage]);
-    notifyChanges();
-    
-    // Reset form
-    setNewStage({
-      name: "",
-      type: "message",
-      content: "",
-      delay: 60,
-      delayUnit: "minutes",
-    });
+    try {
+      const stage: SequenceStage = {
+        ...newStage,
+        id: uuidv4(),
+      };
+      
+      setStages([...stages, stage]);
+      notifyChanges();
+      
+      // Reset form
+      setNewStage({
+        name: "",
+        type: "message",
+        content: "",
+        delay: 60,
+        delayUnit: "minutes",
+      });
+    } catch (error) {
+      console.error("Erro ao adicionar estágio:", error);
+      toast.error("Erro ao adicionar estágio. Verifique o console para mais detalhes.");
+    }
   };
   
   const removeStage = (id: string) => {
-    setStages(stages.filter(stage => stage.id !== id));
-    if (editingStageId === id) {
-      setEditingStageId(null);
-      setStageToEdit(null);
+    try {
+      if (!id || !isValidUUID(id)) {
+        console.error("ID de estágio inválido:", id);
+        toast.error("ID de estágio inválido");
+        return;
+      }
+      
+      setStages(stages.filter(stage => stage.id !== id));
+      if (editingStageId === id) {
+        setEditingStageId(null);
+        setStageToEdit(null);
+      }
+      notifyChanges();
+    } catch (error) {
+      console.error("Erro ao remover estágio:", error);
+      toast.error("Erro ao remover estágio. Verifique o console para mais detalhes.");
     }
-    notifyChanges();
   };
 
   const startEditingStage = (stage: SequenceStage) => {
-    setEditingStageId(stage.id);
-    setStageToEdit({...stage});
+    try {
+      if (!stage.id || !isValidUUID(stage.id)) {
+        console.error("ID de estágio inválido:", stage.id);
+        toast.error("ID de estágio inválido");
+        return;
+      }
+      
+      setEditingStageId(stage.id);
+      setStageToEdit({...stage});
+    } catch (error) {
+      console.error("Erro ao editar estágio:", error);
+      toast.error("Erro ao editar estágio. Verifique o console para mais detalhes.");
+    }
   };
 
   const updateStage = (updatedStage: SequenceStage) => {
-    setStages(stages.map(stage => 
-      stage.id === updatedStage.id ? updatedStage : stage
-    ));
-    setEditingStageId(null);
-    setStageToEdit(null);
-    toast.success("Estágio atualizado com sucesso");
-    notifyChanges();
+    try {
+      if (!updatedStage.id || !isValidUUID(updatedStage.id)) {
+        console.error("ID de estágio inválido:", updatedStage.id);
+        toast.error("ID de estágio inválido");
+        return;
+      }
+      
+      setStages(stages.map(stage => 
+        stage.id === updatedStage.id ? updatedStage : stage
+      ));
+      setEditingStageId(null);
+      setStageToEdit(null);
+      toast.success("Estágio atualizado com sucesso");
+      notifyChanges();
+    } catch (error) {
+      console.error("Erro ao atualizar estágio:", error);
+      toast.error("Erro ao atualizar estágio. Verifique o console para mais detalhes.");
+    }
   };
   
   const moveStage = (id: string, direction: "up" | "down") => {
-    const index = stages.findIndex(s => s.id === id);
-    if (
-      (direction === "up" && index === 0) ||
-      (direction === "down" && index === stages.length - 1)
-    ) {
-      return;
+    try {
+      if (!id || !isValidUUID(id)) {
+        console.error("ID de estágio inválido:", id);
+        toast.error("ID de estágio inválido");
+        return;
+      }
+      
+      const index = stages.findIndex(s => s.id === id);
+      if (
+        (direction === "up" && index === 0) ||
+        (direction === "down" && index === stages.length - 1)
+      ) {
+        return;
+      }
+      
+      const newStages = [...stages];
+      const step = direction === "up" ? -1 : 1;
+      [newStages[index], newStages[index + step]] = [newStages[index + step], newStages[index]];
+      
+      setStages(newStages);
+      notifyChanges();
+    } catch (error) {
+      console.error("Erro ao mover estágio:", error);
+      toast.error("Erro ao mover estágio. Verifique o console para mais detalhes.");
     }
-    
-    const newStages = [...stages];
-    const step = direction === "up" ? -1 : 1;
-    [newStages[index], newStages[index + step]] = [newStages[index + step], newStages[index]];
-    
-    setStages(newStages);
-    notifyChanges();
   };
   
   const addLocalRestriction = () => {
-    const restriction: TimeRestriction = {
-      ...newRestriction,
-      id: crypto.randomUUID(),
-      isGlobal: false, // Sempre marca como restrição local
-    };
-    
-    setTimeRestrictions([...timeRestrictions, restriction]);
-    notifyChanges();
-    setShowAddRestrictionDialog(false);
-    
-    // Reset form
-    setNewRestriction({
-      name: "Nova restrição",
-      active: true,
-      days: [1, 2, 3, 4, 5],
-      startHour: 22,
-      startMinute: 0,
-      endHour: 8,
-      endMinute: 0,
-      isGlobal: false,
-    });
+    try {
+      const restriction: TimeRestriction = {
+        ...newRestriction,
+        id: uuidv4(),
+        isGlobal: false, // Sempre marca como restrição local
+      };
+      
+      setTimeRestrictions([...timeRestrictions, restriction]);
+      notifyChanges();
+      setShowAddRestrictionDialog(false);
+      
+      // Reset form
+      setNewRestriction({
+        name: "Nova restrição",
+        active: true,
+        days: [1, 2, 3, 4, 5],
+        startHour: 22,
+        startMinute: 0,
+        endHour: 8,
+        endMinute: 0,
+        isGlobal: false,
+      });
+    } catch (error) {
+      console.error("Erro ao adicionar restrição local:", error);
+      toast.error("Erro ao adicionar restrição local. Verifique o console para mais detalhes.");
+    }
   };
 
   const addGlobalRestriction = (restriction: TimeRestriction) => {
-    // Verifica se já não existe na lista
-    if (timeRestrictions.some(r => r.id === restriction.id)) return;
-    
-    setTimeRestrictions([...timeRestrictions, { ...restriction, isGlobal: true }]);
-    notifyChanges();
+    try {
+      // Verifica se já não existe na lista
+      if (timeRestrictions.some(r => r.id === restriction.id)) return;
+      
+      if (!restriction.id || !isValidUUID(restriction.id)) {
+        console.error("ID de restrição inválido:", restriction.id);
+        toast.error("ID de restrição inválido");
+        return;
+      }
+      
+      setTimeRestrictions([...timeRestrictions, { ...restriction, isGlobal: true }]);
+      notifyChanges();
+    } catch (error) {
+      console.error("Erro ao adicionar restrição global:", error);
+      toast.error("Erro ao adicionar restrição global. Verifique o console para mais detalhes.");
+    }
   };
   
   const removeTimeRestriction = (id: string) => {
-    setTimeRestrictions(timeRestrictions.filter(r => r.id !== id));
-    notifyChanges();
+    try {
+      if (!id || !isValidUUID(id)) {
+        console.error("ID de restrição inválido:", id);
+        toast.error("ID de restrição inválido");
+        return;
+      }
+      
+      setTimeRestrictions(timeRestrictions.filter(r => r.id !== id));
+      notifyChanges();
+    } catch (error) {
+      console.error("Erro ao remover restrição de tempo:", error);
+      toast.error("Erro ao remover restrição de tempo. Verifique o console para mais detalhes.");
+    }
   };
 
   const updateLocalRestriction = (updatedRestriction: TimeRestriction) => {
-    // Apenas permite atualizar restrições locais
-    if (updatedRestriction.isGlobal) return;
-    
-    setTimeRestrictions(timeRestrictions.map(r => 
-      r.id === updatedRestriction.id ? updatedRestriction : r
-    ));
-    notifyChanges();
+    try {
+      // Apenas permite atualizar restrições locais
+      if (updatedRestriction.isGlobal) return;
+      
+      if (!updatedRestriction.id || !isValidUUID(updatedRestriction.id)) {
+        console.error("ID de restrição inválido:", updatedRestriction.id);
+        toast.error("ID de restrição inválido");
+        return;
+      }
+      
+      setTimeRestrictions(timeRestrictions.map(r => 
+        r.id === updatedRestriction.id ? updatedRestriction : r
+      ));
+      notifyChanges();
+    } catch (error) {
+      console.error("Erro ao atualizar restrição local:", error);
+      toast.error("Erro ao atualizar restrição local. Verifique o console para mais detalhes.");
+    }
   };
   
   const handleSubmit = () => {
-    if (!name) {
-      toast.error("Por favor, informe um nome para a sequência.");
-      return;
+    try {
+      if (!name) {
+        toast.error("Por favor, informe um nome para a sequência.");
+        return;
+      }
+      
+      if (startCondition.tags.length === 0) {
+        toast.error("Por favor, adicione pelo menos uma tag para a condição de início.");
+        return;
+      }
+      
+      if (stages.length === 0) {
+        toast.error("Por favor, adicione pelo menos um estágio à sequência.");
+        return;
+      }
+      
+      if (!currentInstance || !currentInstance.id) {
+        toast.error("Nenhuma instância selecionada.");
+        return;
+      }
+      
+      // Validar a instanceId
+      if (!isValidUUID(currentInstance.id)) {
+        console.error("ID de instância inválido:", currentInstance.id);
+        toast.error("ID de instância inválido");
+        return;
+      }
+      
+      const newSequence: Omit<Sequence, "id" | "createdAt" | "updatedAt"> = {
+        name,
+        instanceId: currentInstance.id,
+        startCondition,
+        stopCondition,
+        stages,
+        timeRestrictions,
+        status,
+      };
+      
+      console.log("Dados da sequência sendo enviados:", JSON.stringify(newSequence, null, 2));
+      
+      onSave(newSequence);
+    } catch (error) {
+      console.error("Erro ao enviar sequência:", error);
+      toast.error("Erro ao criar sequência. Verifique o console para mais detalhes.");
     }
-    
-    if (startCondition.tags.length === 0) {
-      toast.error("Por favor, adicione pelo menos uma tag para a condição de início.");
-      return;
-    }
-    
-    if (stages.length === 0) {
-      toast.error("Por favor, adicione pelo menos um estágio à sequência.");
-      return;
-    }
-    
-    const newSequence: Omit<Sequence, "id" | "createdAt" | "updatedAt"> = {
-      name,
-      instanceId: currentInstance?.id || "",
-      startCondition,
-      stopCondition,
-      stages,
-      timeRestrictions,
-      status,
-    };
-    
-    onSave(newSequence);
   };
   
   const getDayName = (day: number) => {
