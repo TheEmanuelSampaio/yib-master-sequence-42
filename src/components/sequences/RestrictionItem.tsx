@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -7,18 +6,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Trash2, Edit, Check, X, Plus } from "lucide-react";
+import { Trash2, Edit, Check, X, Plus, CheckCircle } from "lucide-react";
 import { TimeRestriction } from "@/types";
 
 interface RestrictionItemProps {
   restriction: TimeRestriction;
   readonly?: boolean;
+  isSelected?: boolean;
   onUpdate?: (restriction: TimeRestriction) => void;
   onRemove?: (id: string) => void;
   onSelect?: () => void;
 }
 
-export function RestrictionItem({ restriction, readonly, onUpdate, onRemove, onSelect }: RestrictionItemProps) {
+export function RestrictionItem({ restriction, readonly, isSelected, onUpdate, onRemove, onSelect }: RestrictionItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedRestriction, setEditedRestriction] = useState<TimeRestriction>(restriction);
 
@@ -190,18 +190,32 @@ export function RestrictionItem({ restriction, readonly, onUpdate, onRemove, onS
           <div className="flex-1">
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center">
-                <Switch 
-                  checked={restriction.active} 
-                  onCheckedChange={toggleActive}
-                  disabled={readonly}
-                />
+                {readonly ? (
+                  isSelected ? (
+                    <CheckCircle className="h-4 w-4 text-primary mr-2" />
+                  ) : null
+                ) : (
+                  <Switch 
+                    checked={restriction.active} 
+                    onCheckedChange={toggleActive}
+                    disabled={readonly}
+                  />
+                )}
                 <h4 className="ml-2 text-sm font-medium">{restriction.name}</h4>
               </div>
               
               <div className="flex space-x-1">
                 {readonly ? (
-                  <Button variant="outline" size="sm" onClick={onSelect}>
-                    <Plus className="h-3 w-3 mr-1" /> Adicionar
+                  <Button variant={isSelected ? "default" : "outline"} size="sm" onClick={onSelect}>
+                    {isSelected ? (
+                      <>
+                        <Check className="h-3 w-3 mr-1" /> Selecionada
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="h-3 w-3 mr-1" /> Adicionar
+                      </>
+                    )}
                   </Button>
                 ) : (
                   <>
