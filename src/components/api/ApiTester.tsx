@@ -21,7 +21,7 @@ export const ApiTester = () => {
         inboxId: 46,
         conversationId: 23266,
         displayId: 1608,
-        labels: "1-lead, 2-clienteZ1"
+        labels: "1-lead, 2-clienteZ2"
       }
     }
   }, null, 2));
