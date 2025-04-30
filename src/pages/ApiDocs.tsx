@@ -1,292 +1,410 @@
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Code,
-  Copy,
-  Terminal,
-  SquareArrowOutUpRight,
-  ArrowRightLeft,
-  Check,
-} from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Clipboard, CheckCircle2 } from "lucide-react";
 import { useState } from "react";
-import { useToast } from "@/components/ui/use-toast";
-
-const apiBaseUrl = "https://mlwcupyfhtxdxcybwbmg.supabase.co/functions/v1";
-
-const endpoints = [
-  {
-    id: "tag-change",
-    name: "Tag Change",
-    url: `${apiBaseUrl}/tag-change`,
-    method: "POST",
-    description: "Endpoint para adicionar um contato quando recebe dados do Chatwoot.",
-    requestExample: {
-      body: {
-        data: {
-          accountId: 1,
-          accountName: "Years In Box",
-          contact: { 
-            id: 16087,
-            name: "Emanuel Years In Box",
-            phoneNumber: "+5511937474703"
-          },
-          conversation: {
-            inboxId: 46,
-            conversationId: 23266,
-            displayId: 1608,
-            labels: "lead, google, produto-xpto"
-          }
-        }
-      }
-    },
-    responseExample: {
-      success: true,
-      message: "Contact processed successfully",
-      contact: {
-        id: "16087",
-        name: "Emanuel Years In Box",
-        tags: ["lead", "google", "produto-xpto"]
-      }
-    }
-  },
-  {
-    id: "pending-messages",
-    name: "Pending Messages",
-    url: `${apiBaseUrl}/pending-messages`,
-    method: "GET",
-    description: "Recupera mensagens pendentes que estão prontas para serem enviadas.",
-    requestExample: {},
-    responseExample: {
-      message: "Processed 1 pending messages",
-      data: [
-        {
-          id: "b7d8f235-a1c2-4e8b-9c3d-5f6g7h8i9j0k",
-          chatwootData: {
-            accountData: {
-              accountId: "client-uuid",
-              accountName: "Instance Name"
-            },
-            contactData: {
-              id: "16087",
-              name: "Emanuel Years In Box",
-              phoneNumber: "+5511937474703"
-            },
-            conversation: {
-              inboxId: 46,
-              conversationId: 23266,
-              displayId: 1608,
-              labels: "lead, google, produto-xpto"
-            }
-          },
-          instanceData: {
-            id: "instance-uuid",
-            name: "Instance Name",
-            evolutionApiUrl: "https://evolution-api.example.com",
-            apiKey: "your-api-key"
-          },
-          sequenceData: {
-            instanceName: "Instance Name",
-            sequenceName: "Lead Nurturing",
-            type: "message",
-            stage: {
-              stg1: {
-                id: "stage-uuid",
-                content: "Olá {name}, como vai?",
-                rawScheduledTime: "2023-04-30T10:00:00Z",
-                scheduledTime: "2023-04-30T10:00:00Z"
-              }
-            }
-          }
-        }
-      ]
-    }
-  },
-  {
-    id: "delivery-status",
-    name: "Delivery Status",
-    url: `${apiBaseUrl}/delivery-status`,
-    method: "POST",
-    description: "Atualiza o status de entrega de uma mensagem.",
-    requestExample: {
-      messageId: "b7d8f235-a1c2-4e8b-9c3d-5f6g7h8i9j0k",
-      status: "success",
-      attempts: 1
-    },
-    responseExample: {
-      success: true,
-      message: "Message marked as sent successfully",
-      messageId: "b7d8f235-a1c2-4e8b-9c3d-5f6g7h8i9j0k"
-    }
-  }
-];
 
 export default function ApiDocs() {
-  const [selectedEndpoint, setSelectedEndpoint] = useState(endpoints[0].id);
-  const { toast } = useToast();
+  const [copiedTabs, setCopiedTabs] = useState<{ [key: string]: boolean }>({});
 
-  const currentEndpoint = endpoints.find(e => e.id === selectedEndpoint);
-
-  const copyToClipboard = (text: string, description: string) => {
+  const copyToClipboard = (text: string, tabId: string) => {
     navigator.clipboard.writeText(text);
-    toast({
-      title: "Copiado!",
-      description: `${description} foi copiado para a área de transferência.`,
-      duration: 3000,
-    });
+    setCopiedTabs({ ...copiedTabs, [tabId]: true });
+    setTimeout(() => {
+      setCopiedTabs({ ...copiedTabs, [tabId]: false });
+    }, 2000);
   };
 
-  const handleCopyUrl = () => {
-    if (currentEndpoint) {
-      copyToClipboard(currentEndpoint.url, "URL da API");
-    }
-  };
+  // Determine API URL based on current environment
+  const apiUrl = window.location.origin.includes('localhost') 
+    ? 'https://mlwcupyfhtxdxcybwbmg.supabase.co/functions/v1'
+    : window.location.origin.includes('vercel') || window.location.origin.includes('netlify')
+      ? 'https://mlwcupyfhtxdxcybwbmg.supabase.co/functions/v1'
+      : `${window.location.origin}/api`;
 
-  const handleCopyExample = (type: 'request' | 'response') => {
-    if (currentEndpoint) {
-      copyToClipboard(
-        JSON.stringify(
-          type === 'request' 
-            ? currentEndpoint.requestExample 
-            : currentEndpoint.responseExample, 
-          null, 2
-        ),
-        type === 'request' ? "Exemplo de requisição" : "Exemplo de resposta"
-      );
+  const tagChangePayload = `{
+  "data": {
+    "accountId": 1,
+    "accountName": "Years In Box",
+    "contact": {
+      "id": 16087,
+      "name": "Emanuel Years In Box",
+      "phoneNumber": "+5511937474703"
+    },
+    "conversation": {
+      "inboxId": 46,
+      "conversationId": 23266,
+      "displayId": 1608,
+      "labels": "lead, google, produto-xpto"
     }
-  };
+  }
+}`;
+
+  const deliveryStatusPayload = `{
+  "messageId": "your-message-id",
+  "status": "success"
+}`;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col">
-        <h1 className="text-2xl font-bold tracking-tight">Documentação da API</h1>
+    <div className="container mx-auto py-6 space-y-8">
+      <div>
+        <h1 className="text-3xl font-bold mb-2">Documentação de API</h1>
         <p className="text-muted-foreground">
-          Endpoints disponíveis para integração com serviços externos.
+          Documentação completa dos endpoints disponíveis para integração com o Master Sequence
         </p>
       </div>
-
-      <Tabs defaultValue={endpoints[0].id} value={selectedEndpoint} onValueChange={setSelectedEndpoint}>
-        <TabsList className="mb-4">
-          {endpoints.map(endpoint => (
-            <TabsTrigger key={endpoint.id} value={endpoint.id} className="flex items-center gap-2">
-              <ArrowRightLeft className="h-4 w-4" />
-              {endpoint.name}
-            </TabsTrigger>
-          ))}
+      
+      <Card>
+        <CardHeader>
+          <CardTitle>Base URL</CardTitle>
+          <CardDescription>URL base para todos os endpoints</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="p-4 bg-muted rounded-md flex justify-between items-center">
+            <code className="text-sm">{apiUrl}</code>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => copyToClipboard(apiUrl, 'baseurl')}
+            >
+              {copiedTabs['baseurl'] ? (
+                <CheckCircle2 className="h-4 w-4 text-green-500" />
+              ) : (
+                <Clipboard className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+      
+      <Tabs defaultValue="tag-change">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="tag-change">Tag Change</TabsTrigger>
+          <TabsTrigger value="pending-messages">Pending Messages</TabsTrigger>
+          <TabsTrigger value="delivery-status">Delivery Status</TabsTrigger>
         </TabsList>
-
-        {endpoints.map(endpoint => (
-          <TabsContent key={endpoint.id} value={endpoint.id} className="space-y-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-xl flex items-center gap-2">
-                      <span className={`
-                        px-2 py-1 text-xs font-bold rounded
-                        ${endpoint.method === 'GET' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' : ''}
-                        ${endpoint.method === 'POST' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : ''}
-                        ${endpoint.method === 'PUT' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' : ''}
-                        ${endpoint.method === 'DELETE' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' : ''}
-                      `}>
-                        {endpoint.method}
-                      </span>
-                      {endpoint.name}
-                    </CardTitle>
-                    <CardDescription className="mt-2">{endpoint.description}</CardDescription>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleCopyUrl}
-                    className="flex items-center gap-2"
+        
+        <TabsContent value="tag-change" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Endpoint: Tag Change</CardTitle>
+              <CardDescription>
+                Esse endpoint é chamado quando as tags de um contato são alteradas no Chatwoot
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-2">
+                <h3 className="font-semibold">URL</h3>
+                <div className="p-4 bg-muted rounded-md flex justify-between items-center">
+                  <code className="text-sm">{`${apiUrl}/tag-change`}</code>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => copyToClipboard(`${apiUrl}/tag-change`, 'tag-change-url')}
                   >
-                    <Copy className="h-3.5 w-3.5" />
-                    Copiar URL
+                    {copiedTabs['tag-change-url'] ? (
+                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <Clipboard className="h-4 w-4" />
+                    )}
                   </Button>
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <div className="font-semibold text-sm flex items-center gap-2">
-                    <Terminal className="h-4 w-4" />
-                    URL do Endpoint
-                  </div>
-                  <div className="relative">
-                    <div className="bg-muted rounded-md p-3 text-sm font-mono overflow-auto">
-                      {endpoint.url}
-                    </div>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="absolute top-1.5 right-1.5 h-7 w-7 text-muted-foreground hover:text-foreground"
-                      onClick={() => window.open(endpoint.url, '_blank')}
-                    >
-                      <SquareArrowOutUpRight className="h-4 w-4" />
-                      <span className="sr-only">Abrir em uma nova aba</span>
-                    </Button>
-                  </div>
+              </div>
+              
+              <div className="space-y-2">
+                <h3 className="font-semibold">Método</h3>
+                <div className="p-1 px-3 bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400 rounded-md inline-block">
+                  <code>POST</code>
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-                  <div className="space-y-2">
-                    <div className="font-semibold text-sm flex items-center justify-between">
-                      <span className="flex items-center gap-2">
-                        <Code className="h-4 w-4" />
-                        Exemplo de Requisição
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => handleCopyExample('request')}
-                      >
-                        <Copy className="h-3.5 w-3.5" />
-                        <span className="sr-only">Copiar exemplo</span>
-                      </Button>
-                    </div>
-                    <div className="bg-muted rounded-md p-3 text-sm font-mono overflow-auto max-h-[400px]">
-                      <pre className="whitespace-pre-wrap">
-                        {JSON.stringify(endpoint.requestExample, null, 2)}
-                      </pre>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="font-semibold text-sm flex items-center justify-between">
-                      <span className="flex items-center gap-2">
-                        <Check className="h-4 w-4" />
-                        Exemplo de Resposta
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => handleCopyExample('response')}
-                      >
-                        <Copy className="h-3.5 w-3.5" />
-                        <span className="sr-only">Copiar exemplo</span>
-                      </Button>
-                    </div>
-                    <div className="bg-muted rounded-md p-3 text-sm font-mono overflow-auto max-h-[400px]">
-                      <pre className="whitespace-pre-wrap">
-                        {JSON.stringify(endpoint.responseExample, null, 2)}
-                      </pre>
-                    </div>
-                  </div>
+              </div>
+              
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold">Payload</h3>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => copyToClipboard(tagChangePayload, 'tag-change-payload')}
+                  >
+                    {copiedTabs['tag-change-payload'] ? (
+                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <Clipboard className="h-4 w-4" />
+                    )}
+                  </Button>
                 </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        ))}
+                <pre className="p-4 bg-muted rounded-md overflow-auto text-sm whitespace-pre">
+                  {tagChangePayload}
+                </pre>
+              </div>
+              
+              <div className="space-y-2">
+                <h3 className="font-semibold">Resposta</h3>
+                <pre className="p-4 bg-muted rounded-md overflow-auto text-sm whitespace-pre">
+                  {`{
+  "success": true,
+  "message": "Contact processed successfully",
+  "contact": {
+    "id": "16087",
+    "name": "Emanuel Years In Box",
+    "tags": ["lead", "google", "produto-xpto"]
+  }
+}`}
+                </pre>
+              </div>
+              
+              <div className="space-y-2">
+                <h3 className="font-semibold">Descrição</h3>
+                <p className="text-muted-foreground">
+                  Este endpoint recebe dados do N8N quando tags são editadas no Chatwoot. 
+                  Com base nas tags, o sistema verifica se o contato deve ser adicionado a uma ou mais sequências. 
+                  Se as condições forem atendidas, o contato será inserido na sequência e a primeira mensagem será agendada.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="pending-messages" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Endpoint: Pending Messages</CardTitle>
+              <CardDescription>
+                Esse endpoint retorna as mensagens agendadas que estão prontas para serem enviadas
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-2">
+                <h3 className="font-semibold">URL</h3>
+                <div className="p-4 bg-muted rounded-md flex justify-between items-center">
+                  <code className="text-sm">{`${apiUrl}/pending-messages`}</code>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => copyToClipboard(`${apiUrl}/pending-messages`, 'pending-messages-url')}
+                  >
+                    {copiedTabs['pending-messages-url'] ? (
+                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <Clipboard className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <h3 className="font-semibold">Método</h3>
+                <div className="p-1 px-3 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 rounded-md inline-block">
+                  <code>GET</code>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <h3 className="font-semibold">Resposta</h3>
+                <pre className="p-4 bg-muted rounded-md overflow-auto text-sm whitespace-pre">
+                  {`{
+  "success": true,
+  "messages": [
+    {
+      "id": "message-uuid",
+      "chatwootData": {
+        "accountData": {
+          "accountId": 1,
+          "accountName": "Years In Box"
+        },
+        "contactData": {
+          "id": "16087",
+          "name": "Emanuel Years In Box",
+          "phoneNumber": "+5511937474703"
+        },
+        "conversation": {
+          "inboxId": 46,
+          "conversationId": 23266,
+          "displayId": 1608,
+          "labels": "lead, google, produto-xpto"
+        }
+      },
+      "instanceData": {
+        "id": "instance-uuid",
+        "name": "Whatsapp Bot",
+        "evolutionApiUrl": "https://api.example.com",
+        "apiKey": "your-api-key"
+      },
+      "sequenceData": {
+        "instanceName": "Whatsapp Bot",
+        "sequenceName": "Sequência de Boas-vindas",
+        "type": "message",
+        "stage": {
+          "stg1": {
+            "id": "stage-uuid",
+            "content": "Olá ${name}, seja bem-vindo!",
+            "rawScheduledTime": "2025-04-29T22:00:00Z",
+            "scheduledTime": "2025-04-29T22:00:00Z"
+          }
+        }
+      }
+    }
+  ]
+}`}
+                </pre>
+              </div>
+              
+              <div className="space-y-2">
+                <h3 className="font-semibold">Descrição</h3>
+                <p className="text-muted-foreground">
+                  Este endpoint é chamado pelo N8N a cada 5 minutos para verificar se existem mensagens pendentes de envio. 
+                  Ele retorna todas as mensagens que estão agendadas para o momento atual ou anterior. 
+                  Ao receber estas mensagens, o N8N deve processá-las e enviar o resultado para o endpoint de status de entrega.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="delivery-status" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Endpoint: Delivery Status</CardTitle>
+              <CardDescription>
+                Esse endpoint recebe o status de entrega de uma mensagem
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-2">
+                <h3 className="font-semibold">URL</h3>
+                <div className="p-4 bg-muted rounded-md flex justify-between items-center">
+                  <code className="text-sm">{`${apiUrl}/delivery-status`}</code>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => copyToClipboard(`${apiUrl}/delivery-status`, 'delivery-status-url')}
+                  >
+                    {copiedTabs['delivery-status-url'] ? (
+                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <Clipboard className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <h3 className="font-semibold">Método</h3>
+                <div className="p-1 px-3 bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400 rounded-md inline-block">
+                  <code>POST</code>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold">Payload</h3>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => copyToClipboard(deliveryStatusPayload, 'delivery-status-payload')}
+                  >
+                    {copiedTabs['delivery-status-payload'] ? (
+                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <Clipboard className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+                <pre className="p-4 bg-muted rounded-md overflow-auto text-sm whitespace-pre">
+                  {deliveryStatusPayload}
+                </pre>
+              </div>
+              
+              <div className="space-y-2">
+                <h3 className="font-semibold">Resposta</h3>
+                <pre className="p-4 bg-muted rounded-md overflow-auto text-sm whitespace-pre">
+                  {`{
+  "success": true
+}`}
+                </pre>
+              </div>
+              
+              <div className="space-y-2">
+                <h3 className="font-semibold">Descrição</h3>
+                <p className="text-muted-foreground">
+                  Este endpoint recebe o status de entrega de uma mensagem após o N8N processá-la. 
+                  Se a entrega for bem-sucedida, o sistema avança o contato para o próximo estágio da sequência e agenda a próxima mensagem. 
+                  Em caso de falha, o sistema marca a mensagem para reenvio, até um máximo de 3 tentativas.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
+      
+      <Card className="mt-8">
+        <CardHeader>
+          <CardTitle>Configuração do N8N</CardTitle>
+          <CardDescription>
+            Passos para configurar o N8N para trabalhar com o Master Sequence
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <h3 className="font-semibold">Trigger inicial (Chatwoot)</h3>
+            <p className="text-muted-foreground">
+              Configure um webhook no Chatwoot ou um trigger de banco de dados PostgreSQL para 
+              enviar os dados para o endpoint <code>tag-change</code> quando as tags de um contato forem alteradas.
+            </p>
+          </div>
+          
+          <div className="space-y-2">
+            <h3 className="font-semibold">CRON de verificação de mensagens</h3>
+            <p className="text-muted-foreground">
+              Configure um CRON para executar a cada 5 minutos que faz uma requisição para o endpoint 
+              <code>pending-messages</code> e processa as mensagens retornadas, enviando-as através da 
+              Evolution API. Após o envio, notifique o resultado para o endpoint <code>delivery-status</code>.
+            </p>
+          </div>
+          
+          <div className="space-y-2">
+            <h3 className="font-semibold">Tratamento de tipos de mensagem</h3>
+            <ul className="list-disc pl-6 space-y-1 text-muted-foreground">
+              <li>
+                <strong>message:</strong> Enviar o conteúdo diretamente como mensagem de texto.
+              </li>
+              <li>
+                <strong>pattern:</strong> Processar o padrão para determinar o tipo de conteúdo (imagem, documento, etc.).
+              </li>
+              <li>
+                <strong>typebot:</strong> Disparar o fluxo do typebot fornecido no content, passando o valor do estágio (stg1, stg2, etc.) para o switch inicial.
+              </li>
+            </ul>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="mt-8">
+        <CardHeader>
+          <CardTitle>Informações Importantes</CardTitle>
+          <CardDescription>
+            Detalhes sobre URL dos endpoints e ambiente de produção
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2 bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-md border border-yellow-200 dark:border-yellow-800">
+            <h3 className="font-semibold text-yellow-800 dark:text-yellow-400">Atenção a URL correta</h3>
+            <p className="text-muted-foreground">
+              Para ambiente de produção, certifique-se de usar a URL completa do Supabase para os endpoints:
+            </p>
+            <pre className="p-2 bg-muted rounded-md mt-2 text-xs">
+              https://mlwcupyfhtxdxcybwbmg.supabase.co/functions/v1/tag-change
+            </pre>
+            <pre className="p-2 bg-muted rounded-md mt-2 text-xs">
+              https://mlwcupyfhtxdxcybwbmg.supabase.co/functions/v1/pending-messages
+            </pre>
+            <pre className="p-2 bg-muted rounded-md mt-2 text-xs">
+              https://mlwcupyfhtxdxcybwbmg.supabase.co/functions/v1/delivery-status
+            </pre>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -26,7 +26,7 @@ interface HeaderProps {
 }
 
 export function Header({ sidebarCollapsed }: HeaderProps) {
-  const { instances, currentInstance, currentInstanceId, setCurrentInstanceId, refreshData, isDataInitialized } = useApp();
+  const { instances, currentInstance, setCurrentInstance, refreshData, isDataInitialized } = useApp();
   const { user, logout } = useAuth();
 
   // Carregar dados apenas se ainda não foram inicializados e temos um usuário
@@ -38,13 +38,16 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
   }, [user, refreshData, isDataInitialized]);
 
   const handleInstanceChange = (instanceId: string) => {
-    setCurrentInstanceId(instanceId);
+    const instance = instances?.find(inst => inst.id === instanceId);
+    if (instance) {
+      setCurrentInstance(instance);
+    }
   };
 
   // Caso não tenha user ou instâncias carregadas, mostrar versão simplificada
   const hasInstances = Array.isArray(instances) && instances.length > 0;
   
-  if (!user || !hasInstances) {
+  if (!user || !hasInstances || !currentInstance) {
     return (
       <header className={cn(
         "h-16 border-b border-border flex items-center justify-between px-4",
@@ -91,7 +94,7 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
     )}>
       <div className="flex items-center gap-4">
         {hasInstances && (
-          <Select onValueChange={handleInstanceChange} value={currentInstanceId || ""}>
+          <Select onValueChange={handleInstanceChange} value={currentInstance?.id || ""}>
             <SelectTrigger className="w-[180px] md:w-[220px]">
               <SelectValue placeholder="Selecionar instância" />
             </SelectTrigger>

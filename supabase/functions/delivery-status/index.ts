@@ -14,21 +14,24 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
     
     // Parse the request body
-    const body = await req.json();
+    const { messageId, status } = await req.json();
     
-    if (!body || !body.messageId || !body.status) {
+    if (!messageId) {
       return new Response(
-        JSON.stringify({ error: 'Missing required data: messageId and status are required' }),
+        JSON.stringify({ error: 'Missing messageId' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
     
-    const { messageId, status, attempts = 0 } = body;
-    
-    // Get the message data
+    // Get the message
     const { data: message, error: messageError } = await supabase
       .from('scheduled_messages')
-      .select('*')
+      .select(`
+        *,
+        contacts (*),
+        sequences (*),
+        sequence_stages (*)
+      `)
       .eq('id', messageId)
       .single();
     
@@ -40,183 +43,137 @@ Deno.serve(async (req) => {
       );
     }
     
-    if (!message) {
-      return new Response(
-        JSON.stringify({ error: 'Message not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    const now = new Date().toISOString();
     
     if (status === 'success') {
-      // Update message as sent
+      // Mark message as sent
       const { error: updateError } = await supabase
         .from('scheduled_messages')
         .update({
           status: 'sent',
-          sent_at: new Date().toISOString(),
-          attempts: attempts
+          sent_at: now,
+          delivery_attempts: message.delivery_attempts + 1,
         })
         .eq('id', messageId);
       
       if (updateError) {
-        console.error('Error updating message status to sent:', updateError);
+        console.error('Error updating message status:', updateError);
         return new Response(
           JSON.stringify({ error: 'Failed to update message status', details: updateError.message }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
       
-      // Update daily stats
-      await updateDailyStats(supabase, message.sequence_id, 0, 0, 1);
+      // Update contact_sequence to move to next stage
+      const contactSequenceId = message.contact_sequence_id;
+      const currentStageIndex = message.sequences.current_stage_index;
       
-      // Get contact sequence data
-      const { data: contactSequence, error: seqError } = await supabase
-        .from('contact_sequences')
+      // Get all stages for this sequence
+      const { data: stages, error: stagesError } = await supabase
+        .from('sequence_stages')
         .select('*')
-        .eq('contact_id', message.contact_id)
         .eq('sequence_id', message.sequence_id)
-        .maybeSingle();
-        
-      if (seqError) {
-        console.error('Error fetching contact sequence:', seqError);
+        .order('order_index');
+      
+      if (stagesError) {
+        console.error('Error fetching stages:', stagesError);
         return new Response(
-          JSON.stringify({ error: 'Failed to fetch contact sequence', details: seqError.message }),
+          JSON.stringify({ error: 'Failed to fetch stages', details: stagesError.message }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
       
-      if (contactSequence) {
-        // Update stage progress
-        const { error: progressError } = await supabase
-          .from('stage_progress')
-          .update({
-            status: 'completed',
-            completed_at: new Date().toISOString()
-          })
-          .eq('contact_sequence_id', contactSequence.id)
-          .eq('stage_id', message.stage_id);
-          
-        if (progressError) {
-          console.error('Error updating stage progress:', progressError);
-          // Continue despite error
-        }
+      // Update stage progress
+      const { error: progressError } = await supabase
+        .from('stage_progress')
+        .update({
+          status: 'completed',
+          completed_at: now
+        })
+        .eq('contact_sequence_id', contactSequenceId)
+        .eq('stage_id', message.stage_id);
+      
+      if (progressError) {
+        console.error('Error updating stage progress:', progressError);
+        // Continue despite error
+      }
+      
+      // Check if there's a next stage
+      const nextStageIndex = currentStageIndex + 1;
+      if (nextStageIndex < stages.length) {
+        const nextStage = stages[nextStageIndex];
         
-        // Get sequence stages to determine next stage
-        const { data: stages, error: stagesError } = await supabase
-          .from('sequence_stages')
-          .select('*')
-          .eq('sequence_id', message.sequence_id)
-          .order('order_index', { ascending: true });
-          
-        if (stagesError) {
-          console.error('Error fetching sequence stages:', stagesError);
+        // Update contact sequence to point to next stage
+        const { error: updateSeqError } = await supabase
+          .from('contact_sequences')
+          .update({
+            current_stage_index: nextStageIndex,
+            current_stage_id: nextStage.id,
+            updated_at: now
+          })
+          .eq('id', contactSequenceId);
+        
+        if (updateSeqError) {
+          console.error('Error updating contact sequence:', updateSeqError);
           return new Response(
-            JSON.stringify({ error: 'Failed to fetch sequence stages', details: stagesError.message }),
+            JSON.stringify({ error: 'Failed to update contact sequence', details: updateSeqError.message }),
             { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
         
-        // Find current stage and next stage
-        const currentStageIndex = stages.findIndex(s => s.id === message.stage_id);
-        const nextStageIndex = currentStageIndex + 1;
+        // Schedule the next message
+        await scheduleNextMessage(supabase, message.contact_id, message.sequence_id, nextStage);
+      } else {
+        // This was the last stage, mark sequence as completed
+        const { error: completeError } = await supabase
+          .from('contact_sequences')
+          .update({
+            status: 'completed',
+            completed_at: now,
+            updated_at: now
+          })
+          .eq('id', contactSequenceId);
         
-        if (nextStageIndex < stages.length) {
-          // There is a next stage, schedule it
-          const nextStage = stages[nextStageIndex];
-          
-          // Update contact sequence to point to next stage
-          const { error: updateSeqError } = await supabase
-            .from('contact_sequences')
-            .update({
-              current_stage_index: nextStageIndex,
-              current_stage_id: nextStage.id,
-              last_message_at: new Date().toISOString()
-            })
-            .eq('id', contactSequence.id);
-            
-          if (updateSeqError) {
-            console.error('Error updating contact sequence:', updateSeqError);
-            return new Response(
-              JSON.stringify({ error: 'Failed to update contact sequence', details: updateSeqError.message }),
-              { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            );
-          }
-          
-          // Schedule next message
-          await scheduleMessage(supabase, message.contact_id, message.sequence_id, nextStage);
-        } else {
-          // This was the last stage, mark sequence as completed
-          const { error: completeSeqError } = await supabase
-            .from('contact_sequences')
-            .update({
-              status: 'completed',
-              completed_at: new Date().toISOString(),
-              last_message_at: new Date().toISOString()
-            })
-            .eq('id', contactSequence.id);
-            
-          if (completeSeqError) {
-            console.error('Error completing contact sequence:', completeSeqError);
-            return new Response(
-              JSON.stringify({ error: 'Failed to complete contact sequence', details: completeSeqError.message }),
-              { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            );
-          }
-          
-          // Update daily stats for completed sequence
-          await updateDailyStats(supabase, null, 0, 0, 1);
+        if (completeError) {
+          console.error('Error completing sequence:', completeError);
+          return new Response(
+            JSON.stringify({ error: 'Failed to complete sequence', details: completeError.message }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
         }
+        
+        // Update daily stats for completed sequences
+        await updateDailyStats(supabase, message.sequences.instance_id, 0, 0, 1);
       }
-      
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: 'Message marked as sent successfully',
-          messageId: messageId,
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
     } else {
-      // Handle failure
-      const newAttempts = (message.attempts || 0) + 1;
-      let newStatus = 'failed';
+      // Message delivery failed
+      const deliveryAttempts = message.delivery_attempts + 1;
+      const status = deliveryAttempts >= 3 ? 'persistent_error' : 'failed';
       
-      // If it's the third attempt, mark as persistent error
-      if (newAttempts >= 3) {
-        newStatus = 'persistent_error';
-      }
-      
-      // Update message as failed
+      // Update message status
       const { error: updateError } = await supabase
         .from('scheduled_messages')
         .update({
-          status: newStatus,
-          attempts: newAttempts
+          status: status,
+          delivery_attempts: deliveryAttempts,
+          last_error: 'Delivery failed',
+          updated_at: now
         })
         .eq('id', messageId);
       
       if (updateError) {
-        console.error('Error updating message status to failed:', updateError);
+        console.error('Error updating message status:', updateError);
         return new Response(
           JSON.stringify({ error: 'Failed to update message status', details: updateError.message }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      
-      // Update daily stats
-      await updateDailyStats(supabase, null, 0, 0, 0, 1);
-      
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: 'Message marked as failed',
-          messageId: messageId,
-          attempts: newAttempts,
-          status: newStatus
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
     }
+    
+    return new Response(
+      JSON.stringify({ success: true }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   } catch (error) {
     console.error('Unexpected error:', error);
     return new Response(
@@ -226,8 +183,8 @@ Deno.serve(async (req) => {
   }
 });
 
-// Schedule a message
-async function scheduleMessage(supabase, contactId: string, sequenceId: string, stage: any) {
+// Schedule the next message in a sequence
+async function scheduleNextMessage(supabase, contactId: string, sequenceId: string, stage: any) {
   try {
     let delayMinutes = stage.delay;
     
@@ -257,6 +214,20 @@ async function scheduleMessage(supabase, contactId: string, sequenceId: string, 
       scheduledTime = applyTimeRestrictions(rawScheduledTime, restrictions);
     }
     
+    // Get the contact sequence for this contact and sequence
+    const { data: contactSequence, error: contactSeqError } = await supabase
+      .from('contact_sequences')
+      .select('id')
+      .eq('contact_id', contactId)
+      .eq('sequence_id', sequenceId)
+      .eq('status', 'active')
+      .single();
+    
+    if (contactSeqError) {
+      console.error('Error getting contact sequence:', contactSeqError);
+      return;
+    }
+    
     // Insert scheduled message
     const { error: scheduleError } = await supabase
       .from('scheduled_messages')
@@ -264,9 +235,11 @@ async function scheduleMessage(supabase, contactId: string, sequenceId: string, 
         contact_id: contactId,
         sequence_id: sequenceId,
         stage_id: stage.id,
+        contact_sequence_id: contactSequence.id,
         raw_scheduled_time: rawScheduledTime.toISOString(),
         scheduled_time: scheduledTime.toISOString(),
-        status: 'pending'
+        status: 'pending',
+        delivery_attempts: 0
       });
     
     if (scheduleError) {
@@ -276,8 +249,20 @@ async function scheduleMessage(supabase, contactId: string, sequenceId: string, 
     
     // Update daily stats for scheduled messages
     await updateDailyStats(supabase, null, 0, 1, 0);
+    
+    // Update stage progress
+    const { error: progressError } = await supabase
+      .from('stage_progress')
+      .update({ status: 'pending' })
+      .eq('contact_sequence_id', contactSequence.id)
+      .eq('stage_id', stage.id);
+    
+    if (progressError) {
+      console.error('Error updating stage progress:', progressError);
+      // Continue despite error
+    }
   } catch (error) {
-    console.error('Error scheduling message:', error);
+    console.error('Error scheduling next message:', error);
   }
 }
 
@@ -307,7 +292,7 @@ function applyTimeRestrictions(scheduledTime: Date, restrictions: any[]): Date {
         const restrictionStart = restriction.start_hour * 60 + restriction.start_minute;
         let restrictionEnd = restriction.end_hour * 60 + restriction.end_minute;
         
-        // Handle case where restriction goes into next day (e.g., 22:00 - 06:00)
+        // Handle case where restriction goes into next day
         if (restrictionEnd <= restrictionStart) {
           restrictionEnd += 24 * 60; // Add 24 hours
         }
@@ -332,40 +317,27 @@ function applyTimeRestrictions(scheduledTime: Date, restrictions: any[]): Date {
 }
 
 // Update daily stats
-async function updateDailyStats(supabase, sequenceId: string | null, newContacts = 0, messagesScheduled = 0, messagesSent = 0, messagesFailed = 0) {
+async function updateDailyStats(supabase, instanceId: string | null, newContacts = 0, messagesScheduled = 0, completedSequences = 0) {
   try {
     const today = new Date().toISOString().split('T')[0];
     
-    let instanceId = null;
-    
-    // If we have a sequence ID, get its instance ID
-    if (sequenceId) {
-      const { data: sequence } = await supabase
-        .from('sequences')
-        .select('instance_id')
-        .eq('id', sequenceId)
-        .single();
+    // If instanceId is null, update stats for all instances
+    if (instanceId === null) {
+      if (newContacts > 0 || messagesScheduled > 0 || completedSequences > 0) {
+        const { data: instances } = await supabase
+          .from('instances')
+          .select('id')
+          .eq('active', true);
         
-      if (sequence) {
-        instanceId = sequence.instance_id;
-      }
-    }
-    
-    // If we have a specific instanceId, update just that one
-    if (instanceId) {
-      await updateStatsForInstance(supabase, instanceId, today, newContacts, messagesScheduled, messagesSent, messagesFailed);
-    } else {
-      // Otherwise, update all active instances
-      const { data: instances } = await supabase
-        .from('instances')
-        .select('id')
-        .eq('active', true);
-        
-      if (instances && instances.length > 0) {
-        for (const instance of instances) {
-          await updateStatsForInstance(supabase, instance.id, today, newContacts, messagesScheduled, messagesSent, messagesFailed);
+        if (instances && instances.length > 0) {
+          for (const instance of instances) {
+            await updateStatsForInstance(supabase, instance.id, today, newContacts, messagesScheduled, completedSequences);
+          }
         }
       }
+    } else {
+      // Update stats for specific instance
+      await updateStatsForInstance(supabase, instanceId, today, newContacts, messagesScheduled, completedSequences);
     }
   } catch (error) {
     console.error('Error updating daily stats:', error);
@@ -373,7 +345,7 @@ async function updateDailyStats(supabase, sequenceId: string | null, newContacts
 }
 
 // Update stats for a specific instance
-async function updateStatsForInstance(supabase, instanceId: string, date: string, newContacts: number, messagesScheduled: number, messagesSent: number, messagesFailed: number) {
+async function updateStatsForInstance(supabase, instanceId: string, date: string, newContacts: number, messagesScheduled: number, completedSequences: number) {
   // Check if entry exists for today
   const { data: existing } = await supabase
     .from('daily_stats')
@@ -381,7 +353,7 @@ async function updateStatsForInstance(supabase, instanceId: string, date: string
     .eq('instance_id', instanceId)
     .eq('date', date)
     .maybeSingle();
-    
+  
   if (existing) {
     // Update existing entry
     await supabase
@@ -389,8 +361,7 @@ async function updateStatsForInstance(supabase, instanceId: string, date: string
       .update({
         new_contacts: existing.new_contacts + newContacts,
         messages_scheduled: existing.messages_scheduled + messagesScheduled,
-        messages_sent: existing.messages_sent + messagesSent,
-        messages_failed: existing.messages_failed + messagesFailed
+        completed_sequences: existing.completed_sequences + completedSequences
       })
       .eq('id', existing.id);
   } else {
@@ -402,8 +373,7 @@ async function updateStatsForInstance(supabase, instanceId: string, date: string
         date,
         new_contacts: newContacts,
         messages_scheduled: messagesScheduled,
-        messages_sent: messagesSent,
-        messages_failed: messagesFailed
+        completed_sequences: completedSequences
       });
   }
 }

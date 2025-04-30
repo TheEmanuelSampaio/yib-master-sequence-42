@@ -13,161 +13,116 @@ Deno.serve(async (req) => {
 
   try {
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    
+    // Get current time
     const now = new Date().toISOString();
     
-    // Get pending messages that are scheduled for now or earlier
-    const { data: pendingMessages, error: pendingError } = await supabase
+    // Get all pending messages that are scheduled to be sent now or earlier
+    const { data: pendingMessages, error: messagesError } = await supabase
       .from('scheduled_messages')
-      .select('*')
+      .select(`
+        *,
+        contacts (*),
+        sequences (*),
+        sequence_stages (*),
+        instances:sequences(instances(*))
+      `)
       .eq('status', 'pending')
       .lte('scheduled_time', now)
-      .order('scheduled_time', { ascending: true })
-      .limit(10); // Limit to avoid processing too many at once
+      .order('scheduled_time');
     
-    if (pendingError) {
-      console.error('Error fetching pending messages:', pendingError);
+    if (messagesError) {
+      console.error('Error fetching pending messages:', messagesError);
       return new Response(
-        JSON.stringify({ error: 'Failed to fetch pending messages', details: pendingError.message }),
+        JSON.stringify({ error: 'Failed to fetch pending messages', details: messagesError.message }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
     
-    if (!pendingMessages || pendingMessages.length === 0) {
-      return new Response(
-        JSON.stringify({ message: 'No pending messages to process', data: [] }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // Update status to 'processing' for these messages
+    if (pendingMessages.length > 0) {
+      const messageIds = pendingMessages.map(message => message.id);
+      
+      const { error: updateError } = await supabase
+        .from('scheduled_messages')
+        .update({ status: 'processing', processing_started_at: now })
+        .in('id', messageIds);
+      
+      if (updateError) {
+        console.error('Error updating message status:', updateError);
+        // Continue despite error
+      }
     }
     
-    // Mark these messages as processing
-    const messageIds = pendingMessages.map(msg => msg.id);
-    const { error: updateError } = await supabase
-      .from('scheduled_messages')
-      .update({ status: 'processing' })
-      .in('id', messageIds);
-    
-    if (updateError) {
-      console.error('Error updating message status to processing:', updateError);
-      // Continue anyway to try to deliver the messages
-    }
-    
-    // Process each message
-    const processedMessages = [];
-    
-    for (const message of pendingMessages) {
-      // Get contact data
-      const { data: contact, error: contactError } = await supabase
-        .from('contacts')
-        .select('*')
-        .eq('id', message.contact_id)
-        .single();
-        
-      if (contactError) {
-        console.error(`Error fetching contact ${message.contact_id}:`, contactError);
-        continue;
-      }
+    // Format messages for N8N
+    const formattedMessages = pendingMessages.map(message => {
+      const { contacts, sequences, sequence_stages, instances } = message;
+      const contact = contacts;
+      const sequence = sequences;
+      const stage = sequence_stages;
+      const instance = instances[0]; // Get the instance associated with the sequence
       
-      // Get contact tags
-      const { data: contactTags, error: tagsError } = await supabase
-        .from('contact_tags')
-        .select('tag_name')
-        .eq('contact_id', message.contact_id);
-        
-      if (tagsError) {
-        console.error(`Error fetching tags for contact ${message.contact_id}:`, tagsError);
-        continue;
-      }
-      
-      const tags = contactTags.map(ct => ct.tag_name).join(', ');
-      
-      // Get sequence data
-      const { data: sequence, error: sequenceError } = await supabase
-        .from('sequences')
-        .select('name, instance_id')
-        .eq('id', message.sequence_id)
-        .single();
-        
-      if (sequenceError) {
-        console.error(`Error fetching sequence ${message.sequence_id}:`, sequenceError);
-        continue;
-      }
-      
-      // Get instance data
-      const { data: instance, error: instanceError } = await supabase
-        .from('instances')
-        .select('name, evolution_api_url, api_key')
-        .eq('id', sequence.instance_id)
-        .single();
-        
-      if (instanceError) {
-        console.error(`Error fetching instance ${sequence.instance_id}:`, instanceError);
-        continue;
-      }
-      
-      // Get stage data
-      const { data: stage, error: stageError } = await supabase
-        .from('sequence_stages')
-        .select('*')
-        .eq('id', message.stage_id)
-        .single();
-        
-      if (stageError) {
-        console.error(`Error fetching stage ${message.stage_id}:`, stageError);
-        continue;
-      }
-      
-      // Prepare response payload with all necessary data
-      const processedMessage = {
-        id: message.id,
-        chatwootData: {
-          accountData: {
-            accountId: contact.client_id, // Using client_id as account_id
-            accountName: instance.name, // Using instance name as account name
-          },
-          contactData: {
-            id: contact.id,
-            name: contact.name,
-            phoneNumber: contact.phone_number,
-          },
-          conversation: {
-            inboxId: contact.inbox_id,
-            conversationId: contact.conversation_id,
-            displayId: contact.display_id,
-            labels: tags,
-          },
+      // Get client tags for this contact
+      const clientData = {
+        accountId: contact.client_id,
+        accountName: instance.name, // Using instance name as account name for simplicity
+        contact: {
+          id: contact.id,
+          name: contact.name,
+          phoneNumber: contact.phone_number
         },
-        instanceData: {
-          id: sequence.instance_id,
-          name: instance.name,
-          evolutionApiUrl: instance.evolution_api_url,
-          apiKey: instance.api_key,
-        },
-        sequenceData: {
-          instanceName: instance.name,
-          sequenceName: sequence.name,
-          type: stage.type,
-          stage: {
-            [`stg${stage.order_index+1}`]: {
-              id: stage.id,
-              content: stage.type === 'typebot' ? `stg${stage.order_index+1}` : stage.content,
-              rawScheduledTime: message.raw_scheduled_time,
-              scheduledTime: message.scheduled_time,
-            }
+        conversation: {
+          inboxId: contact.inbox_id,
+          conversationId: contact.conversation_id,
+          displayId: contact.display_id,
+          labels: "" // We don't have the actual labels here
+        }
+      };
+      
+      const instanceData = {
+        id: instance.id,
+        name: instance.name,
+        evolutionApiUrl: instance.evolution_api_url,
+        apiKey: instance.api_key
+      };
+      
+      // Determine content based on stage type
+      let content = stage.content;
+      
+      // For typebot stages, the content is just the stage identifier
+      if (stage.type === 'typebot' && stage.typebot_stage) {
+        content = stage.typebot_stage;
+      }
+      
+      const sequenceData = {
+        instanceName: instance.name,
+        sequenceName: sequence.name,
+        type: stage.type,
+        stage: {
+          [`stg${sequence.current_stage_index + 1}`]: {
+            id: stage.id,
+            content: content,
+            rawScheduledTime: message.raw_scheduled_time,
+            scheduledTime: message.scheduled_time
           }
         }
       };
       
-      processedMessages.push(processedMessage);
-    }
+      return {
+        id: message.id,
+        chatwootData: clientData,
+        instanceData,
+        sequenceData
+      };
+    });
     
     return new Response(
-      JSON.stringify({
-        message: `Processed ${processedMessages.length} pending messages`,
-        data: processedMessages
+      JSON.stringify({ 
+        success: true, 
+        messages: formattedMessages
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-    
   } catch (error) {
     console.error('Unexpected error:', error);
     return new Response(

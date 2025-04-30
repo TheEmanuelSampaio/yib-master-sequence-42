@@ -6,18 +6,9 @@ import { MessagesChart } from '@/components/dashboard/MessagesChart';
 import { RecentContacts } from '@/components/dashboard/RecentContacts';
 import { TagDistributionChart } from '@/components/dashboard/TagDistributionChart';
 import { LayoutDashboard, Users, MessageSquare, CheckCheck, Clock } from 'lucide-react';
-import { useState, useEffect } from 'react';
 
 export default function Dashboard() {
   const { currentInstance, sequences, contacts, stats } = useApp();
-  const [isLoading, setIsLoading] = useState(true);
-  
-  // Set loading state
-  useEffect(() => {
-    if (currentInstance) {
-      setIsLoading(false);
-    }
-  }, [currentInstance]);
   
   // Calculate key metrics
   const activeSequenceCount = sequences.filter(
@@ -44,14 +35,6 @@ export default function Dashboard() {
   const successRate = todayStats.messagesSent > 0 
     ? Math.round((todayStats.messagesSent / (todayStats.messagesSent + todayStats.messagesFailed)) * 100) 
     : 0;
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-[80vh]">
-        <p className="text-muted-foreground">Carregando informações...</p>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">
@@ -101,17 +84,13 @@ export default function Dashboard() {
         />
       </div>
 
-      <div className="grid gap-4 grid-cols-1">
+      <div className="grid gap-4 grid-cols-3">
         <MessagesChart />
       </div>
 
-      <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
-        <div className="col-span-1 md:col-span-2">
-          <RecentContacts />
-        </div>
-        <div className="col-span-1">
-          <TagDistributionChart />
-        </div>
+      <div className="grid gap-4 grid-cols-3">
+        <RecentContacts />
+        <TagDistributionChart />
       </div>
       
       <SequenceOverview />

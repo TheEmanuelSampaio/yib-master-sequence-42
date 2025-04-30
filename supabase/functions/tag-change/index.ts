@@ -155,15 +155,11 @@ Deno.serve(async (req) => {
       
       // Only insert if tag doesn't exist
       if (!existingTag) {
-        // Generate a UUID for created_by since we can't use 'system' string in edge function
-        // This is a workaround for the error we were getting
-        const systemUserId = '00000000-0000-0000-0000-000000000000';
-        
         const { error: insertGlobalTagError } = await supabase
           .from('tags')
           .insert({
             name: tag,
-            created_by: systemUserId // Use a UUID for system identifier
+            created_by: 'system' // Use a system identifier or default user ID
           });
         
         if (insertGlobalTagError) {
