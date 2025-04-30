@@ -16,6 +16,7 @@ export default function ApiDocs() {
     }, 2000);
   };
 
+  // Determine API URL based on current environment
   const apiUrl = window.location.origin.includes('localhost') 
     ? 'https://mlwcupyfhtxdxcybwbmg.supabase.co/functions/v1'
     : window.location.origin.includes('vercel') || window.location.origin.includes('netlify')
@@ -375,6 +376,32 @@ export default function ApiDocs() {
                 <strong>typebot:</strong> Disparar o fluxo do typebot fornecido no content, passando o valor do estágio (stg1, stg2, etc.) para o switch inicial.
               </li>
             </ul>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="mt-8">
+        <CardHeader>
+          <CardTitle>Informações Importantes</CardTitle>
+          <CardDescription>
+            Detalhes sobre URL dos endpoints e ambiente de produção
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2 bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-md border border-yellow-200 dark:border-yellow-800">
+            <h3 className="font-semibold text-yellow-800 dark:text-yellow-400">Atenção a URL correta</h3>
+            <p className="text-muted-foreground">
+              Para ambiente de produção, certifique-se de usar a URL completa do Supabase para os endpoints:
+            </p>
+            <pre className="p-2 bg-muted rounded-md mt-2 text-xs">
+              https://mlwcupyfhtxdxcybwbmg.supabase.co/functions/v1/tag-change
+            </pre>
+            <pre className="p-2 bg-muted rounded-md mt-2 text-xs">
+              https://mlwcupyfhtxdxcybwbmg.supabase.co/functions/v1/pending-messages
+            </pre>
+            <pre className="p-2 bg-muted rounded-md mt-2 text-xs">
+              https://mlwcupyfhtxdxcybwbmg.supabase.co/functions/v1/delivery-status
+            </pre>
           </div>
         </CardContent>
       </Card>
