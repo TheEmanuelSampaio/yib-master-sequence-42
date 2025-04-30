@@ -1,3 +1,4 @@
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 
@@ -140,19 +141,31 @@ Deno.serve(async (req) => {
         // Continue despite error
       }
       
-      // Store tag in tags table if not exists
-      const { error: insertGlobalTagError } = await supabase
+      // Store tag in tags table if not exists - using a check-then-insert approach instead of onConflict
+      const { data: existingTag, error: checkTagError } = await supabase
         .from('tags')
-        .insert({
-          name: tag,
-          created_by: 'system' // Use a system identifier or default user ID
-        })
-        .onConflict('name')
-        .ignore();
-      
-      if (insertGlobalTagError && !insertGlobalTagError.message.includes('duplicate')) {
-        console.error(`Error inserting global tag ${tag}:`, insertGlobalTagError);
+        .select('name')
+        .eq('name', tag)
+        .maybeSingle();
+        
+      if (checkTagError) {
+        console.error(`Error checking if tag ${tag} exists:`, checkTagError);
         // Continue despite error
+      }
+      
+      // Only insert if tag doesn't exist
+      if (!existingTag) {
+        const { error: insertGlobalTagError } = await supabase
+          .from('tags')
+          .insert({
+            name: tag,
+            created_by: 'system' // Use a system identifier or default user ID
+          });
+        
+        if (insertGlobalTagError) {
+          console.error(`Error inserting global tag ${tag}:`, insertGlobalTagError);
+          // Continue despite error
+        }
       }
     }
     
