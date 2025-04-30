@@ -1,4 +1,5 @@
-import { useState } from "react";
+
+import { useState, useEffect } from "react";
 import { PlusCircle, Clock, Trash2, ChevronDown, ChevronUp, MessageCircle, FileCode, Bot, X, Edit, Save, Lock } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,15 +20,17 @@ import { RestrictionItem } from "./RestrictionItem";
 import { StageItem } from "./StageItem";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Separator } from "@/components/ui/separator";
+import { toast } from "sonner";
 
 interface SequenceBuilderProps {
   sequence?: Sequence;
   onSave: (sequence: Omit<Sequence, "id" | "createdAt" | "updatedAt">) => void;
   onCancel: () => void;
+  onChangesMade?: () => void;
 }
 
-export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderProps) {
-  const { tags, currentInstance, timeRestrictions: globalTimeRestrictions } = useApp();
+export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: SequenceBuilderProps) {
+  const { tags, currentInstance, timeRestrictions: globalTimeRestrictions, addTag } = useApp();
   
   const [name, setName] = useState(sequence?.name || "");
   const [startCondition, setStartCondition] = useState<TagCondition>(
@@ -68,9 +71,11 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
     isGlobal: false, // Por padrão, novas restrições são locais
   });
 
+  const [showTagDialog, setShowTagDialog] = useState(false);
   const [showGlobalRestrictionsDialog, setShowGlobalRestrictionsDialog] = useState(false);
   const [editingStageId, setEditingStageId] = useState<string | null>(null);
   const [stageToEdit, setStageToEdit] = useState<SequenceStage | null>(null);
+  const [showAddRestrictionDialog, setShowAddRestrictionDialog] = useState(false);
   
   // Define dayNames for use throughout the component
   const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -79,9 +84,21 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
   const availableGlobalRestrictions = globalTimeRestrictions.filter(
     gr => !timeRestrictions.some(tr => tr.id === gr.id && tr.isGlobal)
   );
+
+  // Notify parent component when changes are made
+  const notifyChanges = () => {
+    if (onChangesMade) {
+      onChangesMade();
+    }
+  };
   
-  const addTag = (target: "start" | "stop", tag: string) => {
+  const addTagToCondition = (target: "start" | "stop", tag: string) => {
     if (!tag) return;
+
+    // Save tag to the global tag list for reuse
+    if (!tags.includes(tag)) {
+      addTag(tag);
+    }
     
     if (target === "start") {
       if (!startCondition.tags.includes(tag)) {
@@ -89,6 +106,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
           ...startCondition,
           tags: [...startCondition.tags, tag],
         });
+        notifyChanges();
       }
     } else {
       if (!stopCondition.tags.includes(tag)) {
@@ -96,9 +114,11 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
           ...stopCondition,
           tags: [...stopCondition.tags, tag],
         });
+        notifyChanges();
       }
     }
     setNewTag("");
+    setShowTagSelector(null);
   };
   
   const removeTag = (target: "start" | "stop", tag: string) => {
@@ -113,6 +133,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
         tags: stopCondition.tags.filter(t => t !== tag),
       });
     }
+    notifyChanges();
   };
   
   const toggleConditionType = (target: "start" | "stop") => {
@@ -127,6 +148,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
         type: stopCondition.type === "AND" ? "OR" : "AND",
       });
     }
+    notifyChanges();
   };
   
   const addStage = () => {
@@ -138,6 +160,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
     };
     
     setStages([...stages, stage]);
+    notifyChanges();
     
     // Reset form
     setNewStage({
@@ -155,6 +178,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
       setEditingStageId(null);
       setStageToEdit(null);
     }
+    notifyChanges();
   };
 
   const startEditingStage = (stage: SequenceStage) => {
@@ -168,6 +192,8 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
     ));
     setEditingStageId(null);
     setStageToEdit(null);
+    toast.success("Estágio atualizado com sucesso");
+    notifyChanges();
   };
   
   const moveStage = (id: string, direction: "up" | "down") => {
@@ -184,6 +210,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
     [newStages[index], newStages[index + step]] = [newStages[index + step], newStages[index]];
     
     setStages(newStages);
+    notifyChanges();
   };
   
   const addLocalRestriction = () => {
@@ -194,6 +221,8 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
     };
     
     setTimeRestrictions([...timeRestrictions, restriction]);
+    notifyChanges();
+    setShowAddRestrictionDialog(false);
     
     // Reset form
     setNewRestriction({
@@ -213,10 +242,12 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
     if (timeRestrictions.some(r => r.id === restriction.id)) return;
     
     setTimeRestrictions([...timeRestrictions, { ...restriction, isGlobal: true }]);
+    notifyChanges();
   };
   
   const removeTimeRestriction = (id: string) => {
     setTimeRestrictions(timeRestrictions.filter(r => r.id !== id));
+    notifyChanges();
   };
 
   const updateLocalRestriction = (updatedRestriction: TimeRestriction) => {
@@ -226,21 +257,22 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
     setTimeRestrictions(timeRestrictions.map(r => 
       r.id === updatedRestriction.id ? updatedRestriction : r
     ));
+    notifyChanges();
   };
   
   const handleSubmit = () => {
     if (!name) {
-      alert("Por favor, informe um nome para a sequência.");
+      toast.error("Por favor, informe um nome para a sequência.");
       return;
     }
     
     if (startCondition.tags.length === 0) {
-      alert("Por favor, adicione pelo menos uma tag para a condição de início.");
+      toast.error("Por favor, adicione pelo menos uma tag para a condição de início.");
       return;
     }
     
     if (stages.length === 0) {
-      alert("Por favor, adicione pelo menos um estágio à sequência.");
+      toast.error("Por favor, adicione pelo menos um estágio à sequência.");
       return;
     }
     
@@ -278,6 +310,20 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
   // Separate global and local restrictions
   const globalRestrictions = timeRestrictions.filter(r => r.isGlobal);
   const localRestrictions = timeRestrictions.filter(r => !r.isGlobal);
+  
+  // Close the dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showTagSelector && !(event.target as Element).closest('.tag-selector')) {
+        setShowTagSelector(null);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showTagSelector]);
 
   return (
     <div className="space-y-6">
@@ -308,23 +354,29 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
                   <Input 
                     id="name" 
                     value={name} 
-                    onChange={(e) => setName(e.target.value)} 
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      notifyChanges();
+                    }} 
                     placeholder="Ex: Sequência de Boas-vindas"
                   />
                 </div>
                 
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="status">Status</Label>
+                  <Label htmlFor="status">Status</Label>
+                  <div className="flex items-center space-x-2 mt-1">
                     <Switch
                       id="status"
                       checked={status === "active"}
-                      onCheckedChange={(checked) => setStatus(checked ? "active" : "inactive")}
+                      onCheckedChange={(checked) => {
+                        setStatus(checked ? "active" : "inactive");
+                        notifyChanges();
+                      }}
                     />
+                    <span className="text-sm">
+                      {status === "active" ? "Sequência ativa" : "Sequência inativa"}
+                    </span>
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    {status === "active" ? "Sequência ativa" : "Sequência inativa"}
-                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -346,7 +398,9 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
                     <Button 
                       variant="outline"
                       size="sm"
-                      onClick={() => toggleConditionType("start")}
+                      onClick={() => {
+                        toggleConditionType("start");
+                      }}
                     >
                       <span className="font-mono">{startCondition.type}</span>
                     </Button>
@@ -377,7 +431,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
                       )}
                     </div>
                     
-                    <div className="flex space-x-2">
+                    <div className="flex space-x-2 tag-selector">
                       <div className="relative flex-1">
                         <Input
                           value={newTag}
@@ -395,8 +449,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
                                     key={tag}
                                     className="w-full text-left px-3 py-1.5 hover:bg-accent text-sm"
                                     onClick={() => {
-                                      addTag("start", tag);
-                                      setShowTagSelector(null);
+                                      addTagToCondition("start", tag);
                                     }}
                                   >
                                     {tag}
@@ -412,8 +465,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
                       </div>
                       <Button 
                         onClick={() => {
-                          addTag("start", newTag);
-                          setShowTagSelector(null);
+                          addTagToCondition("start", newTag);
                         }}
                       >
                         Adicionar
@@ -439,7 +491,9 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
                     <Button 
                       variant="outline"
                       size="sm"
-                      onClick={() => toggleConditionType("stop")}
+                      onClick={() => {
+                        toggleConditionType("stop");
+                      }}
                     >
                       <span className="font-mono">{stopCondition.type}</span>
                     </Button>
@@ -470,7 +524,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
                       )}
                     </div>
                     
-                    <div className="flex space-x-2">
+                    <div className="flex space-x-2 tag-selector">
                       <div className="relative flex-1">
                         <Input
                           value={newTag}
@@ -488,8 +542,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
                                     key={tag}
                                     className="w-full text-left px-3 py-1.5 hover:bg-accent text-sm"
                                     onClick={() => {
-                                      addTag("stop", tag);
-                                      setShowTagSelector(null);
+                                      addTagToCondition("stop", tag);
                                     }}
                                   >
                                     {tag}
@@ -505,8 +558,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
                       </div>
                       <Button 
                         onClick={() => {
-                          addTag("stop", newTag);
-                          setShowTagSelector(null);
+                          addTagToCondition("stop", newTag);
                         }}
                       >
                         Adicionar
@@ -709,7 +761,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
                     Define quando as mensagens não serão enviadas
                   </CardDescription>
                 </div>
-                <Dialog>
+                <Dialog open={showAddRestrictionDialog} onOpenChange={setShowAddRestrictionDialog}>
                   <DialogTrigger asChild>
                     <Button>
                       <PlusCircle className="h-4 w-4 mr-2" />
@@ -881,7 +933,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
                     </div>
                     
                     <DialogFooter>
-                      <Button variant="outline" onClick={() => {}}>Cancelar</Button>
+                      <Button variant="outline" onClick={() => setShowAddRestrictionDialog(false)}>Cancelar</Button>
                       <Button onClick={addLocalRestriction}>Adicionar</Button>
                     </DialogFooter>
                   </DialogContent>
@@ -902,6 +954,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
                           restriction={restriction}
                           onRemove={removeTimeRestriction}
                           onUpdate={!restriction.isGlobal ? updateLocalRestriction : undefined}
+                          selected={restriction.isGlobal}
                         />
                       ))}
                     </div>
@@ -946,8 +999,14 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
       </Tabs>
       
       <div className="flex justify-end space-x-2">
-        <Button variant="outline" onClick={onCancel}>Cancelar</Button>
-        <Button onClick={handleSubmit}>Salvar</Button>
+        <Button variant="outline" onClick={onCancel}>
+          <X className="h-4 w-4 mr-1" />
+          Cancelar
+        </Button>
+        <Button variant="success" onClick={handleSubmit}>
+          <Save className="h-4 w-4 mr-1" />
+          Salvar
+        </Button>
       </div>
     </div>
   );

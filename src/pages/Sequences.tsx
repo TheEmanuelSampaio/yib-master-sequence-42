@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useApp } from '@/context/AppContext';
 import {
@@ -11,7 +12,9 @@ import {
   MoreVertical,
   MessageCircle,
   FileCode,
-  Bot
+  Bot,
+  Save,
+  X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +41,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Sequence } from "@/types";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { toast } from "sonner";
 
 export default function Sequences() {
   const { sequences, currentInstance, addSequence, updateSequence, deleteSequence, refreshData, isDataInitialized } = useApp();
@@ -45,6 +49,7 @@ export default function Sequences() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [currentSequence, setCurrentSequence] = useState<Sequence | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   
   // Fetch data only if not initialized yet
   useEffect(() => {
@@ -69,25 +74,37 @@ export default function Sequences() {
       await updateSequence(currentSequence.id, sequence);
       setIsEditMode(false);
       setCurrentSequence(null);
+      toast.success("Sequência atualizada com sucesso");
+      setHasUnsavedChanges(false);
     } else {
       await addSequence(sequence);
       setIsCreateMode(false);
+      toast.success("Sequência criada com sucesso");
+      setHasUnsavedChanges(false);
     }
   };
   
   const handleEditSequence = (sequence: Sequence) => {
     setCurrentSequence(sequence);
     setIsEditMode(true);
+    setHasUnsavedChanges(false);
   };
   
   const handleToggleStatus = (sequence: Sequence) => {
     updateSequence(sequence.id, {
       status: sequence.status === 'active' ? 'inactive' : 'active'
     });
+    
+    toast.success(
+      sequence.status === 'active' 
+        ? "Sequência desativada com sucesso" 
+        : "Sequência ativada com sucesso"
+    );
   };
   
   const handleDeleteSequence = (id: string) => {
     deleteSequence(id);
+    toast.success("Sequência excluída com sucesso");
   };
   
   const getStageIcon = (type: string) => {
@@ -102,20 +119,40 @@ export default function Sequences() {
         return <MessageCircle className="h-4 w-4" />;
     }
   };
+  
+  const handleGoBack = () => {
+    if (hasUnsavedChanges) {
+      const confirmed = window.confirm("Você tem alterações não salvas. Deseja realmente sair sem salvar?");
+      if (!confirmed) return;
+    }
+    
+    if (isCreateMode) {
+      setIsCreateMode(false);
+    } else if (isEditMode) {
+      setIsEditMode(false);
+      setCurrentSequence(null);
+    }
+    
+    setHasUnsavedChanges(false);
+  };
 
   if (isCreateMode) {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold tracking-tight">Nova Sequência</h1>
-          <Button variant="ghost" onClick={() => setIsCreateMode(false)}>
-            Voltar
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleGoBack}>
+              <X className="h-4 w-4 mr-1" />
+              Cancelar
+            </Button>
+          </div>
         </div>
         
         <SequenceBuilder 
           onSave={handleSaveSequence}
-          onCancel={() => setIsCreateMode(false)}
+          onCancel={handleGoBack}
+          onChangesMade={() => setHasUnsavedChanges(true)}
         />
       </div>
     );
@@ -126,21 +163,19 @@ export default function Sequences() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold tracking-tight">Editar Sequência</h1>
-          <Button variant="ghost" onClick={() => {
-            setIsEditMode(false);
-            setCurrentSequence(null);
-          }}>
-            Voltar
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleGoBack}>
+              <X className="h-4 w-4 mr-1" />
+              Cancelar
+            </Button>
+          </div>
         </div>
         
         <SequenceBuilder 
           sequence={currentSequence}
           onSave={handleSaveSequence}
-          onCancel={() => {
-            setIsEditMode(false);
-            setCurrentSequence(null);
-          }}
+          onCancel={handleGoBack}
+          onChangesMade={() => setHasUnsavedChanges(true)}
         />
       </div>
     );
