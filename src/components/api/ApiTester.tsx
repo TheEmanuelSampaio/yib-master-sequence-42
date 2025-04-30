@@ -27,13 +27,16 @@ export const ApiTester = () => {
   }, null, 2));
   
   const [pendingMessagesPayload, setPendingMessagesPayload] = useState(JSON.stringify({
-    data: {}
+    data: {
+      instanceId: "optional-instance-id-here" // Opcional - pode filtrar por instância
+    }
   }, null, 2));
   
   const [deliveryStatusPayload, setDeliveryStatusPayload] = useState(JSON.stringify({
     data: {
-      messageId: "uuid-aqui",
-      status: "delivered"
+      messageId: "message-uuid-here",
+      status: "success", // ou "failed"
+      attempts: 1 // opcional - número de tentativas
     }
   }, null, 2));
   
@@ -103,6 +106,9 @@ export const ApiTester = () => {
           </TabsList>
           
           <TabsContent value="tag-change" className="space-y-4">
+            <div className="text-sm text-muted-foreground mb-2">
+              Esta API recebe alterações de tags de um contato do Chatwoot e as processa para o Master Sequence.
+            </div>
             <Textarea 
               value={tagChangePayload} 
               onChange={(e) => setTagChangePayload(e.target.value)}
@@ -118,6 +124,10 @@ export const ApiTester = () => {
           </TabsContent>
           
           <TabsContent value="pending-messages" className="space-y-4">
+            <div className="text-sm text-muted-foreground mb-2">
+              Esta API retorna as mensagens pendentes para envio (agendadas para antes do horário atual).
+              O N8N deve chamar esta API periodicamente para buscar as mensagens a serem enviadas.
+            </div>
             <Textarea 
               value={pendingMessagesPayload} 
               onChange={(e) => setPendingMessagesPayload(e.target.value)}
@@ -133,6 +143,10 @@ export const ApiTester = () => {
           </TabsContent>
           
           <TabsContent value="delivery-status" className="space-y-4">
+            <div className="text-sm text-muted-foreground mb-2">
+              Esta API recebe o status de entrega de uma mensagem e a processa, avançando o contato na sequência
+              se a entrega foi bem-sucedida ou tratando falhas conforme necessário.
+            </div>
             <Textarea 
               value={deliveryStatusPayload} 
               onChange={(e) => setDeliveryStatusPayload(e.target.value)}
