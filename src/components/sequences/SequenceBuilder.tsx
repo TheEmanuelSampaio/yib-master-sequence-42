@@ -71,6 +71,9 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
   const [editingStageId, setEditingStageId] = useState<string | null>(null);
   const [stageToEdit, setStageToEdit] = useState<SequenceStage | null>(null);
   
+  // Define dayNames for use throughout the component
+  const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+  
   // Filtra restrições globais disponíveis (que não estão já adicionadas à sequência)
   const availableGlobalRestrictions = globalTimeRestrictions.filter(
     gr => !timeRestrictions.some(tr => tr.id === gr.id && tr.isGlobal)
@@ -873,7 +876,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
                     </div>
                     
                     <DialogFooter>
-                      <Button variant="outline" onClick={() => setShowRestrictionDialog(false)}>Cancelar</Button>
+                      <Button variant="outline" onClick={() => {}}>Cancelar</Button>
                       <Button onClick={addLocalRestriction}>Adicionar</Button>
                     </DialogFooter>
                   </DialogContent>
@@ -910,81 +913,3 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
                     Restrições de horário disponíveis para todas as sequências
                   </p>
                 </div>
-                <Button
-                  variant="outline"
-                  onClick={() => setShowGlobalRestrictionsDialog(true)}
-                >
-                  <PlusCircle className="h-4 w-4 mr-2" />
-                  Adicionar
-                </Button>
-              </div>
-              
-              <Dialog open={showGlobalRestrictionsDialog} onOpenChange={setShowGlobalRestrictionsDialog}>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Adicionar Restrição Global</DialogTitle>
-                    <DialogDescription>
-                      Selecione uma restrição global para adicionar à sequência
-                    </DialogDescription>
-                  </DialogHeader>
-                  
-                  {availableGlobalRestrictions.length === 0 ? (
-                    <div className="text-center py-8">
-                      <Lock className="h-8 w-8 text-muted-foreground mb-2 mx-auto" />
-                      <p className="text-muted-foreground">
-                        Não há restrições globais disponíveis
-                      </p>
-                    </div>
-                  ) : (
-                    <ScrollArea className="h-72 pr-4">
-                      <div className="space-y-2">
-                        {availableGlobalRestrictions.map(restriction => (
-                          <RestrictionItem
-                            key={restriction.id}
-                            restriction={restriction}
-                            onRemove={() => {}}
-                            onSelect={() => addGlobalRestriction(restriction)}
-                          />
-                        ))}
-                      </div>
-                    </ScrollArea>
-                  )}
-                  
-                  <DialogFooter>
-                    <Button 
-                      variant="outline" 
-                      onClick={() => setShowGlobalRestrictionsDialog(false)}
-                    >
-                      Fechar
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-              
-              {globalRestrictions.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  Nenhuma restrição global adicionada
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {globalRestrictions.map(restriction => (
-                    <RestrictionItem
-                      key={restriction.id}
-                      restriction={restriction}
-                      onRemove={removeTimeRestriction}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </TabsContent>
-      </Tabs>
-      
-      <div className="flex justify-end space-x-2">
-        <Button variant="outline" onClick={onCancel}>Cancelar</Button>
-        <Button onClick={handleSubmit}>Salvar</Button>
-      </div>
-    </div>
-  );
-}
