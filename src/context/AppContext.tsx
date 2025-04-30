@@ -70,7 +70,44 @@ interface ExtendedSequence {
   localTimeRestrictions?: TimeRestriction[]; // Add this property to the interface
 }
 
-export const AppContext = createContext<AppContextType | undefined>(undefined);
+// Create a default context value to prevent "undefined" errors
+const defaultContextValue: AppContextType = {
+  clients: [],
+  instances: [],
+  currentInstance: null,
+  sequences: [],
+  contacts: [],
+  scheduledMessages: [],
+  contactSequences: [],
+  tags: [],
+  timeRestrictions: [],
+  users: [],
+  stats: [],
+  setCurrentInstance: () => {},
+  addInstance: () => {},
+  updateInstance: () => {},
+  deleteInstance: () => {},
+  addSequence: () => {},
+  updateSequence: () => {},
+  deleteSequence: () => {},
+  addTimeRestriction: () => {},
+  updateTimeRestriction: () => {},
+  deleteTimeRestriction: () => {},
+  addContact: () => {},
+  getContactSequences: () => [],
+  addClient: () => {},
+  updateClient: () => {},
+  deleteClient: () => {},
+  addUser: async () => {},
+  updateUser: async () => {},
+  deleteUser: async () => {},
+  addTag: async () => {},
+  deleteTag: async () => {},
+  refreshData: async () => {},
+  isDataInitialized: false,
+};
+
+export const AppContext = createContext<AppContextType>(defaultContextValue);
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth();
@@ -1328,7 +1365,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
 export const useApp = (): AppContextType => {
   const context = useContext(AppContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error("useApp must be used within an AppProvider");
   }
   return context;

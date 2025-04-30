@@ -32,7 +32,7 @@ declare module '@supabase/supabase-js' {
     >(
       fn: RpcName,
       args?: Args,
-      options?: SupabaseClientOptions
+      options?: any
     ): RpcName extends 'get_users_with_emails'
         ? Promise<{ data: UserWithEmail[] | null; error: Error | null }>
         : RpcName extends 'get_sequence_time_restrictions'
