@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase, setupRealtimeSubscription } from '@/integrations/supabase/client';
 import { 
@@ -7,7 +6,7 @@ import {
   SequenceStage, TimeRestriction, StageProgress
 } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
 
 // Define daily stats interface
 interface DailyStat {
@@ -153,7 +152,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
       setInstances([...instances, newInstance]);
       toast.success(`Instância "${newInstance.name}" criada com sucesso`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding instance:', error);
       toast.error(`Erro ao adicionar instância: ${error.message}`);
     }
@@ -166,7 +165,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ? { ...instance, ...updatedFields, updatedAt: new Date().toISOString() } 
           : instance
       ));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating instance:', error);
       toast.error(`Erro ao atualizar instância: ${error.message}`);
     }
@@ -186,7 +185,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       
       toast.success('Instância excluída com sucesso');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting instance:', error);
       toast.error(`Erro ao excluir instância: ${error.message}`);
     }
@@ -204,7 +203,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
       setSequences([...sequences, newSequence]);
       toast.success(`Sequência "${newSequence.name}" criada com sucesso`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding sequence:', error);
       toast.error(`Erro ao adicionar sequência: ${error.message}`);
     }
@@ -217,7 +216,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ? { ...sequence, ...updatedFields, updatedAt: new Date().toISOString() } 
           : sequence
       ));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating sequence:', error);
       toast.error(`Erro ao atualizar sequência: ${error.message}`);
     }
@@ -227,7 +226,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       setSequences(sequences.filter(sequence => sequence.id !== id));
       toast.success('Sequência excluída com sucesso');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting sequence:', error);
       toast.error(`Erro ao excluir sequência: ${error.message}`);
     }
@@ -241,7 +240,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         id: uuidv4(),
       };
       setUsers([...users, newUser]);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding user:', error);
       toast.error(`Erro ao adicionar usuário: ${error.message}`);
     }
@@ -254,7 +253,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ? { ...u, ...updatedFields } 
           : u
       ));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating user:', error);
       toast.error(`Erro ao atualizar usuário: ${error.message}`);
     }
@@ -263,7 +262,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteUser = async (id: string) => {
     try {
       setUsers(users.filter(u => u.id !== id));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting user:', error);
       toast.error(`Erro ao excluir usuário: ${error.message}`);
     }
@@ -279,7 +278,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updatedAt: new Date().toISOString(),
       };
       setClients([...clients, newClient]);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding client:', error);
       toast.error(`Erro ao adicionar cliente: ${error.message}`);
     }
@@ -292,7 +291,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ? { ...client, ...updatedFields, updatedAt: new Date().toISOString() } 
           : client
       ));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating client:', error);
       toast.error(`Erro ao atualizar cliente: ${error.message}`);
     }
@@ -301,7 +300,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteClient = async (id: string) => {
     try {
       setClients(clients.filter(client => client.id !== id));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting client:', error);
       toast.error(`Erro ao excluir cliente: ${error.message}`);
     }
@@ -313,7 +312,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!tags.includes(tag)) {
         setTags([...tags, tag]);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding tag:', error);
       toast.error(`Erro ao adicionar tag: ${error.message}`);
     }
@@ -322,7 +321,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteTag = async (tag: string) => {
     try {
       setTags(tags.filter(t => t !== tag));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting tag:', error);
       toast.error(`Erro ao excluir tag: ${error.message}`);
     }
@@ -337,7 +336,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         createdAt: new Date().toISOString(),
       };
       setTimeRestrictions([...timeRestrictions, newRestriction]);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding time restriction:', error);
       toast.error(`Erro ao adicionar restrição de tempo: ${error.message}`);
     }
@@ -350,7 +349,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ? { ...restriction, ...updatedFields } 
           : restriction
       ));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating time restriction:', error);
       toast.error(`Erro ao atualizar restrição de tempo: ${error.message}`);
     }
@@ -359,7 +358,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteTimeRestriction = async (id: string) => {
     try {
       setTimeRestrictions(timeRestrictions.filter(restriction => restriction.id !== id));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting time restriction:', error);
       toast.error(`Erro ao excluir restrição de tempo: ${error.message}`);
     }
@@ -666,13 +665,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       
       setIsDataInitialized(true);
       console.info("Data refresh completed successfully");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error refreshing data:", error);
-      toast({
-        title: "Erro ao carregar dados",
-        description: "Ocorreu um erro ao atualizar os dados. Tente novamente mais tarde.",
-        variant: "destructive",
-      });
+      toast.error(`Erro ao carregar dados: ${error.message}`);
       setIsDataInitialized(true);
     }
   };

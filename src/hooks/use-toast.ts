@@ -1,9 +1,11 @@
-import * as React from "react"
+
+import * as React from "react";
+import { toast as sonnerToast } from "sonner";
 
 import type {
   ToastActionElement,
   ToastProps,
-} from "@/components/ui/toast"
+} from "@/components/ui/toast";
 
 const TOAST_LIMIT = 1
 const TOAST_REMOVE_DELAY = 1000000
@@ -139,6 +141,16 @@ function dispatch(action: Action) {
 
 type Toast = Omit<ToasterToast, "id">
 
+interface ToastCustom {
+  (props: Toast): {
+    id: string;
+    dismiss: () => void;
+    update: (props: ToasterToast) => void;
+  };
+  success: (message: string) => void;
+  error: (message: string) => void;
+}
+
 function toast({ ...props }: Toast) {
   const id = genId()
 
@@ -168,6 +180,25 @@ function toast({ ...props }: Toast) {
   }
 }
 
+// Add success and error methods to toast
+(toast as ToastCustom).success = (message: string) => {
+  sonnerToast.success(message);
+  return toast({
+    title: "Sucesso",
+    description: message,
+    variant: "default",
+  });
+};
+
+(toast as ToastCustom).error = (message: string) => {
+  sonnerToast.error(message);
+  return toast({
+    title: "Erro",
+    description: message,
+    variant: "destructive",
+  });
+};
+
 function useToast() {
   const [state, setState] = React.useState<State>(memoryState)
 
@@ -183,9 +214,9 @@ function useToast() {
 
   return {
     ...state,
-    toast,
+    toast: toast as ToastCustom,
     dismiss: (toastId?: string) => dispatch({ type: "DISMISS_TOAST", toastId }),
   }
 }
 
-export { useToast, toast }
+export { useToast, toast as toast }
