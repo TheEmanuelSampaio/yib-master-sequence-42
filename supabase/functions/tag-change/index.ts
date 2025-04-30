@@ -1,3 +1,4 @@
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 
@@ -26,6 +27,8 @@ Deno.serve(async (req) => {
     const { accountId, accountName } = data;
     const { id: contactId, name: contactName, phoneNumber } = data.contact;
     const { inboxId, conversationId, displayId, labels } = data.conversation;
+    
+    console.log(`Processing contact ${contactName} with labels: ${labels}`);
     
     // Find the client with the provided account ID
     const { data: clients, error: clientError } = await supabase
@@ -67,6 +70,7 @@ Deno.serve(async (req) => {
 
     // Parse labels to tags array
     const tags = labels ? labels.split(',').map((tag: string) => tag.trim()) : [];
+    console.log(`Parsed tags: ${JSON.stringify(tags)}`);
     
     // Insert or update contact
     if (existingContacts.length === 0) {
@@ -127,6 +131,7 @@ Deno.serve(async (req) => {
     }
     
     // Get the first admin user to use as creator for tags
+    console.log('Fetching admin user to use as tag creator');
     const { data: adminUsers, error: adminError } = await supabase
       .from('profiles')
       .select('id')
@@ -138,10 +143,22 @@ Deno.serve(async (req) => {
       console.error('Error fetching admin user:', adminError);
     } else if (adminUsers && adminUsers.length > 0) {
       creatorId = adminUsers[0].id;
+      console.log(`Found admin user with ID: ${creatorId}`);
+    } else {
+      console.log('No admin users found, will attempt to create a default');
+      // Create a system user entry in profiles if no admin exists
+      const { data: authUsers } = await supabase.auth.admin.listUsers();
+      if (authUsers && authUsers.users && authUsers.users.length > 0) {
+        const firstUserId = authUsers.users[0].id;
+        console.log(`Using first auth user as creator: ${firstUserId}`);
+        creatorId = firstUserId;
+      }
     }
     
     // Add new tags for the contact and ensure tags exists in the tags table
     for (const tag of tags) {
+      console.log(`Processing tag: ${tag}`);
+      
       // Insert the contact_tag relationship
       const { error: insertTagError } = await supabase
         .from('contact_tags')
@@ -155,31 +172,56 @@ Deno.serve(async (req) => {
         // Continue despite error
       }
       
-      // ALWAYS check if tag exists in tags table and add it if missing
-      const { data: existingTag } = await supabase
+      // Check if tag exists in tags table
+      console.log(`Checking if tag ${tag} exists in tags table`);
+      const { data: existingTag, error: checkTagError } = await supabase
         .from('tags')
         .select('name')
         .eq('name', tag)
         .maybeSingle();
       
+      if (checkTagError) {
+        console.error(`Error checking if tag ${tag} exists:`, checkTagError);
+      }
+      
       // Only insert if tag doesn't exist and we have a valid creator ID
-      if (!existingTag && creatorId) {
-        console.log(`Tag ${tag} not found, adding to tags table with creator ID: ${creatorId}`);
-        const { error: insertGlobalTagError } = await supabase
-          .from('tags')
-          .insert({
-            name: tag,
-            created_by: creatorId
-          });
+      if (!existingTag) {
+        console.log(`Tag ${tag} not found in tags table`);
         
-        if (insertGlobalTagError) {
-          console.error(`Error inserting global tag ${tag}:`, insertGlobalTagError);
-          // Continue despite error
+        if (creatorId) {
+          console.log(`Adding tag ${tag} to tags table with creator ID: ${creatorId}`);
+          const { error: insertGlobalTagError } = await supabase
+            .from('tags')
+            .insert({
+              name: tag,
+              created_by: creatorId
+            });
+          
+          if (insertGlobalTagError) {
+            console.error(`Error inserting global tag ${tag}:`, insertGlobalTagError);
+            // Continue despite error
+          } else {
+            console.log(`Successfully added tag ${tag} to tags table`);
+          }
         } else {
-          console.log(`Successfully added tag ${tag} to tags table`);
+          console.error(`Could not add tag ${tag} to tags table: no creator ID available`);
+          
+          // Last resort: Try to insert with a system value if allowed by RLS
+          const { error: lastResortError } = await supabase
+            .from('tags')
+            .insert({
+              name: tag,
+              created_by: '00000000-0000-0000-0000-000000000000'
+            });
+          
+          if (!lastResortError) {
+            console.log(`Successfully added tag ${tag} to tags table with system ID`);
+          } else {
+            console.error(`Failed last resort attempt to add tag ${tag}:`, lastResortError);
+          }
         }
-      } else if (!existingTag) {
-        console.error(`Could not add tag ${tag} to tags table: no admin user found to use as creator`);
+      } else {
+        console.log(`Tag ${tag} already exists in tags table`);
       }
     }
     
