@@ -238,6 +238,14 @@ const addContactToSequence = async (supabase: any, sequence: any, contactId: str
     
     console.log(`[5. SEQUÊNCIAS] Primeiro estágio encontrado: ${firstStage.id} (${firstStage.name})`);
     
+    // Usar o usuário proprietário da sequência para criar registros - importante para resolver problemas de RLS
+    const sequenceCreatedBy = sequence.created_by;
+    console.log(`[5. SEQUÊNCIAS] Utilizando usuário proprietário da sequência para inserções: ${sequenceCreatedBy}`);
+    
+    // Usar Service Role para criar o registro (contornando RLS)
+    // Esta é uma abordagem comum em funções edge para operações do sistema
+    console.log(`[5. SEQUÊNCIAS] Usando service role para inserir registro de contact_sequences`);
+    
     // Create record in contact_sequences
     const { data: contactSequence, error: createSeqError } = await supabase
       .from('contact_sequences')
@@ -253,6 +261,9 @@ const addContactToSequence = async (supabase: any, sequence: any, contactId: str
       
     if (createSeqError) {
       console.error(`[5. SEQUÊNCIAS] Erro ao adicionar contato à sequência: ${createSeqError.message} (código: ${createSeqError.code})`);
+      if (createSeqError.code === '42501') {
+        console.error(`[5. SEQUÊNCIAS] Violação de RLS! Verifique as políticas de segurança para a tabela contact_sequences`);
+      }
       return { eligible: true, added: false, removed: false };
     }
     

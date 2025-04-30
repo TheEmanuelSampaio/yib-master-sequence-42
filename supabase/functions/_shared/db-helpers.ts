@@ -9,9 +9,23 @@ export const getSupabaseClient = () => {
   return createClient(supabaseUrl, supabaseAnonKey);
 };
 
+// Get Supabase client with service role (bypasses RLS)
+export const getSupabaseServiceClient = () => {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+  
+  if (!supabaseServiceKey) {
+    console.error('[DB-HELPERS] Chave service role não encontrada!');
+    return getSupabaseClient(); // Fallback para client normal
+  }
+  
+  console.log('[DB-HELPERS] Usando cliente Supabase com service role (bypasses RLS)');
+  return createClient(supabaseUrl, supabaseServiceKey);
+};
+
 // Helper function to handle errors in Supabase queries
 export const logQueryError = (stage: string, error: any) => {
-  console.error(`[${stage}] Error: ${error.message}${error.code ? ` (código: ${error.code})` : ''}`);
+  console.error(`[${stage}] Erro: ${error.message}${error.code ? ` (código: ${error.code})` : ''}`);
   return error;
 };
 

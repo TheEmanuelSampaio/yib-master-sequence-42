@@ -2,7 +2,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 import { ChatwootData, TagChangeResponse } from '../_shared/types.ts';
-import { getSupabaseClient, createResponse, createErrorResponse } from '../_shared/db-helpers.ts';
+import { getSupabaseClient, getSupabaseServiceClient, createResponse, createErrorResponse } from '../_shared/db-helpers.ts';
 import { findOrCreateClient } from './clients.ts';
 import { findOrCreateContact } from './contacts.ts';
 import { processContactTags } from './tags.ts';
@@ -17,8 +17,17 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Initialize Supabase client
+    // Initialize both normal and service role Supabase clients
     const supabase = getSupabaseClient();
+    const supabaseAdmin = getSupabaseServiceClient();
+    
+    // Verificar se conseguiu o cliente service role
+    if (!supabaseAdmin) {
+      console.error('[CRÍTICO] Não foi possível inicializar o cliente Supabase com service role');
+      return createErrorResponse('Erro na configuração do servidor', null, 500);
+    }
+    
+    // Usar supabase normal para operações iniciais
 
     // Verify if it's a POST request and parse request body
     if (req.method !== 'POST') {
@@ -79,11 +88,11 @@ Deno.serve(async (req) => {
     console.log(`[1. BODY] Processando dados: contactId=${contactId}, name=${name}, phoneNumber=${phoneNumber}, accountId=${accountId}, accountName=${accountName}, tags=${labelsString}`);
 
     // [2. CLIENT VERIFICATION] - Find or create client for Chatwoot account
-    const existingClient = await findOrCreateClient(supabase, accountId, accountName);
+    const existingClient = await findOrCreateClient(supabaseAdmin, accountId, accountName);
 
     // [3. CONTACT VERIFICATION] - Find or create contact
     await findOrCreateContact(
-      supabase,
+      supabaseAdmin,
       contactId,
       name,
       phoneNumber,
@@ -95,10 +104,10 @@ Deno.serve(async (req) => {
 
     // [4. TAG PROCESSING] - Process tags (labels)
     const tags = labelsString ? labelsString.split(',').map(tag => tag.trim()) : [];
-    const tagResults = await processContactTags(supabase, contactId.toString(), labelsString, existingClient.created_by);
+    const tagResults = await processContactTags(supabaseAdmin, contactId.toString(), labelsString, existingClient.created_by);
 
     // [5. SEQUENCE VERIFICATION] - Check and process eligible sequences
-    const sequenceResults = await processEligibleSequences(supabase, existingClient.id, contactId.toString(), tags);
+    const sequenceResults = await processEligibleSequences(supabaseAdmin, existingClient.id, contactId.toString(), tags);
 
     // [6. RESPONSE] - Respond with success and statistics
     console.log(`[6. RESPOSTA] Processamento concluído. Contato: ${contactId}, Cliente: ${existingClient.id} (${existingClient.account_name})`);

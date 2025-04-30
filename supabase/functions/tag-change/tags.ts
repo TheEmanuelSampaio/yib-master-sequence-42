@@ -50,39 +50,12 @@ export const processContactTags = async (supabase: any, contactId: string, label
 const findValidUserForTagCreation = async (supabase: any, createdBy: string) => {
   console.log(`[4. TAGS] Usuário para criação de tags: ${createdBy}`);
   
-  // Verify if the user exists
-  let userExists = false;
-  if (createdBy !== '00000000-0000-0000-0000-000000000000') {
-    const { data: userCheck } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('id', createdBy)
-      .maybeSingle();
-    
-    userExists = !!userCheck;
-    console.log(`[4. TAGS] Verificação do usuário ${createdBy}: ${userExists ? 'Encontrado' : 'Não encontrado'}`);
-  } else {
-    console.log(`[4. TAGS] Usando usuário do sistema (00000000-0000-0000-0000-000000000000)`);
-  }
+  // Utilize a função do sistema para inserir a tag se não existir
+  // Não é necessário verificar se o usuário existe, pois a função SQL
+  // implementada lidará com isso adequadamente
+  console.log(`[4. TAGS] Utilizando função SQL para inserir tags com usuário ${createdBy}`);
   
-  // If creator not found, find any valid user
-  let tagCreationUser = createdBy;
-  if (!userExists) {
-    const { data: firstUser } = await supabase
-      .from('profiles')
-      .select('id')
-      .limit(1)
-      .maybeSingle();
-    
-    if (firstUser) {
-      tagCreationUser = firstUser.id;
-      console.log(`[4. TAGS] Usando primeiro usuário disponível para criação de tags: ${tagCreationUser}`);
-    } else {
-      console.log(`[4. TAGS] Nenhum usuário encontrado para criação de tags. Usando ID do sistema.`);
-    }
-  }
-  
-  return tagCreationUser;
+  return createdBy;
 };
 
 // Add new tags to the contact
@@ -110,23 +83,23 @@ const addNewTags = async (supabase: any, tagsToAdd: string[], contactId: string,
       console.log(`[4. TAGS] Tag "${tag}" não encontrada no sistema. Criando...`);
       
       try {
+        // Usar RPC para chamar a função SQL que insere a tag se não existir
         const { error: tagInsertError } = await supabase
-          .from('tags')
-          .insert({ 
-            name: tag,
-            created_by: tagCreationUser
+          .rpc('insert_tag_if_not_exists_for_user', {
+            p_name: tag,
+            p_created_by: tagCreationUser
           });
           
         if (tagInsertError) {
-          console.error(`[4. TAGS] Erro ao criar tag "${tag}": ${tagInsertError.message} (código: ${tagInsertError.code})`);
+          console.error(`[4. TAGS] Erro ao criar tag "${tag}" via RPC: ${tagInsertError.message} (código: ${tagInsertError.code})`);
           tagErrors.push({ tag, error: tagInsertError.message });
           tagsAddedFail++;
         } else {
-          console.log(`[4. TAGS] Tag "${tag}" criada com sucesso`);
+          console.log(`[4. TAGS] Tag "${tag}" criada com sucesso via RPC`);
           tagsAddedSuccess++;
         }
       } catch (error: any) {
-        console.error(`[4. TAGS] Exceção ao criar tag "${tag}": ${error.message}`);
+        console.error(`[4. TAGS] Exceção ao criar tag "${tag}" via RPC: ${error.message}`);
         tagErrors.push({ tag, error: error.message });
         tagsAddedFail++;
       }
