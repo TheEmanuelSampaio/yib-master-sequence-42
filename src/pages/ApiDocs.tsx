@@ -1,3 +1,4 @@
+
 import { ApiTester } from "@/components/api/ApiTester";
 
 const ApiDocs = () => {
@@ -52,6 +53,31 @@ const ApiDocs = () => {
       "displayId": 1608,
       "labels": "tag1, tag2, tag3"
     }
+  }
+}`}
+                </pre>
+              </div>
+              <div className="bg-secondary/50 p-4 rounded-md">
+                <h4 className="text-sm font-medium mb-1">Resposta (Sucesso)</h4>
+                <pre className="text-sm font-mono whitespace-pre-wrap">
+{`{
+  "success": true,
+  "message": "Contato processado com sucesso",
+  "stats": {
+    "tagsAdded": 3,
+    "existingTags": 0,
+    "tagErrors": 0
+  },
+  "client": {
+    "id": "uuid-do-cliente",
+    "accountName": "Nome da Conta",
+    "creatorId": "uuid-do-criador",
+    "creatorName": "Nome do Criador"
+  },
+  "contact": {
+    "id": "12345",
+    "name": "Nome do Contato",
+    "tags": ["tag1", "tag2", "tag3"]
   }
 }`}
                 </pre>

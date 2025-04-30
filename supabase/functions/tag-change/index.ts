@@ -1,4 +1,3 @@
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 
@@ -30,40 +29,74 @@ Deno.serve(async (req) => {
     
     console.log(`Processing contact ${contactName} with labels: ${labels}`);
     
-    // Modificamos a consulta para não buscar o perfil diretamente, apenas o cliente
-    const { data: clients, error: clientError } = await supabase
+    // DIAGNÓSTICO: Primeiro vamos listar todos os clientes no banco para diagnóstico
+    const { data: allClients, error: listError } = await supabase
+      .from('clients')
+      .select('*')
+      .limit(10);
+    
+    console.log(`Primeiros 10 clientes no banco de dados: ${JSON.stringify(allClients)}`);
+    
+    if (listError) {
+      console.error('Erro ao listar clientes:', listError);
+    }
+    
+    // Tentar encontrar o cliente pelo account_id
+    console.log(`Tentando encontrar cliente com account_id = ${accountId}`);
+    const { data: clientsByAccountId, error: accountIdError } = await supabase
       .from('clients')
       .select('*')
       .eq('account_id', accountId)
       .limit(1);
     
-    if (clientError) {
-      console.error('Error fetching client:', clientError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to fetch client', details: clientError.message }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    console.log(`Erro na consulta por account_id: ${accountIdError ? accountIdError.message : "Nenhum erro"}`);
+    console.log(`Resultado da consulta por account_id: ${clientsByAccountId && clientsByAccountId.length > 0 ? JSON.stringify(clientsByAccountId) : "nenhum resultado"}`);
     
-    if (clients.length === 0) {
+    // Tentar encontrar o cliente pelo id diretamente
+    console.log(`Consultando cliente com id = ${accountId}`);
+    const { data: clientsById, error: idError } = await supabase
+      .from('clients')
+      .select('*')
+      .eq('id', accountId)
+      .limit(1);
+    
+    console.log(`Erro na consulta por id: ${idError ? idError.message : "Nenhum erro"}`);
+    console.log(`Resultado da consulta por id: ${clientsById && clientsById.length > 0 ? JSON.stringify(clientsById) : "nenhum resultado"}`);
+    
+    // Verificar se encontramos o cliente
+    const clients = clientsByAccountId && clientsByAccountId.length > 0 
+                    ? clientsByAccountId 
+                    : (clientsById && clientsById.length > 0 ? clientsById : null);
+    
+    if (!clients || clients.length === 0) {
       return new Response(
-        JSON.stringify({ error: 'Client not found with provided account ID' }),
+        JSON.stringify({ 
+          error: 'Client not found with provided account ID', 
+          details: {
+            searchedAccountId: accountId,
+            availableClients: allClients
+          }
+        }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
     
     const client = clients[0];
     
-    // Buscamos separadamente o perfil do criador do cliente
-    const { data: creatorProfile, error: creatorError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', client.created_by)
-      .maybeSingle();
-    
-    if (creatorError) {
-      console.log('Error fetching creator profile:', creatorError);
-      // Continuamos mesmo com esse erro
+    // Buscar o perfil do criador do cliente
+    let creatorProfile = null;
+    if (client && client.created_by) {
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', client.created_by)
+        .maybeSingle();
+      
+      if (!profileError && profile) {
+        creatorProfile = profile;
+      } else if (profileError) {
+        console.log(`Erro ao buscar perfil do criador: ${profileError.message}`);
+      }
     }
     
     // Check if contact exists
