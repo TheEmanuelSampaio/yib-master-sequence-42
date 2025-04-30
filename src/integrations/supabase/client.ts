@@ -27,6 +27,7 @@ export const generateUUID = (): string => {
 
 // Função para buscar clientes
 export const fetchClientsWithCreatorInfo = async () => {
+  console.log('Iniciando busca de clientes com informações do criador');
   try {
     // Primeiro, vamos buscar todos os clientes com suas informações básicas
     const { data: clients, error: clientsError } = await supabase
@@ -38,6 +39,8 @@ export const fetchClientsWithCreatorInfo = async () => {
       throw clientsError;
     }
     
+    console.log('Clientes encontrados:', clients?.length || 0, clients);
+    
     if (!clients || clients.length === 0) {
       return [];
     }
@@ -45,9 +48,17 @@ export const fetchClientsWithCreatorInfo = async () => {
     // Agora, vamos buscar os dados dos criadores para cada cliente
     const clientsWithCreatorInfo = await Promise.all(clients.map(async (client) => {
       // Se não tiver created_by, retornamos o cliente como está
-      if (!client.created_by || !isValidUUID(client.created_by)) {
+      if (!client.created_by) {
+        console.log(`Cliente ${client.id} não tem created_by`);
         return client;
       }
+      
+      if (!isValidUUID(client.created_by)) {
+        console.log(`Cliente ${client.id} tem created_by inválido: ${client.created_by}`);
+        return client;
+      }
+      
+      console.log(`Buscando perfil do criador para cliente ${client.id}, created_by: ${client.created_by}`);
       
       // Buscamos o perfil do criador
       const { data: creatorData, error: creatorError } = await supabase
@@ -62,6 +73,8 @@ export const fetchClientsWithCreatorInfo = async () => {
         return client;
       }
       
+      console.log(`Dados do criador encontrados para cliente ${client.id}:`, creatorData);
+      
       // Retornamos o cliente com os dados do criador
       return {
         ...client,
@@ -69,6 +82,7 @@ export const fetchClientsWithCreatorInfo = async () => {
       };
     }));
     
+    console.log('Clientes com informações de criador processados:', clientsWithCreatorInfo);
     return clientsWithCreatorInfo;
   } catch (error) {
     console.error('Erro ao processar fetch de clientes:', error);

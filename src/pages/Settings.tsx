@@ -36,6 +36,8 @@ export default function Settings() {
   const [openAddTimeRestriction, setOpenAddTimeRestriction] = useState(false);
   const [newTagName, setNewTagName] = useState("");
 
+  console.log('Settings - Rendering with clients:', clients);
+  
   // Não precisamos mais filtrar os dados manualmente, o RLS do Supabase cuida disso para nós
   // As variáveis abaixo agora usam diretamente os dados do contexto
   
@@ -75,6 +77,20 @@ export default function Settings() {
     accountName: string;
     accountId: number;
   } | null>(null);
+
+  // Função auxiliar para obter o nome do criador de um cliente
+  const getCreatorName = (client) => {
+    console.log('Getting creator name for client:', client);
+    if (client.creator && client.creator.account_name) {
+      return client.creator.account_name;
+    }
+    
+    if (client.creator_account_name) {
+      return client.creator_account_name;
+    }
+    
+    return "—";
+  };
 
   const handleAddUser = async () => {
     if (!newUser.accountName || !newUser.email || !newUser.password || !newUser.confirmPassword) {
@@ -563,8 +579,7 @@ export default function Settings() {
                       <TableCell className="font-medium">{client.accountName}</TableCell>
                       <TableCell>{client.accountId}</TableCell>
                       <TableCell>
-                        {client.creator ? client.creator.account_name : 
-                         (client.creator_account_name || "—")}
+                        {getCreatorName(client)}
                       </TableCell>
                       <TableCell>
                         <DropdownMenu>
