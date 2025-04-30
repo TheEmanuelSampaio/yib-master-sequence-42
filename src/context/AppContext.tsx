@@ -454,21 +454,29 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         
         if (profilesError) throw profilesError;
         
-        // Get user emails from auth.users (requires admin rights)
-        const usersWithEmails = await Promise.all(
-          profilesData.map(async (profile) => {
-            // For now, using email from user object if it's the current user
-            const email = profile.id === user.id ? user.email : `user-${profile.id.substring(0, 4)}@example.com`;
-            
-            return {
-              id: profile.id,
-              accountName: profile.account_name,
-              email,
-              role: profile.role,
-              avatar: ""
-            };
-          })
-        );
+        // Buscar os dados de auth.users para obter os emails reais
+        const { data: authUsers, error: authUsersError } = await supabase
+          .rpc('get_users_with_emails');
+          
+        if (authUsersError) {
+          console.error("Erro ao buscar emails de usuários:", authUsersError);
+        }
+        
+        // Mapear os usuários com seus emails reais se disponíveis
+        const usersWithEmails = profilesData.map(profile => {
+          // Tentar encontrar o email correspondente nos dados de auth.users
+          const authUser = authUsers?.find(au => au.id === profile.id);
+          const email = authUser?.email || 
+                      (profile.id === user.id ? user.email : `user-${profile.id.substring(0, 4)}@example.com`);
+          
+          return {
+            id: profile.id,
+            accountName: profile.account_name,
+            email: email,
+            role: profile.role,
+            avatar: ""
+          };
+        });
         
         setUsers(usersWithEmails);
       }
