@@ -5,6 +5,7 @@ import { createSupabaseClient } from './client-utils.ts';
 import { handleClient } from './client-operations.ts';
 import { handleContact } from './contact-operations.ts';
 import { handleTags } from './tag-operations.ts';
+import { processSequences } from './sequence-operations.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
 const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
@@ -132,6 +133,10 @@ Deno.serve(async (req) => {
       );
     }
     
+    // Verificar sequências para este contato e tags
+    console.log(`[5. SEQUÊNCIAS] Verificando sequências para o contato ${contact.id} com client_id ${client.id}`);
+    const sequencesResult = await processSequences(supabase, client.id, contact.id, tags);
+    
     return new Response(
       JSON.stringify({ 
         success: true, 
@@ -148,7 +153,14 @@ Deno.serve(async (req) => {
           name: contact.name,
           tags
         },
-        stats: tagsResult.stats
+        stats: {
+          ...tagsResult.stats,
+          sequences: sequencesResult.success ? {
+            processed: sequencesResult.sequencesProcessed,
+            added: sequencesResult.sequencesAdded,
+            skipped: sequencesResult.sequencesSkipped
+          } : { error: sequencesResult.error }
+        }
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
