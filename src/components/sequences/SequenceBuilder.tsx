@@ -179,6 +179,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
     const restriction: TimeRestriction = {
       ...newRestriction,
       id: crypto.randomUUID(),
+      isGlobal: false, // Marca como uma restrição local
     };
     
     setTimeRestrictions([...timeRestrictions, restriction]);
@@ -200,6 +201,9 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
   };
 
   const updateTimeRestriction = (updatedRestriction: TimeRestriction) => {
+    // Não permitir atualizar restrições globais
+    if (updatedRestriction.isGlobal) return;
+    
     setTimeRestrictions(timeRestrictions.map(r => 
       r.id === updatedRestriction.id ? updatedRestriction : r
     ));
@@ -902,9 +906,10 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
                           isSelected={isAdded}
                           onSelect={() => {
                             if (!isAdded) {
-                              setTimeRestrictions([...timeRestrictions, restriction]);
+                              // Adicionar a restrição global com a flag isGlobal
+                              setTimeRestrictions([...timeRestrictions, { ...restriction, isGlobal: true }]);
                             } else {
-                              // Se já foi adicionada, remova da lista
+                              // Remover a restrição global
                               setTimeRestrictions(
                                 timeRestrictions.filter(r => r.id !== restriction.id)
                               );

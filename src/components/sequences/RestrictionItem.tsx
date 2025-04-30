@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -6,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Trash2, Edit, Check, X, Plus, CheckCircle } from "lucide-react";
+import { Trash2, Edit, Check, X, Plus, CheckCircle, Lock } from "lucide-react";
 import { TimeRestriction } from "@/types";
 
 interface RestrictionItemProps {
@@ -39,13 +40,16 @@ export function RestrictionItem({ restriction, readonly, isSelected, onUpdate, o
   };
 
   const toggleActive = () => {
-    if (onUpdate && !readonly) {
+    if (onUpdate && !readonly && !restriction.isGlobal) {
       onUpdate({
         ...restriction,
         active: !restriction.active
       });
     }
   };
+
+  // Não permitir edição se a restrição é global
+  const canEdit = !restriction.isGlobal;
 
   return (
     <Card className={`p-3 ${restriction.active ? "border-primary/40" : "opacity-70"}`}>
@@ -195,13 +199,22 @@ export function RestrictionItem({ restriction, readonly, isSelected, onUpdate, o
                     <CheckCircle className="h-4 w-4 text-primary mr-2" />
                   ) : null
                 ) : (
-                  <Switch 
-                    checked={restriction.active} 
-                    onCheckedChange={toggleActive}
-                    disabled={readonly}
-                  />
+                  <>
+                    {restriction.isGlobal ? (
+                      <Lock className="h-4 w-4 text-muted-foreground mr-2" title="Restrição global (não editável)" />
+                    ) : (
+                      <Switch 
+                        checked={restriction.active} 
+                        onCheckedChange={toggleActive}
+                        disabled={readonly}
+                      />
+                    )}
+                  </>
                 )}
                 <h4 className="ml-2 text-sm font-medium">{restriction.name}</h4>
+                {restriction.isGlobal && !readonly && (
+                  <Badge variant="outline" className="ml-2 text-xs">Global</Badge>
+                )}
               </div>
               
               <div className="flex space-x-1">
@@ -219,9 +232,11 @@ export function RestrictionItem({ restriction, readonly, isSelected, onUpdate, o
                   </Button>
                 ) : (
                   <>
-                    <Button variant="ghost" size="sm" onClick={() => setIsEditing(true)}>
-                      <Edit className="h-3 w-3" />
-                    </Button>
+                    {!restriction.isGlobal && (
+                      <Button variant="ghost" size="sm" onClick={() => setIsEditing(true)}>
+                        <Edit className="h-3 w-3" />
+                      </Button>
+                    )}
                     {onRemove && (
                       <Button 
                         variant="ghost" 
