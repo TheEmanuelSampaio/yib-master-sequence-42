@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { PlusCircle, Clock, Trash2, ChevronDown, ChevronUp, MessageCircle, FileCode, Bot, X, Edit, Save, Lock, Unlock } from "lucide-react";
+import { PlusCircle, Clock, Trash2, ChevronDown, ChevronUp, MessageCircle, FileCode, Bot, X, Edit, Save, Lock } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -212,7 +212,6 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
     if (timeRestrictions.some(r => r.id === restriction.id)) return;
     
     setTimeRestrictions([...timeRestrictions, { ...restriction, isGlobal: true }]);
-    setShowGlobalRestrictionsDialog(false);
   };
   
   const removeTimeRestriction = (id: string) => {
@@ -268,6 +267,11 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
   
   const getActiveRestrictionCount = () => {
     return timeRestrictions.filter(r => r.active).length;
+  };
+
+  // Verifica se uma restrição global está selecionada
+  const isGlobalRestrictionSelected = (id: string) => {
+    return timeRestrictions.some(r => r.id === id && r.isGlobal);
   };
 
   // Separar restrições globais e locais
@@ -696,18 +700,18 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
         <TabsContent value="restrictions" className="pt-6">
           <div className="space-y-8">
             {/* Restrições Locais */}
-            <div className="bg-card border rounded-lg p-6">
+            <div>
               <div className="flex justify-between items-center mb-4">
                 <div>
-                  <h3 className="text-xl font-semibold">Restrições de Horário</h3>
+                  <h2 className="text-xl font-semibold">Restrições de Horário</h2>
                   <p className="text-sm text-muted-foreground">
                     Define quando as mensagens não serão enviadas
                   </p>
                 </div>
                 <Dialog>
                   <DialogTrigger asChild>
-                    <Button className="bg-primary hover:bg-primary/90 flex items-center gap-1">
-                      <PlusCircle className="h-4 w-4 mr-1" />
+                    <Button className="bg-primary hover:bg-primary/90">
+                      <PlusCircle className="h-4 w-4 mr-2" />
                       Nova Restrição
                     </Button>
                   </DialogTrigger>
@@ -883,102 +887,53 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
                 </Dialog>
               </div>
               
-              {localRestrictions.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  Nenhuma restrição local configurada
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {localRestrictions.map(restriction => (
-                    <RestrictionItem
-                      key={restriction.id}
-                      restriction={restriction}
-                      onRemove={removeTimeRestriction}
-                      onUpdate={updateLocalRestriction}
-                    />
-                  ))}
-                </div>
-              )}
+              <div className="space-y-2">
+                {/* Restrições locais e globais selecionadas */}
+                {timeRestrictions.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground border rounded-md">
+                    Nenhuma restrição configurada
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {timeRestrictions.map(restriction => (
+                      <RestrictionItem
+                        key={restriction.id}
+                        restriction={restriction}
+                        onRemove={removeTimeRestriction}
+                        onUpdate={!restriction.isGlobal ? updateLocalRestriction : undefined}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
             
             {/* Restrições Globais */}
-            <div className="bg-card border rounded-lg p-6">
-              <div className="flex justify-between items-center mb-4">
-                <div>
-                  <h3 className="text-xl font-semibold flex items-center">
-                    <Lock className="h-4 w-4 mr-2 text-blue-500" />
-                    Restrições Globais
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    Restrições de horário disponíveis para todas as sequências
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  onClick={() => setShowGlobalRestrictionsDialog(true)}
-                >
-                  <PlusCircle className="h-4 w-4 mr-2" />
-                  Adicionar
-                </Button>
+            <div>
+              <div className="mb-4">
+                <h2 className="text-xl font-semibold">Restrições Globais</h2>
+                <p className="text-sm text-muted-foreground">
+                  Restrições de horário disponíveis para todas as sequências
+                </p>
               </div>
               
-              <Dialog open={showGlobalRestrictionsDialog} onOpenChange={setShowGlobalRestrictionsDialog}>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Adicionar Restrição Global</DialogTitle>
-                    <DialogDescription>
-                      Selecione uma restrição global para adicionar à sequência
-                    </DialogDescription>
-                  </DialogHeader>
-                  
-                  {availableGlobalRestrictions.length === 0 ? (
-                    <div className="text-center py-8">
-                      <Lock className="h-8 w-8 text-muted-foreground mb-2 mx-auto" />
-                      <p className="text-muted-foreground">
-                        Não há restrições globais disponíveis
-                      </p>
-                    </div>
-                  ) : (
-                    <ScrollArea className="h-72 pr-4">
-                      <div className="space-y-2">
-                        {availableGlobalRestrictions.map(restriction => (
-                          <RestrictionItem
-                            key={restriction.id}
-                            restriction={restriction}
-                            onRemove={() => {}}
-                            onSelect={() => addGlobalRestriction(restriction)}
-                          />
-                        ))}
-                      </div>
-                    </ScrollArea>
-                  )}
-                  
-                  <DialogFooter>
-                    <Button 
-                      variant="outline" 
-                      onClick={() => setShowGlobalRestrictionsDialog(false)}
-                    >
-                      Fechar
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-              
-              {globalRestrictions.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  Nenhuma restrição global adicionada
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {globalRestrictions.map(restriction => (
+              <div className="space-y-2">
+                {availableGlobalRestrictions.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground border rounded-md">
+                    Não há restrições globais disponíveis
+                  </div>
+                ) : (
+                  availableGlobalRestrictions.map(restriction => (
                     <RestrictionItem
                       key={restriction.id}
                       restriction={restriction}
-                      onRemove={removeTimeRestriction}
+                      onRemove={() => {}}
+                      selected={isGlobalRestrictionSelected(restriction.id)}
+                      onSelect={() => addGlobalRestriction(restriction)}
                     />
-                  ))}
-                </div>
-              )}
+                  ))
+                )}
+              </div>
             </div>
           </div>
         </TabsContent>

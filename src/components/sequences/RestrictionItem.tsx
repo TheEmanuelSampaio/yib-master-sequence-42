@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { Edit, Trash2, Lock, Unlock, Check } from "lucide-react";
+import { Edit, Trash2, Lock, Check, PlusCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -46,10 +46,16 @@ export function RestrictionItem({ restriction, onRemove, onUpdate, selected, onS
       !restriction.active && "opacity-60"
     )}>
       <div className="p-4">
-        <div className="flex justify-between items-center mb-3">
+        <div className="flex justify-between items-center mb-2">
           <div className="flex items-center">
             {restriction.isGlobal ? (
-              <Lock className="h-4 w-4 mr-2 text-blue-500" />
+              <div className="flex items-center">
+                <Lock className="h-4 w-4 mr-2 text-blue-500" />
+                <span className="font-medium">{restriction.name}</span>
+                <Badge variant="outline" className="ml-2 bg-blue-500/10 text-blue-700 dark:text-blue-400 text-xs py-0">
+                  Global
+                </Badge>
+              </div>
             ) : (
               <div className="flex items-center">
                 <Switch
@@ -64,14 +70,6 @@ export function RestrictionItem({ restriction, onRemove, onUpdate, selected, onS
                 />
                 <span className="text-sm font-medium">{restriction.name}</span>
               </div>
-            )}
-            {restriction.isGlobal && (
-              <span className="font-medium">{restriction.name}</span>
-            )}
-            {restriction.isGlobal && (
-              <Badge variant="outline" className="ml-2 bg-blue-500/10 text-blue-700 dark:text-blue-400 text-xs py-0">
-                Global
-              </Badge>
             )}
           </div>
           <div className="flex items-center space-x-2">
@@ -96,37 +94,44 @@ export function RestrictionItem({ restriction, onRemove, onUpdate, selected, onS
           </div>
         </div>
         
-        <div className="space-y-2">
+        <div>
           <div className="flex flex-col">
-            <span className="text-sm text-muted-foreground">Dias:</span>
-            <div className="flex flex-wrap gap-2 mt-1">
+            <span className="text-xs text-muted-foreground">Dias:</span>
+            <div className="flex flex-wrap gap-1 mt-1">
               {activeDays.map((day, i) => (
-                <Badge key={i} variant="outline" className="bg-secondary text-secondary-foreground">
+                <Badge key={i} variant="outline" className="bg-secondary text-secondary-foreground text-xs">
                   {day}
                 </Badge>
               ))}
             </div>
           </div>
           
-          <div className="text-sm text-muted-foreground">
+          <div className="text-xs text-muted-foreground mt-1">
             Horário: {formatTime(restriction.startHour, restriction.startMinute)} até {formatTime(restriction.endHour, restriction.endMinute)}
           </div>
         </div>
         
-        {selected && (
-          <div className="mt-2 flex justify-end">
-            <Check className="h-5 w-5 text-green-500" />
-          </div>
-        )}
-        
         {onSelect && (
-          <Button
-            onClick={onSelect}
-            variant="ghost"
-            className="mt-2 w-full border border-dashed"
-          >
-            {selected ? "Selecionada" : "Adicionar"}
-          </Button>
+          <div className="mt-3">
+            <Button
+              onClick={onSelect}
+              variant="outline"
+              size="sm"
+              className="w-full border border-dashed"
+            >
+              {selected ? (
+                <div className="flex items-center">
+                  <Check className="h-4 w-4 mr-1 text-green-500" />
+                  <span>Selecionada</span>
+                </div>
+              ) : (
+                <div className="flex items-center">
+                  <PlusCircle className="h-4 w-4 mr-1" />
+                  <span>Adicionar</span>
+                </div>
+              )}
+            </Button>
+          </div>
         )}
       </div>
     </div>
