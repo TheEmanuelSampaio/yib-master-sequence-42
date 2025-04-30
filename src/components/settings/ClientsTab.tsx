@@ -117,7 +117,7 @@ export const ClientsTab = () => {
                 <SelectValue placeholder="Filtrar por usuário" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos os usuários</SelectItem>
+                <SelectItem value="all">Todos os usuários</SelectItem>
                 {users.map(user => (
                   <SelectItem key={user.id} value={user.id}>{user.accountName}</SelectItem>
                 ))}
