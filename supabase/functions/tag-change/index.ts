@@ -130,108 +130,132 @@ Deno.serve(async (req) => {
       // Continue despite error
     }
     
-    // Get the first admin user to use as creator for tags
-    console.log('Fetching admin user to use as tag creator');
+    // IMPORTANTE: Obter um criador válido para as tags
+    // Primeiro, tentar obter um usuário admin
+    console.log('Buscando um usuário válido para criar as tags...');
+    let creatorId = null;
+    
+    // 1. Tentar buscar um admin
     const { data: adminUsers, error: adminError } = await supabase
       .from('profiles')
       .select('id')
       .eq('role', 'admin')
       .limit(1);
     
-    let creatorId = null;
-    if (adminError) {
-      console.error('Error fetching admin user:', adminError);
-    } else if (adminUsers && adminUsers.length > 0) {
+    if (!adminError && adminUsers && adminUsers.length > 0) {
       creatorId = adminUsers[0].id;
-      console.log(`Found admin user with ID: ${creatorId}`);
+      console.log(`Usando usuário admin como criador, ID: ${creatorId}`);
     } else {
-      console.log('No admin users found, will attempt to create a default');
-      // Create a system user entry in profiles if no admin exists
-      const { data: authUsers } = await supabase.auth.admin.listUsers();
-      if (authUsers && authUsers.users && authUsers.users.length > 0) {
-        const firstUserId = authUsers.users[0].id;
-        console.log(`Using first auth user as creator: ${firstUserId}`);
-        creatorId = firstUserId;
+      console.log('Nenhum usuário admin encontrado, buscando qualquer usuário válido...');
+      
+      // 2. Se não encontrar admin, buscar qualquer usuário
+      const { data: anyUser, error: anyUserError } = await supabase
+        .from('profiles')
+        .select('id')
+        .limit(1);
+      
+      if (!anyUserError && anyUser && anyUser.length > 0) {
+        creatorId = anyUser[0].id;
+        console.log(`Usando primeiro usuário encontrado como criador, ID: ${creatorId}`);
+      } else {
+        console.error('Nenhum usuário válido encontrado para usar como criador de tags!');
       }
     }
     
-    // Add new tags for the contact and ensure tags exists in the tags table
+    if (!creatorId) {
+      console.error('Não foi possível encontrar um usuário válido para criar as tags.');
+      return new Response(
+        JSON.stringify({ 
+          error: 'Não foi possível processar as tags, nenhum usuário válido encontrado.',
+          partial_success: true,
+          contact: {
+            id: contactId.toString(),
+            name: contactName,
+            tags
+          }
+        }),
+        { status: 207, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    // Adicionar tags para o contato e garantir que existam na tabela global de tags
+    let addedTags = 0;
+    let existingTagsCount = 0;
+    let tagErrors = 0;
+    
     for (const tag of tags) {
-      console.log(`Processing tag: ${tag}`);
+      console.log(`Processando tag: ${tag}`);
       
-      // Insert the contact_tag relationship
-      const { error: insertTagError } = await supabase
-        .from('contact_tags')
-        .insert({
-          contact_id: contactId.toString(),
-          tag_name: tag
-        });
-      
-      if (insertTagError && !insertTagError.message.includes('duplicate')) {
-        console.error(`Error inserting tag ${tag}:`, insertTagError);
-        // Continue despite error
-      }
-      
-      // Check if tag exists in tags table
-      console.log(`Checking if tag ${tag} exists in tags table`);
-      const { data: existingTag, error: checkTagError } = await supabase
-        .from('tags')
-        .select('name')
-        .eq('name', tag)
-        .maybeSingle();
-      
-      if (checkTagError) {
-        console.error(`Error checking if tag ${tag} exists:`, checkTagError);
-      }
-      
-      // Only insert if tag doesn't exist and we have a valid creator ID
-      if (!existingTag) {
-        console.log(`Tag ${tag} not found in tags table`);
+      try {
+        // 1. Inserir em contact_tags (relação contato-tag)
+        const { error: insertTagError } = await supabase
+          .from('contact_tags')
+          .insert({
+            contact_id: contactId.toString(),
+            tag_name: tag
+          });
         
-        if (creatorId) {
-          console.log(`Adding tag ${tag} to tags table with creator ID: ${creatorId}`);
-          const { error: insertGlobalTagError } = await supabase
+        if (insertTagError && !insertTagError.message.includes('duplicate')) {
+          console.error(`Erro ao inserir tag ${tag} para o contato:`, insertTagError);
+          tagErrors++;
+          // Continue mesmo com erro
+        }
+        
+        // 2. Verificar se a tag existe na tabela global de tags
+        console.log(`Verificando se a tag "${tag}" já existe na tabela global`);
+        const { data: existingTag, error: checkTagError } = await supabase
+          .from('tags')
+          .select('name')
+          .eq('name', tag)
+          .maybeSingle();
+        
+        if (checkTagError) {
+          console.error(`Erro ao verificar tag ${tag}:`, checkTagError);
+          tagErrors++;
+        }
+        
+        // 3. Se a tag não existir, adicioná-la à tabela global
+        if (!existingTag) {
+          console.log(`Tag "${tag}" não encontrada na tabela global, adicionando...`);
+          
+          const { data: insertedTag, error: insertGlobalTagError } = await supabase
             .from('tags')
             .insert({
               name: tag,
               created_by: creatorId
-            });
+            })
+            .select()
+            .single();
           
           if (insertGlobalTagError) {
-            console.error(`Error inserting global tag ${tag}:`, insertGlobalTagError);
-            // Continue despite error
+            console.error(`Erro ao inserir tag global ${tag}:`, insertGlobalTagError);
+            tagErrors++;
           } else {
-            console.log(`Successfully added tag ${tag} to tags table`);
+            console.log(`Tag "${tag}" adicionada com sucesso à tabela global: ${JSON.stringify(insertedTag)}`);
+            addedTags++;
           }
         } else {
-          console.error(`Could not add tag ${tag} to tags table: no creator ID available`);
-          
-          // Last resort: Try to insert with a system value if allowed by RLS
-          const { error: lastResortError } = await supabase
-            .from('tags')
-            .insert({
-              name: tag,
-              created_by: '00000000-0000-0000-0000-000000000000'
-            });
-          
-          if (!lastResortError) {
-            console.log(`Successfully added tag ${tag} to tags table with system ID`);
-          } else {
-            console.error(`Failed last resort attempt to add tag ${tag}:`, lastResortError);
-          }
+          console.log(`Tag "${tag}" já existe na tabela global`);
+          existingTagsCount++;
         }
-      } else {
-        console.log(`Tag ${tag} already exists in tags table`);
+      } catch (tagError) {
+        console.error(`Erro não tratado ao processar a tag ${tag}:`, tagError);
+        tagErrors++;
       }
     }
     
-    // Process sequences that match this contact's tags
+    // Processar sequências que correspondam às tags deste contato
     await processMatchingSequences(supabase, contactId.toString(), tags, client.id);
     
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: 'Contact processed successfully',
+        message: 'Contato processado com sucesso',
+        stats: {
+          tagsAdded: addedTags,
+          existingTags: existingTagsCount,
+          tagErrors
+        },
         contact: {
           id: contactId.toString(),
           name: contactName,
@@ -241,9 +265,9 @@ Deno.serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('Unexpected error:', error);
+    console.error('Erro inesperado:', error);
     return new Response(
-      JSON.stringify({ error: 'Internal server error', details: error.message }),
+      JSON.stringify({ error: 'Erro interno do servidor', details: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
