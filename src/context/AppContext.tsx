@@ -21,6 +21,7 @@ interface DailyStat {
 
 interface AppContextType {
   user: User | null;
+  users: User[];
   clients: Client[];
   instances: Instance[];
   currentInstanceId: string | null;
@@ -36,10 +37,28 @@ interface AppContextType {
   refreshData: () => Promise<void>;
   setCurrentInstanceId: (id: string | null) => void;
   setCurrentInstance: (instance: Instance | null) => void;
+  addInstance: (instance: Omit<Instance, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  updateInstance: (id: string, updatedFields: Partial<Instance>) => Promise<void>;
+  deleteInstance: (id: string) => Promise<void>;
+  addSequence: (sequence: Omit<Sequence, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  updateSequence: (id: string, updatedFields: Partial<Sequence>) => Promise<void>;
+  deleteSequence: (id: string) => Promise<void>;
+  addUser: (user: Omit<User, 'id'>) => Promise<void>;
+  updateUser: (id: string, updatedFields: Partial<User>) => Promise<void>;
+  deleteUser: (id: string) => Promise<void>;
+  addClient: (client: Omit<Client, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  updateClient: (id: string, updatedFields: Partial<Client>) => Promise<void>;
+  deleteClient: (id: string) => Promise<void>;
+  addTag: (tag: string) => Promise<void>;
+  deleteTag: (tag: string) => Promise<void>;
+  addTimeRestriction: (restriction: Omit<TimeRestriction, 'id' | 'createdAt'>) => Promise<void>;
+  updateTimeRestriction: (id: string, updatedFields: Partial<TimeRestriction>) => Promise<void>;
+  deleteTimeRestriction: (id: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType>({
   user: null,
+  users: [],
   clients: [],
   instances: [],
   currentInstanceId: null,
@@ -55,12 +74,30 @@ const AppContext = createContext<AppContextType>({
   refreshData: async () => {},
   setCurrentInstanceId: () => {},
   setCurrentInstance: () => {},
+  addInstance: async () => {},
+  updateInstance: async () => {},
+  deleteInstance: async () => {},
+  addSequence: async () => {},
+  updateSequence: async () => {},
+  deleteSequence: async () => {},
+  addUser: async () => {},
+  updateUser: async () => {},
+  deleteUser: async () => {},
+  addClient: async () => {},
+  updateClient: async () => {},
+  deleteClient: async () => {},
+  addTag: async () => {},
+  deleteTag: async () => {},
+  addTimeRestriction: async () => {},
+  updateTimeRestriction: async () => {},
+  deleteTimeRestriction: async () => {},
 });
 
 export const useApp = () => useContext(AppContext);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [users, setUsers] = useState<User[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [instances, setInstances] = useState<Instance[]>([]);
   const [currentInstanceId, setCurrentInstanceId] = useState<string | null>(null);
@@ -104,6 +141,229 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setStats(mockStats);
     }
   }, [stats]);
+
+  // Instance management functions
+  const addInstance = async (instanceData: Omit<Instance, 'id' | 'createdAt' | 'updatedAt'>) => {
+    try {
+      const newInstance = {
+        ...instanceData,
+        id: uuidv4(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      setInstances([...instances, newInstance]);
+      toast.success(`Instância "${newInstance.name}" criada com sucesso`);
+    } catch (error) {
+      console.error('Error adding instance:', error);
+      toast.error(`Erro ao adicionar instância: ${error.message}`);
+    }
+  };
+
+  const updateInstance = async (id: string, updatedFields: Partial<Instance>) => {
+    try {
+      setInstances(instances.map(instance => 
+        instance.id === id 
+          ? { ...instance, ...updatedFields, updatedAt: new Date().toISOString() } 
+          : instance
+      ));
+    } catch (error) {
+      console.error('Error updating instance:', error);
+      toast.error(`Erro ao atualizar instância: ${error.message}`);
+    }
+  };
+
+  const deleteInstance = async (id: string) => {
+    try {
+      setInstances(instances.filter(instance => instance.id !== id));
+      
+      if (currentInstanceId === id) {
+        const remainingActiveInstances = instances.filter(i => i.id !== id && i.active);
+        if (remainingActiveInstances.length > 0) {
+          setCurrentInstanceId(remainingActiveInstances[0].id);
+        } else {
+          setCurrentInstanceId(null);
+        }
+      }
+      
+      toast.success('Instância excluída com sucesso');
+    } catch (error) {
+      console.error('Error deleting instance:', error);
+      toast.error(`Erro ao excluir instância: ${error.message}`);
+    }
+  };
+
+  // Sequence management functions
+  const addSequence = async (sequenceData: Omit<Sequence, 'id' | 'createdAt' | 'updatedAt'>) => {
+    try {
+      const newSequence = {
+        ...sequenceData,
+        id: uuidv4(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        createdBy: user?.id || '',
+      };
+      setSequences([...sequences, newSequence]);
+      toast.success(`Sequência "${newSequence.name}" criada com sucesso`);
+    } catch (error) {
+      console.error('Error adding sequence:', error);
+      toast.error(`Erro ao adicionar sequência: ${error.message}`);
+    }
+  };
+
+  const updateSequence = async (id: string, updatedFields: Partial<Sequence>) => {
+    try {
+      setSequences(sequences.map(sequence => 
+        sequence.id === id 
+          ? { ...sequence, ...updatedFields, updatedAt: new Date().toISOString() } 
+          : sequence
+      ));
+    } catch (error) {
+      console.error('Error updating sequence:', error);
+      toast.error(`Erro ao atualizar sequência: ${error.message}`);
+    }
+  };
+
+  const deleteSequence = async (id: string) => {
+    try {
+      setSequences(sequences.filter(sequence => sequence.id !== id));
+      toast.success('Sequência excluída com sucesso');
+    } catch (error) {
+      console.error('Error deleting sequence:', error);
+      toast.error(`Erro ao excluir sequência: ${error.message}`);
+    }
+  };
+
+  // User management functions
+  const addUser = async (userData: Omit<User, 'id'>) => {
+    try {
+      const newUser = {
+        ...userData,
+        id: uuidv4(),
+      };
+      setUsers([...users, newUser]);
+    } catch (error) {
+      console.error('Error adding user:', error);
+      toast.error(`Erro ao adicionar usuário: ${error.message}`);
+    }
+  };
+
+  const updateUser = async (id: string, updatedFields: Partial<User>) => {
+    try {
+      setUsers(users.map(u => 
+        u.id === id 
+          ? { ...u, ...updatedFields } 
+          : u
+      ));
+    } catch (error) {
+      console.error('Error updating user:', error);
+      toast.error(`Erro ao atualizar usuário: ${error.message}`);
+    }
+  };
+
+  const deleteUser = async (id: string) => {
+    try {
+      setUsers(users.filter(u => u.id !== id));
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      toast.error(`Erro ao excluir usuário: ${error.message}`);
+    }
+  };
+
+  // Client management functions
+  const addClient = async (clientData: Omit<Client, 'id' | 'createdAt' | 'updatedAt'>) => {
+    try {
+      const newClient = {
+        ...clientData,
+        id: uuidv4(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      setClients([...clients, newClient]);
+    } catch (error) {
+      console.error('Error adding client:', error);
+      toast.error(`Erro ao adicionar cliente: ${error.message}`);
+    }
+  };
+
+  const updateClient = async (id: string, updatedFields: Partial<Client>) => {
+    try {
+      setClients(clients.map(client => 
+        client.id === id 
+          ? { ...client, ...updatedFields, updatedAt: new Date().toISOString() } 
+          : client
+      ));
+    } catch (error) {
+      console.error('Error updating client:', error);
+      toast.error(`Erro ao atualizar cliente: ${error.message}`);
+    }
+  };
+
+  const deleteClient = async (id: string) => {
+    try {
+      setClients(clients.filter(client => client.id !== id));
+    } catch (error) {
+      console.error('Error deleting client:', error);
+      toast.error(`Erro ao excluir cliente: ${error.message}`);
+    }
+  };
+
+  // Tag management functions
+  const addTag = async (tag: string) => {
+    try {
+      if (!tags.includes(tag)) {
+        setTags([...tags, tag]);
+      }
+    } catch (error) {
+      console.error('Error adding tag:', error);
+      toast.error(`Erro ao adicionar tag: ${error.message}`);
+    }
+  };
+
+  const deleteTag = async (tag: string) => {
+    try {
+      setTags(tags.filter(t => t !== tag));
+    } catch (error) {
+      console.error('Error deleting tag:', error);
+      toast.error(`Erro ao excluir tag: ${error.message}`);
+    }
+  };
+
+  // Time restriction management functions
+  const addTimeRestriction = async (restriction: Omit<TimeRestriction, 'id' | 'createdAt'>) => {
+    try {
+      const newRestriction = {
+        ...restriction,
+        id: uuidv4(),
+        createdAt: new Date().toISOString(),
+      };
+      setTimeRestrictions([...timeRestrictions, newRestriction]);
+    } catch (error) {
+      console.error('Error adding time restriction:', error);
+      toast.error(`Erro ao adicionar restrição de tempo: ${error.message}`);
+    }
+  };
+
+  const updateTimeRestriction = async (id: string, updatedFields: Partial<TimeRestriction>) => {
+    try {
+      setTimeRestrictions(timeRestrictions.map(restriction => 
+        restriction.id === id 
+          ? { ...restriction, ...updatedFields } 
+          : restriction
+      ));
+    } catch (error) {
+      console.error('Error updating time restriction:', error);
+      toast.error(`Erro ao atualizar restrição de tempo: ${error.message}`);
+    }
+  };
+
+  const deleteTimeRestriction = async (id: string) => {
+    try {
+      setTimeRestrictions(timeRestrictions.filter(restriction => restriction.id !== id));
+    } catch (error) {
+      console.error('Error deleting time restriction:', error);
+      toast.error(`Erro ao excluir restrição de tempo: ${error.message}`);
+    }
+  };
   
   // Lista para atualização de todos os dados
   const refreshData = async () => {
@@ -402,14 +662,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       
       // Setup realtime subscription
-      const unsubscribe = setupRealtimeSubscription();
+      setupRealtimeSubscription();
       
       setIsDataInitialized(true);
       console.info("Data refresh completed successfully");
-      
-      return () => {
-        unsubscribe();
-      };
     } catch (error) {
       console.error("Error refreshing data:", error);
       toast({
@@ -464,6 +720,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     <AppContext.Provider
       value={{
         user,
+        users,
         clients,
         instances,
         currentInstanceId,
@@ -479,6 +736,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         refreshData,
         setCurrentInstanceId,
         setCurrentInstance,
+        addInstance,
+        updateInstance,
+        deleteInstance,
+        addSequence,
+        updateSequence,
+        deleteSequence,
+        addUser,
+        updateUser,
+        deleteUser,
+        addClient,
+        updateClient,
+        deleteClient,
+        addTag,
+        deleteTag,
+        addTimeRestriction,
+        updateTimeRestriction,
+        deleteTimeRestriction
       }}
     >
       {children}
