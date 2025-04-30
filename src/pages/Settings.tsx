@@ -35,32 +35,10 @@ export default function Settings() {
   const [openAddClient, setOpenAddClient] = useState(false);
   const [openAddTimeRestriction, setOpenAddTimeRestriction] = useState(false);
   const [newTagName, setNewTagName] = useState("");
+
+  // Não precisamos mais filtrar os dados manualmente, o RLS do Supabase cuida disso para nós
+  // As variáveis abaixo agora usam diretamente os dados do contexto
   
-  // Filtrar os dados que o usuário atual pode ver
-  const [filteredClients, setFilteredClients] = useState([]);
-  const [filteredTags, setFilteredTags] = useState([]);
-  const [filteredTimeRestrictions, setFilteredTimeRestrictions] = useState([]);
-
-  // Filtrar dados com base no usuário atual
-  useEffect(() => {
-    // Se for super admin, vê tudo. Caso contrário, filtra
-    if (isSuper) {
-      setFilteredClients(clients);
-      setFilteredTags(tags);
-      setFilteredTimeRestrictions(timeRestrictions);
-    } else if (currentUser) {
-      // Filtra clientes criados pelo usuário
-      setFilteredClients(clients.filter(client => client.createdBy === currentUser.id));
-      
-      // Agora exibimos todas as tags, pois a filtragem é feita pelo RLS no banco de dados
-      setFilteredTags(tags);
-      
-      // Como TimeRestriction não tem createdBy no tipo,
-      // vamos deixar vazio para não-super admins por enquanto
-      setFilteredTimeRestrictions([]);
-    }
-  }, [clients, tags, timeRestrictions, currentUser, isSuper]);
-
   const [newUser, setNewUser] = useState({
     accountName: "",
     email: "",
@@ -580,7 +558,7 @@ export default function Settings() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredClients.map((client) => (
+                  {clients.map((client) => (
                     <TableRow key={client.id}>
                       <TableCell className="font-medium">{client.accountName}</TableCell>
                       <TableCell>{client.accountId}</TableCell>
@@ -621,7 +599,7 @@ export default function Settings() {
                       </TableCell>
                     </TableRow>
                   ))}
-                  {filteredClients.length === 0 && (
+                  {clients.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
                         Nenhum cliente cadastrado
@@ -825,7 +803,7 @@ export default function Settings() {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredTimeRestrictions.map((restriction) => (
+                {timeRestrictions.map((restriction) => (
                   <Card key={restriction.id} className="overflow-hidden">
                     <CardHeader className="bg-muted/50 flex flex-row items-center justify-between py-4 px-6">
                       <div className="flex items-center space-x-2">
@@ -888,7 +866,7 @@ export default function Settings() {
                   </Card>
                 ))}
                 
-                {filteredTimeRestrictions.length === 0 && (
+                {timeRestrictions.length === 0 && (
                   <div className="col-span-3 flex flex-col items-center justify-center p-8 bg-muted/30 rounded-lg">
                     <Clock className="h-12 w-12 text-muted-foreground mb-4" />
                     <h3 className="text-lg font-medium mb-2">Nenhuma restrição de horário</h3>
@@ -1067,8 +1045,7 @@ export default function Settings() {
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-2">
-                {/* Usando as tags filtradas por usuário */}
-                {filteredTags.map((tag) => (
+                {tags.map((tag) => (
                   <Badge key={tag} variant="secondary" className="px-3 py-1 text-sm">
                     <span className="mr-1">{tag}</span>
                     <button 
@@ -1080,7 +1057,7 @@ export default function Settings() {
                   </Badge>
                 ))}
                 
-                {filteredTags.length === 0 && (
+                {tags.length === 0 && (
                   <div className="w-full flex flex-col items-center justify-center py-8 bg-muted/30 rounded-lg">
                     <Tag className="h-12 w-12 text-muted-foreground mb-4" />
                     <h3 className="text-lg font-medium mb-2">Nenhuma tag cadastrada</h3>

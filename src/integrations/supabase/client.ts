@@ -13,7 +13,7 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
   }
 });
 
-// Função para buscar clientes com informações adicionais do criador usando JOIN
+// Função para buscar clientes
 export const fetchClientsWithCreatorInfo = async () => {
   const { data, error } = await supabase
     .from('clients')
@@ -101,31 +101,25 @@ export const fetchContactsWithInfo = async () => {
   return contacts || [];
 };
 
-// Função para buscar tags e informações do criador
+// Função para buscar tags
 export const fetchTagsWithCreatorInfo = async () => {
   const { data, error } = await supabase
     .from('tags')
-    .select(`
-      *,
-      creator:profiles!tags_created_by_fkey(id, account_name)
-    `);
+    .select('*');
   
   if (error) {
     console.error('Erro ao buscar tags:', error);
     throw error;
   }
   
-  return data || [];
+  return data ? data.map(tag => tag.name) : [];
 };
 
-// Função para buscar restrições de tempo e informações do criador
+// Função para buscar restrições de tempo
 export const fetchTimeRestrictionsWithCreatorInfo = async () => {
   const { data, error } = await supabase
     .from('time_restrictions')
-    .select(`
-      *,
-      creator:profiles!time_restrictions_created_by_fkey(id, account_name)
-    `);
+    .select('*');
   
   if (error) {
     console.error('Erro ao buscar restrições de tempo:', error);
