@@ -86,7 +86,7 @@ export default function Settings() {
     if (client.createdBy && users && users.length > 0) {
       const creator = users.find(user => user.id === client.createdBy);
       if (creator) {
-        return creator.accountName;
+        return creator.accountName || 'Usuário';
       }
     }
     
@@ -99,7 +99,8 @@ export default function Settings() {
       return client.creator_account_name;
     }
     
-    return "—";
+    // Final fallback for older data
+    return client.createdBy ? `Usuário (${client.createdBy.substring(0, 4)})` : '—';
   };
 
   const handleAddUser = async () => {
