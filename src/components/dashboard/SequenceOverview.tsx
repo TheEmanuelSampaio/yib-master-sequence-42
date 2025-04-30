@@ -5,7 +5,7 @@ import { Check, Clock, Activity, Ban } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 
 export function SequenceOverview() {
   const { sequences, currentInstance, refreshData, isDataInitialized } = useApp();
@@ -18,11 +18,14 @@ export function SequenceOverview() {
   }, [currentInstance, refreshData, isDataInitialized]);
 
   // Filter sequences for current instance
-  const instanceSequences = currentInstance && sequences ? 
-    sequences.filter(seq => seq.instanceId === currentInstance.id) : 
-    [];
+  const instanceSequences = useMemo(() => {
+    if (!currentInstance || !sequences) return [];
+    return sequences.filter(seq => seq.instanceId === currentInstance.id);
+  }, [currentInstance, sequences]);
 
-  const activeSequences = instanceSequences.filter(seq => seq.status === 'active');
+  const activeSequences = useMemo(() => {
+    return instanceSequences.filter(seq => seq.status === 'active');
+  }, [instanceSequences]);
   
   return (
     <Card className="col-span-full">

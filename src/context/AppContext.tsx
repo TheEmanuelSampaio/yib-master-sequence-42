@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, setupRealtimeSubscription } from '@/integrations/supabase/client';
 import { 
   User, Client, Instance, Sequence, Contact, 
   ContactSequence, ScheduledMessage, TagCondition, 
@@ -9,18 +9,33 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import { toast } from "@/components/ui/use-toast";
 
+// Define daily stats interface
+interface DailyStat {
+  date: string;
+  messagesSent: number;
+  messagesScheduled: number;
+  messagesFailed: number;
+  newContacts: number;
+  completedSequences: number;
+}
+
 interface AppContextType {
   user: User | null;
   clients: Client[];
   instances: Instance[];
   currentInstanceId: string | null;
+  currentInstance: Instance | null;
   sequences: Sequence[];
   contacts: Contact[];
   contactSequences: ContactSequence[];
   scheduledMessages: ScheduledMessage[];
   tags: string[];
+  stats: DailyStat[];
+  timeRestrictions: TimeRestriction[];
+  isDataInitialized: boolean;
   refreshData: () => Promise<void>;
   setCurrentInstanceId: (id: string | null) => void;
+  setCurrentInstance: (instance: Instance | null) => void;
 }
 
 const AppContext = createContext<AppContextType>({
@@ -28,13 +43,18 @@ const AppContext = createContext<AppContextType>({
   clients: [],
   instances: [],
   currentInstanceId: null,
+  currentInstance: null,
   sequences: [],
   contacts: [],
   contactSequences: [],
   scheduledMessages: [],
   tags: [],
+  stats: [],
+  timeRestrictions: [],
+  isDataInitialized: false,
   refreshData: async () => {},
   setCurrentInstanceId: () => {},
+  setCurrentInstance: () => {},
 });
 
 export const useApp = () => useContext(AppContext);
@@ -44,17 +64,53 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [clients, setClients] = useState<Client[]>([]);
   const [instances, setInstances] = useState<Instance[]>([]);
   const [currentInstanceId, setCurrentInstanceId] = useState<string | null>(null);
+  const [currentInstance, setCurrentInstance] = useState<Instance | null>(null);
   const [sequences, setSequences] = useState<Sequence[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [contactSequences, setContactSequences] = useState<ContactSequence[]>([]);
   const [scheduledMessages, setScheduledMessages] = useState<ScheduledMessage[]>([]);
   const [tags, setTags] = useState<string[]>([]);
+  const [stats, setStats] = useState<DailyStat[]>([]);
+  const [timeRestrictions, setTimeRestrictions] = useState<TimeRestriction[]>([]);
+  const [isDataInitialized, setIsDataInitialized] = useState(false);
+  
+  // Handle instance change
+  useEffect(() => {
+    if (currentInstanceId && instances.length > 0) {
+      const instance = instances.find(i => i.id === currentInstanceId);
+      setCurrentInstance(instance || null);
+    } else {
+      setCurrentInstance(null);
+    }
+  }, [currentInstanceId, instances]);
+  
+  // Generate mock stats for the dashboard if needed
+  useEffect(() => {
+    if (stats.length === 0) {
+      // Generate some sample stats for the last 7 days
+      const mockStats: DailyStat[] = [];
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        mockStats.push({
+          date: date.toISOString().split('T')[0],
+          messagesSent: Math.floor(Math.random() * 100),
+          messagesScheduled: Math.floor(Math.random() * 150),
+          messagesFailed: Math.floor(Math.random() * 10),
+          newContacts: Math.floor(Math.random() * 20),
+          completedSequences: Math.floor(Math.random() * 15),
+        });
+      }
+      setStats(mockStats);
+    }
+  }, [stats]);
   
   // Lista para atualização de todos os dados
   const refreshData = async () => {
     console.info("Refreshing data...");
     
     try {
+      setIsDataInitialized(false);
       // 1. Buscar dados do usuário atual
       const { data: { user } } = await supabase.auth.getUser();
       
@@ -297,12 +353,63 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               if (tagsData) {
                 setTags(tagsData.map(t => t.name));
               }
+              
+              // 9. Buscar restrições de tempo
+              const { data: timeRestrictionsData } = await supabase
+                .from('time_restrictions')
+                .select('*');
+                
+              if (timeRestrictionsData) {
+                const mappedRestrictions = timeRestrictionsData.map(tr => ({
+                  id: tr.id,
+                  name: tr.name,
+                  active: tr.active,
+                  days: tr.days,
+                  startHour: tr.start_hour,
+                  startMinute: tr.start_minute,
+                  endHour: tr.end_hour,
+                  endMinute: tr.end_minute,
+                  isGlobal: true,
+                  createdBy: tr.created_by,
+                  createdAt: tr.created_at,
+                }));
+                
+                setTimeRestrictions(mappedRestrictions);
+              }
+              
+              // 10. Buscar estatísticas diárias
+              const { data: dailyStatsData } = await supabase
+                .from('daily_stats')
+                .select('*')
+                .order('date', { ascending: false })
+                .limit(7);
+                
+              if (dailyStatsData && dailyStatsData.length > 0) {
+                const mappedStats = dailyStatsData.map(ds => ({
+                  date: ds.date,
+                  messagesSent: ds.messages_sent,
+                  messagesScheduled: ds.messages_scheduled,
+                  messagesFailed: ds.messages_failed, 
+                  newContacts: ds.new_contacts,
+                  completedSequences: ds.completed_sequences,
+                }));
+                
+                setStats(mappedStats);
+              }
             }
           }
         }
       }
       
+      // Setup realtime subscription
+      const unsubscribe = setupRealtimeSubscription();
+      
+      setIsDataInitialized(true);
       console.info("Data refresh completed successfully");
+      
+      return () => {
+        unsubscribe();
+      };
     } catch (error) {
       console.error("Error refreshing data:", error);
       toast({
@@ -310,6 +417,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         description: "Ocorreu um erro ao atualizar os dados. Tente novamente mais tarde.",
         variant: "destructive",
       });
+      setIsDataInitialized(true);
     }
   };
 
@@ -327,11 +435,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setClients([]);
           setInstances([]);
           setCurrentInstanceId(null);
+          setCurrentInstance(null);
           setSequences([]);
           setContacts([]);
           setContactSequences([]);
           setScheduledMessages([]);
           setTags([]);
+          setStats([]);
+          setTimeRestrictions([]);
+          setIsDataInitialized(false);
         }
       }
     );
@@ -343,7 +455,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   
   // Efeito para recarregar dados quando a instância atual mudar
   useEffect(() => {
-    if (currentInstanceId) {
+    if (currentInstanceId && isDataInitialized) {
       refreshData();
     }
   }, [currentInstanceId]);
@@ -355,13 +467,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         clients,
         instances,
         currentInstanceId,
+        currentInstance,
         sequences,
         contacts,
         contactSequences,
         scheduledMessages,
         tags,
+        stats,
+        timeRestrictions,
+        isDataInitialized,
         refreshData,
         setCurrentInstanceId,
+        setCurrentInstance,
       }}
     >
       {children}
