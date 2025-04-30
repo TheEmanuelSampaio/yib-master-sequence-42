@@ -1,4 +1,3 @@
-
 import { ApiTester } from "@/components/api/ApiTester";
 
 const ApiDocs = () => {
@@ -39,46 +38,20 @@ const ApiDocs = () => {
                 <h4 className="text-sm font-medium mb-1">Payload</h4>
                 <pre className="text-sm font-mono whitespace-pre-wrap">
 {`{
-  // Pode ser enviado diretamente ou aninhado em um objeto data
-  "accountId": 1,
-  "accountName": "Nome da Conta",
-  "contact": {
-    "id": 12345,
-    "name": "Nome do Contato",
-    "phoneNumber": "+5511999999999"
-  },
-  "conversation": {
-    "inboxId": 46,
-    "conversationId": 23266,
-    "displayId": 1608,
-    "labels": "tag1, tag2, tag3"
-  }
-}`}
-                </pre>
-              </div>
-              
-              <div className="bg-secondary/50 p-4 rounded-md">
-                <h4 className="text-sm font-medium mb-1">Resposta</h4>
-                <pre className="text-sm font-mono whitespace-pre-wrap">
-{`{
-  "success": true,
-  "message": "Contato processado com sucesso",
-  "stats": {
-    "tagsAdded": 2,
-    "existingTags": 1,
-    "tagErrors": 0
-  },
-  "client": {
-    "id": "uuid-do-cliente",
-    "account_id": 1,
+  "data": {
+    "accountId": 1,
     "accountName": "Nome da Conta",
-    "creatorId": "uuid-do-criador",
-    "creatorName": "Nome do Criador"
-  },
-  "contact": {
-    "id": "12345",
-    "name": "Nome do Contato",
-    "tags": ["tag1", "tag2", "tag3"]
+    "contact": {
+      "id": 12345,
+      "name": "Nome do Contato",
+      "phoneNumber": "+5511999999999"
+    },
+    "conversation": {
+      "inboxId": 46,
+      "conversationId": 23266,
+      "displayId": 1608,
+      "labels": "tag1, tag2, tag3"
+    }
   }
 }`}
                 </pre>
@@ -100,54 +73,6 @@ const ApiDocs = () => {
 }`}
                 </pre>
               </div>
-              
-              <div className="bg-secondary/50 p-4 rounded-md">
-                <h4 className="text-sm font-medium mb-1">Resposta</h4>
-                <pre className="text-sm font-mono whitespace-pre-wrap">
-{`{
-  "messages": [
-    {
-      "id": "uuid-da-mensagem",
-      "chatwootData": {
-        "accountData": {
-          "accountId": 1,
-          "accountName": "Nome da Conta"
-        },
-        "contactData": {
-          "id": 12345,
-          "name": "Nome do Contato",
-          "phoneNumber": "+5511999999999"
-        },
-        "conversationData": {
-          "inboxId": 46,
-          "conversationId": 23266,
-          "displayId": 1608
-        }
-      },
-      "instanceData": {
-        "id": "uuid-da-instancia",
-        "name": "Nome da Instância",
-        "evolutionApiUrl": "https://url-da-api.com",
-        "apiKey": "chave-da-api"
-      },
-      "sequenceData": {
-        "instanceName": "Nome da Instância",
-        "sequenceName": "Nome da Sequência",
-        "type": "message",
-        "stage": {
-          "stg1": {
-            "id": "uuid-do-estagio",
-            "content": "Conteúdo da mensagem",
-            "rawScheduledTime": "2023-05-01T10:00:00.000Z",
-            "scheduledTime": "2023-05-01T10:30:00.000Z"
-          }
-        }
-      }
-    }
-  ]
-}`}
-                </pre>
-              </div>
             </div>
             
             <div className="border rounded-md p-4">
@@ -161,23 +86,7 @@ const ApiDocs = () => {
 {`{
   "data": {
     "messageId": "uuid-da-mensagem",
-    "status": "delivered", // ou "failed"
-    "attempts": 1 // opcional
-  }
-}`}
-                </pre>
-              </div>
-              
-              <div className="bg-secondary/50 p-4 rounded-md">
-                <h4 className="text-sm font-medium mb-1">Resposta</h4>
-                <pre className="text-sm font-mono whitespace-pre-wrap">
-{`{
-  "success": true,
-  "message": "Status de entrega atualizado com sucesso",
-  "data": {
-    "messageId": "uuid-da-mensagem",
-    "status": "sent",
-    "sentAt": "2023-05-01T10:35:00.000Z"
+    "status": "delivered" // ou "failed"
   }
 }`}
                 </pre>

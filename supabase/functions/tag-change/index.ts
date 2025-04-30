@@ -15,14 +15,9 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
     
     // Parse the request body
-    const requestBody = await req.json();
-    console.log('Received request body:', JSON.stringify(requestBody, null, 2));
-
-    // Check if data is wrapped in a data object or directly in the body
-    const data = requestBody.data || requestBody;
+    const { data } = await req.json();
     
     if (!data || !data.accountId || !data.accountName || !data.contact || !data.conversation) {
-      console.error('Missing required data:', JSON.stringify(data, null, 2));
       return new Response(
         JSON.stringify({ error: 'Missing required data' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -35,153 +30,63 @@ Deno.serve(async (req) => {
     
     console.log(`Processing contact ${contactName} with labels: ${labels}`);
     
-    // **VERIFICAÇÃO DO CLIENTE**
-    // Primeiro, busca diretamente pelo id na tabela clients
-    console.log(`Consultando cliente com id = ${accountId}`);
-    const { data: clientsById, error: idError } = await supabase
+    // Modificamos a consulta para não buscar o perfil diretamente, apenas o cliente
+    const { data: clients, error: clientError } = await supabase
       .from('clients')
-      .select('id, account_id, account_name, created_by')
-      .eq('id', accountId)
-      .maybeSingle();
+      .select('*')
+      .eq('account_id', accountId)
+      .limit(1);
     
-    console.log('Resultado da consulta por id:', JSON.stringify(clientsById || 'nenhum resultado', null, 2));
-    console.log('Erro na consulta por id:', idError?.message || 'Nenhum erro');
-    
-    // Se não encontrou pelo id, tenta pelo account_id
-    let client = clientsById;
-    if (!client) {
-      console.log(`Tentando encontrar cliente com account_id = ${accountId}`);
-      const { data: clientsByAccountId, error: accountIdError } = await supabase
-        .from('clients')
-        .select('id, account_id, account_name, created_by')
-        .eq('account_id', accountId)
-        .maybeSingle();
-      
-      console.log('Resultado da consulta por account_id:', JSON.stringify(clientsByAccountId || 'nenhum resultado', null, 2));
-      console.log('Erro na consulta por account_id:', accountIdError?.message || 'Nenhum erro');
-      
-      client = clientsByAccountId;
-    }
-
-    // Verificação final se o cliente foi encontrado
-    if (!client) {
-      // Buscar todos os clientes para depuração
-      const { data: allClients } = await supabase
-        .from('clients')
-        .select('id, account_id, account_name')
-        .limit(10);
-      
-      console.log('Primeiros 10 clientes no banco de dados:', JSON.stringify(allClients || [], null, 2));
-      
+    if (clientError) {
+      console.error('Error fetching client:', clientError);
       return new Response(
-        JSON.stringify({ 
-          error: 'Cliente não encontrado com o ID fornecido',
-          details: {
-            tentou_id: accountId,
-            tentou_account_id: accountId,
-            clientes_disponiveis: allClients
-          }
-        }),
+        JSON.stringify({ error: 'Failed to fetch client', details: clientError.message }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    if (clients.length === 0) {
+      return new Response(
+        JSON.stringify({ error: 'Client not found with provided account ID' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
     
-    console.log('Cliente encontrado:', JSON.stringify(client, null, 2));
+    const client = clients[0];
     
-    // **VERIFICAÇÃO DO CRIADOR**
-    // Buscar o perfil do criador
-    const creatorId = client.created_by;
-    console.log(`Buscando perfil do criador com ID: ${creatorId}`);
-    
-    const { data: creatorProfile, error: profileError } = await supabase
+    // Buscamos separadamente o perfil do criador do cliente
+    const { data: creatorProfile, error: creatorError } = await supabase
       .from('profiles')
-      .select('id, account_name, role')
-      .eq('id', creatorId)
+      .select('*')
+      .eq('id', client.created_by)
       .maybeSingle();
     
-    if (profileError) {
-      console.log('Erro ao buscar perfil do criador:', profileError);
-    } else {
-      console.log('Perfil do criador encontrado:', JSON.stringify(creatorProfile, null, 2));
+    if (creatorError) {
+      console.log('Error fetching creator profile:', creatorError);
+      // Continuamos mesmo com esse erro
     }
     
-    // Se não encontrar um perfil de criador válido, procurar um usuário alternativo
-    let finalCreatorId = creatorId;
-    let creatorName = creatorProfile?.account_name || 'Desconhecido';
-    
-    if (!creatorProfile) {
-      console.log('Perfil do criador não encontrado, buscando usuário alternativo...');
-      
-      // Tentar encontrar um usuário admin
-      const { data: adminUsers, error: adminError } = await supabase
-        .from('profiles')
-        .select('id, account_name')
-        .eq('role', 'admin')
-        .limit(1);
-      
-      if (!adminError && adminUsers && adminUsers.length > 0) {
-        finalCreatorId = adminUsers[0].id;
-        creatorName = adminUsers[0].account_name;
-        console.log(`Usando admin como criador alternativo, ID: ${finalCreatorId}, Nome: ${creatorName}`);
-      } else {
-        // Se não encontrar admin, usar qualquer usuário
-        const { data: anyUser, error: anyUserError } = await supabase
-          .from('profiles')
-          .select('id, account_name')
-          .limit(1);
-        
-        if (!anyUserError && anyUser && anyUser.length > 0) {
-          finalCreatorId = anyUser[0].id;
-          creatorName = anyUser[0].account_name;
-          console.log(`Usando primeiro usuário disponível como criador, ID: ${finalCreatorId}, Nome: ${creatorName}`);
-        }
-      }
-    }
-    
-    // Verificação final do criador
-    if (!finalCreatorId) {
-      console.error('Não foi possível encontrar um usuário válido para criar tags.');
-      return new Response(
-        JSON.stringify({ 
-          error: 'Nenhum usuário válido encontrado para criar tags',
-          partial_success: true,
-          contact: {
-            id: contactId.toString(),
-            name: contactName
-          }
-        }),
-        { status: 207, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-    
-    // **VERIFICAÇÃO DO CONTATO**
-    // Verificar se o contato já existe
+    // Check if contact exists
     const { data: existingContacts, error: contactError } = await supabase
       .from('contacts')
       .select('*')
       .eq('id', contactId.toString());
     
     if (contactError) {
-      console.error('Erro ao verificar contato:', contactError);
+      console.error('Error checking contact:', contactError);
       return new Response(
-        JSON.stringify({ error: 'Falha ao verificar contato', details: contactError.message }),
+        JSON.stringify({ error: 'Failed to check contact', details: contactError.message }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Converter labels para array de tags
+    // Parse labels to tags array
     const tags = labels ? labels.split(',').map((tag: string) => tag.trim()) : [];
-    console.log(`Tags convertidas: ${JSON.stringify(tags)}`);
+    console.log(`Parsed tags: ${JSON.stringify(tags)}`);
     
-    // Inserir ou atualizar contato
+    // Insert or update contact
     if (existingContacts.length === 0) {
-      // Inserir novo contato
-      console.log('Inserindo novo contato:', { 
-        id: contactId.toString(), 
-        name: contactName,
-        client_id: client.id 
-      });
-      
+      // Insert new contact
       const { error: insertError } = await supabase
         .from('contacts')
         .insert({
@@ -195,18 +100,17 @@ Deno.serve(async (req) => {
         });
       
       if (insertError) {
-        console.error('Erro ao criar contato:', insertError);
+        console.error('Error creating contact:', insertError);
         return new Response(
-          JSON.stringify({ error: 'Falha ao criar contato', details: insertError.message }),
+          JSON.stringify({ error: 'Failed to create contact', details: insertError.message }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
       
-      // Atualizar estatísticas diárias para novos contatos
+      // Update daily stats for new contacts
       await updateDailyStats(supabase, null, 1, 0, 0);
     } else {
-      // Atualizar contato existente
-      console.log('Atualizando contato existente:', contactId.toString());
+      // Update existing contact
       const { error: updateError } = await supabase
         .from('contacts')
         .update({
@@ -219,26 +123,79 @@ Deno.serve(async (req) => {
         .eq('id', contactId.toString());
       
       if (updateError) {
-        console.error('Erro ao atualizar contato:', updateError);
+        console.error('Error updating contact:', updateError);
         return new Response(
-          JSON.stringify({ error: 'Falha ao atualizar contato', details: updateError.message }),
+          JSON.stringify({ error: 'Failed to update contact', details: updateError.message }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
     }
     
-    // Excluir tags existentes para este contato
+    // Delete existing tags for this contact
     const { error: deleteTagsError } = await supabase
       .from('contact_tags')
       .delete()
       .eq('contact_id', contactId.toString());
     
     if (deleteTagsError) {
-      console.error('Erro ao excluir tags do contato:', deleteTagsError);
-      // Continuar mesmo com o erro
+      console.error('Error deleting contact tags:', deleteTagsError);
+      // Continue despite error
     }
     
-    // Adicionar tags para o contato
+    // Usar o ID do criador do cliente como criador das tags
+    let creatorId = null;
+    
+    if (creatorProfile && creatorProfile.id) {
+      creatorId = creatorProfile.id;
+      console.log(`Usando o criador do cliente como criador das tags, ID: ${creatorId}, Nome: ${creatorProfile.account_name}`);
+    } else {
+      console.log('Criador do cliente não encontrado, buscando um usuário válido alternativo...');
+      
+      // 1. Tentar buscar um admin
+      const { data: adminUsers, error: adminError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('role', 'admin')
+        .limit(1);
+      
+      if (!adminError && adminUsers && adminUsers.length > 0) {
+        creatorId = adminUsers[0].id;
+        console.log(`Usando usuário admin como criador alternativo, ID: ${creatorId}`);
+      } else {
+        console.log('Nenhum usuário admin encontrado, buscando qualquer usuário válido...');
+        
+        // 2. Se não encontrar admin, buscar qualquer usuário
+        const { data: anyUser, error: anyUserError } = await supabase
+          .from('profiles')
+          .select('id')
+          .limit(1);
+        
+        if (!anyUserError && anyUser && anyUser.length > 0) {
+          creatorId = anyUser[0].id;
+          console.log(`Usando primeiro usuário encontrado como criador, ID: ${creatorId}`);
+        } else {
+          console.error('Nenhum usuário válido encontrado para usar como criador de tags!');
+        }
+      }
+    }
+    
+    if (!creatorId) {
+      console.error('Não foi possível encontrar um usuário válido para criar as tags.');
+      return new Response(
+        JSON.stringify({ 
+          error: 'Não foi possível processar as tags, nenhum usuário válido encontrado.',
+          partial_success: true,
+          contact: {
+            id: contactId.toString(),
+            name: contactName,
+            tags
+          }
+        }),
+        { status: 207, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    // Adicionar tags para o contato e garantir que existam na tabela global de tags
     let addedTags = 0;
     let existingTagsCount = 0;
     let tagErrors = 0;
@@ -247,7 +204,7 @@ Deno.serve(async (req) => {
       console.log(`Processando tag: ${tag}`);
       
       try {
-        // Adicionar relação entre contato e tag
+        // 1. Inserir em contact_tags (relação contato-tag)
         const { error: insertTagError } = await supabase
           .from('contact_tags')
           .insert({
@@ -256,13 +213,13 @@ Deno.serve(async (req) => {
           });
         
         if (insertTagError && !insertTagError.message.includes('duplicate')) {
-          console.error(`Erro ao adicionar tag ${tag} ao contato:`, insertTagError);
+          console.error(`Erro ao inserir tag ${tag} para o contato:`, insertTagError);
           tagErrors++;
-          // Continuar mesmo com o erro
+          // Continue mesmo com erro
         }
         
-        // Verificar se a tag existe na tabela global de tags
-        console.log(`Verificando se a tag "${tag}" existe na tabela global`);
+        // 2. Verificar se a tag existe na tabela global de tags
+        console.log(`Verificando se a tag "${tag}" já existe na tabela global`);
         const { data: existingTag, error: checkTagError } = await supabase
           .from('tags')
           .select('name')
@@ -274,7 +231,7 @@ Deno.serve(async (req) => {
           tagErrors++;
         }
         
-        // Se a tag não existe, adicionar
+        // 3. Se a tag não existir, adicioná-la à tabela global usando o criador do cliente
         if (!existingTag) {
           console.log(`Tag "${tag}" não encontrada na tabela global, adicionando...`);
           
@@ -282,16 +239,16 @@ Deno.serve(async (req) => {
             .from('tags')
             .insert({
               name: tag,
-              created_by: finalCreatorId
+              created_by: creatorId
             })
             .select()
             .single();
           
           if (insertGlobalTagError) {
-            console.error(`Erro ao adicionar tag ${tag} à tabela global:`, insertGlobalTagError);
+            console.error(`Erro ao inserir tag global ${tag}:`, insertGlobalTagError);
             tagErrors++;
           } else {
-            console.log(`Tag "${tag}" adicionada com sucesso à tabela global:`, JSON.stringify(insertedTag));
+            console.log(`Tag "${tag}" adicionada com sucesso à tabela global: ${JSON.stringify(insertedTag)}`);
             addedTags++;
           }
         } else {
@@ -299,12 +256,12 @@ Deno.serve(async (req) => {
           existingTagsCount++;
         }
       } catch (tagError) {
-        console.error(`Erro inesperado ao processar tag ${tag}:`, tagError);
+        console.error(`Erro não tratado ao processar a tag ${tag}:`, tagError);
         tagErrors++;
       }
     }
     
-    // Processar sequências correspondentes
+    // Processar sequências que correspondam às tags deste contato
     await processMatchingSequences(supabase, contactId.toString(), tags, client.id);
     
     return new Response(
@@ -318,10 +275,9 @@ Deno.serve(async (req) => {
         },
         client: {
           id: client.id,
-          account_id: client.account_id,
           accountName: client.account_name,
-          creatorId: finalCreatorId,
-          creatorName
+          creatorId: creatorId,
+          creatorName: creatorProfile?.account_name || 'Desconhecido'
         },
         contact: {
           id: contactId.toString(),
@@ -340,10 +296,10 @@ Deno.serve(async (req) => {
   }
 });
 
-// Processar sequências correspondentes
+// Process matching sequences
 async function processMatchingSequences(supabase, contactId: string, contactTags: string[], clientId: string) {
   try {
-    // Obter todas as instâncias ativas associadas a este cliente
+    // Get all active sequences from instances associated with this client
     const { data: instances, error: instancesError } = await supabase
       .from('instances')
       .select('id')
@@ -351,7 +307,7 @@ async function processMatchingSequences(supabase, contactId: string, contactTags
       .eq('active', true);
     
     if (instancesError) {
-      console.error('Erro ao buscar instâncias:', instancesError);
+      console.error('Error fetching instances:', instancesError);
       return;
     }
     
@@ -359,7 +315,7 @@ async function processMatchingSequences(supabase, contactId: string, contactTags
     
     const instanceIds = instances.map((instance) => instance.id);
     
-    // Obter todas as sequências ativas para estas instâncias
+    // Get all active sequences for these instances
     const { data: sequences, error: sequencesError } = await supabase
       .from('sequences')
       .select('*, sequence_stages(*)')
@@ -367,11 +323,11 @@ async function processMatchingSequences(supabase, contactId: string, contactTags
       .eq('status', 'active');
     
     if (sequencesError) {
-      console.error('Erro ao buscar sequências:', sequencesError);
+      console.error('Error fetching sequences:', sequencesError);
       return;
     }
     
-    // Verificar sequências atuais do contato para evitar duplicatas
+    // Check current contact_sequences to avoid duplicates
     const { data: existingSequences, error: existingSeqError } = await supabase
       .from('contact_sequences')
       .select('sequence_id')
@@ -379,40 +335,40 @@ async function processMatchingSequences(supabase, contactId: string, contactTags
       .in('status', ['active', 'completed']);
     
     if (existingSeqError) {
-      console.error('Erro ao buscar sequências existentes:', existingSeqError);
+      console.error('Error fetching existing sequences:', existingSeqError);
       return;
     }
     
     const existingSequenceIds = new Set(existingSequences.map(seq => seq.sequence_id));
     
     for (const sequence of sequences) {
-      // Pular se o contato já está nesta sequência
+      // Skip if contact is already in this sequence
       if (existingSequenceIds.has(sequence.id)) continue;
       
-      // Verificar condição de início
+      // Check start condition
       const shouldStart = checkCondition(
         sequence.start_condition_type,
         sequence.start_condition_tags,
         contactTags
       );
       
-      // Verificar condição de parada
+      // Check stop condition
       const shouldStop = checkCondition(
         sequence.stop_condition_type,
         sequence.stop_condition_tags,
         contactTags
       );
       
-      // Se o contato corresponde à condição de início mas não à condição de parada, adicionar à sequência
+      // If contact matches start condition but not stop condition, add to sequence
       if (shouldStart && !shouldStop) {
-        // Obter estágios da sequência ordenados por order_index
+        // Get sequence stages ordered by order_index
         let stages = sequence.sequence_stages;
         if (!stages || stages.length === 0) continue;
         
         stages.sort((a, b) => a.order_index - b.order_index);
         const firstStage = stages[0];
         
-        // Criar entrada contact_sequence
+        // Create contact_sequence entry
         const { data: contactSequence, error: contactSeqError } = await supabase
           .from('contact_sequences')
           .insert({
@@ -427,11 +383,11 @@ async function processMatchingSequences(supabase, contactId: string, contactTags
           .single();
         
         if (contactSeqError) {
-          console.error('Erro ao criar contact_sequence:', contactSeqError);
+          console.error('Error creating contact_sequence:', contactSeqError);
           continue;
         }
         
-        // Criar entradas de progresso de estágio
+        // Create stage progress entries
         for (const stage of stages) {
           const { error: progressError } = await supabase
             .from('stage_progress')
@@ -442,65 +398,65 @@ async function processMatchingSequences(supabase, contactId: string, contactTags
             });
           
           if (progressError) {
-            console.error('Erro ao criar stage_progress:', progressError);
-            // Continuar apesar do erro
+            console.error('Error creating stage_progress:', progressError);
+            // Continue despite error
           }
         }
         
-        // Agendar a primeira mensagem
+        // Schedule the first message
         await scheduleMessage(supabase, contactId, sequence.id, firstStage);
       }
     }
   } catch (error) {
-    console.error('Erro ao processar sequências correspondentes:', error);
+    console.error('Error processing matching sequences:', error);
   }
 }
 
-// Verificar se tags correspondem à condição
+// Check if tags match condition
 function checkCondition(conditionType: string, conditionTags: string[], contactTags: string[]): boolean {
   if (!conditionTags || conditionTags.length === 0) return false;
   
   if (conditionType === 'AND') {
-    // Todas as tags de condição devem estar presentes nas tags do contato
+    // All condition tags must be present in contact tags
     return conditionTags.every(tag => contactTags.includes(tag));
   } else { // 'OR'
-    // Pelo menos uma tag de condição deve estar presente nas tags do contato
+    // At least one condition tag must be present in contact tags
     return conditionTags.some(tag => contactTags.includes(tag));
   }
 }
 
-// Agendar uma mensagem
+// Schedule a message
 async function scheduleMessage(supabase, contactId: string, sequenceId: string, stage: any) {
   try {
     let delayMinutes = stage.delay;
     
-    // Converter atraso para minutos
+    // Convert delay to minutes
     if (stage.delay_unit === 'hours') {
       delayMinutes *= 60;
     } else if (stage.delay_unit === 'days') {
       delayMinutes *= 24 * 60;
     }
     
-    // Calcular horário agendado
+    // Calculate scheduled time
     const now = new Date();
     const rawScheduledTime = new Date(now.getTime() + delayMinutes * 60 * 1000);
     
-    // Obter restrições de tempo da sequência
+    // Get sequence time restrictions
     const { data: restrictions, error: restrictionsError } = await supabase
       .rpc('get_sequence_time_restrictions', { seq_id: sequenceId });
     
     if (restrictionsError) {
-      console.error('Erro ao buscar restrições de tempo:', restrictionsError);
-      // Continuar sem restrições de tempo
+      console.error('Error fetching time restrictions:', restrictionsError);
+      // Continue without time restrictions
     }
     
-    // Aplicar restrições de tempo para calcular o horário agendado real
+    // Apply time restrictions to calculate actual scheduled time
     let scheduledTime = rawScheduledTime;
     if (restrictions && restrictions.length > 0) {
       scheduledTime = applyTimeRestrictions(rawScheduledTime, restrictions);
     }
     
-    // Inserir mensagem agendada
+    // Insert scheduled message
     const { error: scheduleError } = await supabase
       .from('scheduled_messages')
       .insert({
@@ -513,24 +469,24 @@ async function scheduleMessage(supabase, contactId: string, sequenceId: string, 
       });
     
     if (scheduleError) {
-      console.error('Erro ao agendar mensagem:', scheduleError);
+      console.error('Error scheduling message:', scheduleError);
       return;
     }
     
-    // Atualizar estatísticas diárias para mensagens agendadas
+    // Update daily stats for scheduled messages
     await updateDailyStats(supabase, null, 0, 1, 0);
   } catch (error) {
-    console.error('Erro ao agendar mensagem:', error);
+    console.error('Error scheduling message:', error);
   }
 }
 
-// Aplicar restrições de tempo a um horário agendado
+// Apply time restrictions to a scheduled time
 function applyTimeRestrictions(scheduledTime: Date, restrictions: any[]): Date {
-  // Deep copy da data para evitar mutação
+  // Deep copy the date to avoid mutation
   let adjustedTime = new Date(scheduledTime.getTime());
   
-  // Continuar ajustando até encontrar um horário válido
-  let maxAttempts = 100; // Limite de segurança
+  // Keep adjusting until we find a valid time
+  let maxAttempts = 100; // Safety limit
   let validTime = false;
   
   while (!validTime && maxAttempts > 0) {
@@ -539,27 +495,27 @@ function applyTimeRestrictions(scheduledTime: Date, restrictions: any[]): Date {
     for (const restriction of restrictions) {
       if (!restriction.active) continue;
       
-      const day = adjustedTime.getDay(); // 0 = Domingo, 1 = Segunda, ...
+      const day = adjustedTime.getDay(); // 0 = Sunday, 1 = Monday, ...
       const hour = adjustedTime.getHours();
       const minute = adjustedTime.getMinutes();
       
-      // Verificar se o dia atual está restrito
+      // Check if current day is restricted
       if (restriction.days.includes(day)) {
-        // Verificar se o horário atual está dentro das horas restritas
+        // Check if current time is within restricted hours
         const timeValue = hour * 60 + minute;
         const restrictionStart = restriction.start_hour * 60 + restriction.start_minute;
         let restrictionEnd = restriction.end_hour * 60 + restriction.end_minute;
         
-        // Lidar com o caso em que a restrição vai até o dia seguinte (por exemplo, 22:00 - 06:00)
+        // Handle case where restriction goes into next day (e.g., 22:00 - 06:00)
         if (restrictionEnd <= restrictionStart) {
-          restrictionEnd += 24 * 60; // Adicionar 24 horas
+          restrictionEnd += 24 * 60; // Add 24 hours
         }
         
         if ((timeValue >= restrictionStart && timeValue <= restrictionEnd) ||
             (timeValue + 24 * 60 >= restrictionStart && timeValue + 24 * 60 <= restrictionEnd)) {
-          // Horário está restrito, adicionar horas até após a restrição
+          // Time is restricted, add time until after restriction
           let hoursToAdd = Math.ceil((restrictionEnd - timeValue) / 60);
-          if (hoursToAdd <= 0) hoursToAdd = 24; // Segurança para casos limítrofes
+          if (hoursToAdd <= 0) hoursToAdd = 24; // Safety for edge cases
           
           adjustedTime.setHours(adjustedTime.getHours() + hoursToAdd);
           validTime = false;
@@ -574,12 +530,12 @@ function applyTimeRestrictions(scheduledTime: Date, restrictions: any[]): Date {
   return adjustedTime;
 }
 
-// Atualizar estatísticas diárias
+// Update daily stats
 async function updateDailyStats(supabase, instanceId: string | null, newContacts = 0, messagesScheduled = 0, completedSequences = 0) {
   try {
     const today = new Date().toISOString().split('T')[0];
     
-    // Se instanceId for nulo, atualizar estatísticas para todas as instâncias
+    // If instanceId is null, update stats for all instances
     if (instanceId === null) {
       if (newContacts > 0 || messagesScheduled > 0 || completedSequences > 0) {
         const { data: instances } = await supabase
@@ -594,17 +550,17 @@ async function updateDailyStats(supabase, instanceId: string | null, newContacts
         }
       }
     } else {
-      // Atualizar estatísticas para uma instância específica
+      // Update stats for specific instance
       await updateStatsForInstance(supabase, instanceId, today, newContacts, messagesScheduled, completedSequences);
     }
   } catch (error) {
-    console.error('Erro ao atualizar estatísticas diárias:', error);
+    console.error('Error updating daily stats:', error);
   }
 }
 
-// Atualizar estatísticas para uma instância específica
+// Update stats for a specific instance
 async function updateStatsForInstance(supabase, instanceId: string, date: string, newContacts: number, messagesScheduled: number, completedSequences: number) {
-  // Verificar se existe uma entrada para hoje
+  // Check if entry exists for today
   const { data: existing } = await supabase
     .from('daily_stats')
     .select('*')
@@ -613,7 +569,7 @@ async function updateStatsForInstance(supabase, instanceId: string, date: string
     .maybeSingle();
   
   if (existing) {
-    // Atualizar entrada existente
+    // Update existing entry
     await supabase
       .from('daily_stats')
       .update({
@@ -623,7 +579,7 @@ async function updateStatsForInstance(supabase, instanceId: string, date: string
       })
       .eq('id', existing.id);
   } else {
-    // Criar nova entrada
+    // Create new entry
     await supabase
       .from('daily_stats')
       .insert({
