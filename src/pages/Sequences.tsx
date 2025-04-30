@@ -122,18 +122,32 @@ export default function Sequences() {
   
   const handleGoBack = () => {
     if (hasUnsavedChanges) {
-      const confirmed = window.confirm("Você tem alterações não salvas. Deseja realmente sair sem salvar?");
-      if (!confirmed) return;
+      toast.warning("Atenção! Você tem alterações não salvas. Deseja mesmo sair?", {
+        action: {
+          label: "Sim, sair",
+          onClick: () => {
+            if (isCreateMode) {
+              setIsCreateMode(false);
+            } else if (isEditMode) {
+              setIsEditMode(false);
+              setCurrentSequence(null);
+            }
+            setHasUnsavedChanges(false);
+          }
+        },
+        cancel: {
+          label: "Não, continuar editando",
+          onClick: () => {}
+        }
+      });
+    } else {
+      if (isCreateMode) {
+        setIsCreateMode(false);
+      } else if (isEditMode) {
+        setIsEditMode(false);
+        setCurrentSequence(null);
+      }
     }
-    
-    if (isCreateMode) {
-      setIsCreateMode(false);
-    } else if (isEditMode) {
-      setIsEditMode(false);
-      setCurrentSequence(null);
-    }
-    
-    setHasUnsavedChanges(false);
   };
 
   if (isCreateMode) {
@@ -141,12 +155,6 @@ export default function Sequences() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold tracking-tight">Nova Sequência</h1>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={handleGoBack}>
-              <X className="h-4 w-4 mr-1" />
-              Cancelar
-            </Button>
-          </div>
         </div>
         
         <SequenceBuilder 
@@ -163,12 +171,6 @@ export default function Sequences() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold tracking-tight">Editar Sequência</h1>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={handleGoBack}>
-              <X className="h-4 w-4 mr-1" />
-              Cancelar
-            </Button>
-          </div>
         </div>
         
         <SequenceBuilder 

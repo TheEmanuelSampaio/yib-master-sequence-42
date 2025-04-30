@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { PlusCircle, Clock, Trash2, ChevronDown, ChevronUp, MessageCircle, FileCode, Bot, X, Edit, Save, Lock } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -77,10 +76,8 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
   const [stageToEdit, setStageToEdit] = useState<SequenceStage | null>(null);
   const [showAddRestrictionDialog, setShowAddRestrictionDialog] = useState(false);
   
-  // Define dayNames for use throughout the component
   const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
   
-  // Filtra restrições globais disponíveis (que não estão já adicionadas à sequência)
   const availableGlobalRestrictions = globalTimeRestrictions.filter(
     gr => !timeRestrictions.some(tr => tr.id === gr.id && tr.isGlobal)
   );
@@ -310,6 +307,20 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
   // Separate global and local restrictions
   const globalRestrictions = timeRestrictions.filter(r => r.isGlobal);
   const localRestrictions = timeRestrictions.filter(r => !r.isGlobal);
+
+  // Check if form has been modified from initial values
+  const hasBeenModified = () => {
+    if (!sequence) return name !== '' || startCondition.tags.length > 0 || stages.length > 0;
+    
+    return (
+      name !== sequence.name ||
+      JSON.stringify(startCondition) !== JSON.stringify(sequence.startCondition) ||
+      JSON.stringify(stopCondition) !== JSON.stringify(sequence.stopCondition) ||
+      JSON.stringify(stages) !== JSON.stringify(sequence.stages) ||
+      JSON.stringify(timeRestrictions) !== JSON.stringify(sequence.timeRestrictions) ||
+      status !== sequence.status
+    );
+  };
   
   // Close the dropdown when clicking outside
   useEffect(() => {
@@ -325,8 +336,45 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
     };
   }, [showTagSelector]);
 
+  const handleCancel = () => {
+    if (hasBeenModified()) {
+      toast.warning("Atenção! Você tem alterações não salvas. Deseja mesmo sair?", {
+        action: {
+          label: "Sim, sair",
+          onClick: () => onCancel()
+        },
+        cancel: {
+          label: "Não, continuar editando",
+          onClick: () => {}
+        }
+      });
+    } else {
+      onCancel();
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {/* Header with buttons - moved to the top */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-semibold">Configuração da Sequência</h2>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleCancel}>
+            <X className="h-4 w-4 mr-1" />
+            Cancelar
+          </Button>
+          <Button 
+            variant="default" 
+            onClick={handleSubmit}
+            disabled={!hasBeenModified()}
+            className={!hasBeenModified() ? "opacity-50" : ""}
+          >
+            <Save className="h-4 w-4 mr-1" />
+            Salvar
+          </Button>
+        </div>
+      </div>
+
       <Tabs defaultValue="basic">
         <TabsList className="w-full">
           <TabsTrigger value="basic" className="flex-1">Informações Básicas</TabsTrigger>
@@ -364,7 +412,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
                 
                 <div className="space-y-2">
                   <Label htmlFor="status">Status</Label>
-                  <div className="flex items-center space-x-2 mt-1">
+                  <div className="mt-2">
                     <Switch
                       id="status"
                       checked={status === "active"}
@@ -372,8 +420,9 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
                         setStatus(checked ? "active" : "inactive");
                         notifyChanges();
                       }}
+                      className="data-[state=checked]:bg-primary"
                     />
-                    <span className="text-sm">
+                    <span className="ml-2 text-sm">
                       {status === "active" ? "Sequência ativa" : "Sequência inativa"}
                     </span>
                   </div>
@@ -870,144 +919,4 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
                                 })
                               }
                             >
-                              <SelectTrigger className="w-full">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {[0, 15, 30, 45].map((minute) => (
-                                  <SelectItem key={`start-min-${minute}`} value={minute.toString()}>
-                                    {minute.toString().padStart(2, "0")}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                        <div>
-                          <Label>Horário de Fim</Label>
-                          <div className="flex mt-2 space-x-2">
-                            <Select
-                              value={newRestriction.endHour.toString()}
-                              onValueChange={(value) => 
-                                setNewRestriction({
-                                  ...newRestriction,
-                                  endHour: parseInt(value),
-                                })
-                              }
-                            >
-                              <SelectTrigger className="w-full">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {Array.from({ length: 24 }, (_, i) => (
-                                  <SelectItem key={`end-hour-${i}`} value={i.toString()}>
-                                    {i.toString().padStart(2, "0")}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <span className="flex items-center">:</span>
-                            <Select
-                              value={newRestriction.endMinute.toString()}
-                              onValueChange={(value) => 
-                                setNewRestriction({
-                                  ...newRestriction,
-                                  endMinute: parseInt(value),
-                                })
-                              }
-                            >
-                              <SelectTrigger className="w-full">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {[0, 15, 30, 45].map((minute) => (
-                                  <SelectItem key={`end-min-${minute}`} value={minute.toString()}>
-                                    {minute.toString().padStart(2, "0")}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setShowAddRestrictionDialog(false)}>Cancelar</Button>
-                      <Button onClick={addLocalRestriction}>Adicionar</Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {/* Restrições locais e globais selecionadas */}
-                  {timeRestrictions.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground border rounded-md">
-                      Nenhuma restrição configurada
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {timeRestrictions.map(restriction => (
-                        <RestrictionItem
-                          key={restriction.id}
-                          restriction={restriction}
-                          onRemove={removeTimeRestriction}
-                          onUpdate={!restriction.isGlobal ? updateLocalRestriction : undefined}
-                          selected={restriction.isGlobal}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-            
-            {/* Restrições Globais */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center">
-                  <Lock className="h-4 w-4 mr-2 text-blue-500" />
-                  <CardTitle>Restrições Globais</CardTitle>
-                </div>
-                <CardDescription>
-                  Restrições de horário disponíveis para todas as sequências
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {availableGlobalRestrictions.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground border rounded-md">
-                      Não há restrições globais disponíveis
-                    </div>
-                  ) : (
-                    availableGlobalRestrictions.map(restriction => (
-                      <RestrictionItem
-                        key={restriction.id}
-                        restriction={restriction}
-                        onRemove={() => {}}
-                        selected={isGlobalRestrictionSelected(restriction.id)}
-                        onSelect={() => addGlobalRestriction(restriction)}
-                      />
-                    ))
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-      </Tabs>
-      
-      <div className="flex justify-end space-x-2">
-        <Button variant="outline" onClick={onCancel}>
-          <X className="h-4 w-4 mr-1" />
-          Cancelar
-        </Button>
-        <Button variant="success" onClick={handleSubmit}>
-          <Save className="h-4 w-4 mr-1" />
-          Salvar
-        </Button>
-      </div>
-    </div>
-  );
-}
+                              <SelectTrigger className
