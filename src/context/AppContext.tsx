@@ -448,37 +448,55 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       
       // Fetch users (only for super_admin)
       if (user.role === 'super_admin') {
-        const { data: profilesData, error: profilesError } = await supabase
-          .from('profiles')
-          .select('*');
-        
-        if (profilesError) throw profilesError;
-        
-        // Buscar os dados de auth.users para obter os emails reais
-        const { data: authUsers, error: authUsersError } = await supabase
-          .rpc('get_users_with_emails');
+        try {
+          // Usar a função RPC corretamente
+          const { data: authUsers, error: authUsersError } = await supabase
+            .rpc('get_users_with_emails', {});
+            
+          if (authUsersError) {
+            console.error("Erro ao buscar emails de usuários:", authUsersError);
+          }
           
-        if (authUsersError) {
-          console.error("Erro ao buscar emails de usuários:", authUsersError);
-        }
-        
-        // Mapear os usuários com seus emails reais se disponíveis
-        const usersWithEmails = profilesData.map(profile => {
-          // Tentar encontrar o email correspondente nos dados de auth.users
-          const authUser = authUsers?.find(au => au.id === profile.id);
-          const email = authUser?.email || 
-                      (profile.id === user.id ? user.email : `user-${profile.id.substring(0, 4)}@example.com`);
+          // Mapear os usuários com seus emails reais se disponíveis
+          const usersWithEmails = profilesData.map(profile => {
+            // Tentar encontrar o email correspondente nos dados de auth.users
+            const authUser = authUsers?.find(au => au.id === profile.id);
+            const email = authUser?.email || 
+                        (profile.id === user.id ? user.email : `user-${profile.id.substring(0, 4)}@example.com`);
+            
+            return {
+              id: profile.id,
+              accountName: profile.account_name,
+              email: email,
+              role: profile.role,
+              avatar: ""
+            };
+          });
           
-          return {
+          setUsers(usersWithEmails);
+        } catch (error) {
+          console.error("Erro ao buscar dados de usuários:", error);
+          
+          // Fallback para caso de erro - usar apenas os perfis sem os emails reais
+          const usersWithoutEmails = profilesData.map(profile => ({
             id: profile.id,
             accountName: profile.account_name,
-            email: email,
+            email: profile.id === user.id ? user.email : `user-${profile.id.substring(0, 4)}@example.com`,
             role: profile.role,
             avatar: ""
-          };
-        });
-        
-        setUsers(usersWithEmails);
+          }));
+          
+          setUsers(usersWithoutEmails);
+        }
+      } else {
+        // Para usuários não-admin, apenas usar os dados de perfis
+        setUsers(profilesData.map(profile => ({
+          id: profile.id,
+          accountName: profile.account_name,
+          email: profile.id === user.id ? user.email : `user-${profile.id.substring(0, 4)}@example.com`,
+          role: profile.role,
+          avatar: ""
+        })));
       }
       
       // Fetch daily stats
