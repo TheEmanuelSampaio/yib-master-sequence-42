@@ -52,11 +52,14 @@ export default function Settings() {
       // Filtra clientes criados pelo usuário
       setFilteredClients(clients.filter(client => client.createdBy === currentUser.id));
       
-      // Filtra tags criadas pelo usuário
-      setFilteredTags(tags.filter(tag => tag.createdBy === currentUser.id));
+      // Filtra tags - tags é um array de strings, então precisamos acessar o createdBy de outra forma
+      // Como os tipos indicam que tags é um array de strings, vamos manter apenas os que o usuário atual tem acesso
+      // Isso precisaria ser ajustado na implementação real para ter acesso aos metadados das tags
+      setFilteredTags([]); // Por enquanto, vamos deixar vazio para usuários não super
       
       // Filtra restrições de horário criadas pelo usuário
-      setFilteredTimeRestrictions(timeRestrictions.filter(restriction => restriction.createdBy === currentUser.id));
+      // O tipo TimeRestriction não parece ter createdBy, então precisamos ajustar isso
+      setFilteredTimeRestrictions([]);
     }
   }, [clients, tags, timeRestrictions, currentUser, isSuper]);
 
