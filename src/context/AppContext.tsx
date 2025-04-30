@@ -215,32 +215,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       
       setTimeRestrictions(typedRestrictions);
       
-      // Fetch users (basic info for all users, detailed info only for super_admin)
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('id, account_name, role');
-      
-      if (profilesError) throw profilesError;
-      
-      // Get user emails from auth.users (requires admin rights) or limited info for regular users
-      const usersWithEmails = await Promise.all(
-        profilesData.map(async (profile) => {
-          // For now, using email from user object if it's the current user
-          const email = profile.id === user.id ? user.email : user.role === 'super_admin' ? 
-            `user-${profile.id.substring(0, 4)}@example.com` : ''; // Only super_admin sees other emails
-          
-          return {
-            id: profile.id,
-            accountName: profile.account_name,
-            email,
-            role: profile.role,
-            avatar: ""
-          };
-        })
-      );
-      
-      setUsers(usersWithEmails);
-      
       // Fetch sequences and their stages
       const { data: sequencesData, error: sequencesError } = await supabase
         .from('sequences')
@@ -471,6 +445,33 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       // Resolver todas as promessas de sequências de contato
       const typedContactSeqs = (await Promise.all(contactSeqPromises)).filter(Boolean) as ContactSequence[];
       setContactSequences(typedContactSeqs);
+      
+      // Fetch users (only for super_admin)
+      if (user.role === 'super_admin') {
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('*');
+        
+        if (profilesError) throw profilesError;
+        
+        // Get user emails from auth.users (requires admin rights)
+        const usersWithEmails = await Promise.all(
+          profilesData.map(async (profile) => {
+            // For now, using email from user object if it's the current user
+            const email = profile.id === user.id ? user.email : `user-${profile.id.substring(0, 4)}@example.com`;
+            
+            return {
+              id: profile.id,
+              accountName: profile.account_name,
+              email,
+              role: profile.role,
+              avatar: ""
+            };
+          })
+        );
+        
+        setUsers(usersWithEmails);
+      }
       
       // Fetch daily stats
       const { data: statsData, error: statsError } = await supabase
