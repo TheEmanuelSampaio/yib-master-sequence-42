@@ -241,12 +241,17 @@ Deno.serve(async (req) => {
       }
     }
     
+    // Estatísticas para o payload de resposta
+    let tagsAdded = 0;
+    let existingTags = 0;
+    let tagErrors = 0;
+    
     // 1. Verificar se as tags existem e criar as que não existem
     if (tags.length > 0) {
       console.log(`[TAGS] Processando ${tags.length} tags...`);
       
       for (const tagName of tags) {
-        // Verificar se a tag já existe para este cliente
+        // Verificar se a tag já existe para este created_by
         const { data: existingTag, error: tagQueryError } = await supabase
           .from('tags')
           .select('*')
@@ -255,6 +260,7 @@ Deno.serve(async (req) => {
         
         if (tagQueryError) {
           console.error(`[TAGS] Erro ao verificar tag ${tagName}: ${tagQueryError.message}`);
+          tagErrors++;
           continue;
         }
         
@@ -262,22 +268,61 @@ Deno.serve(async (req) => {
         if (!existingTag || existingTag.length === 0) {
           console.log(`[TAGS] Tag ${tagName} não encontrada para o cliente, criando...`);
           
-          const { error: createTagError } = await supabase
-            .from('tags')
-            .insert([
-              {
-                name: tagName,
-                created_by: client.created_by
+          try {
+            // Verificar se a tag com o mesmo nome já existe para outro created_by
+            // Para evitar erro de chave duplicada, precisamos fazer um select com count
+            const { count, error: countError } = await supabase
+              .from('tags')
+              .select('*', { count: 'exact', head: true })
+              .eq('name', tagName);
+            
+            if (countError) {
+              console.error(`[TAGS] Erro ao verificar existência global da tag ${tagName}: ${countError.message}`);
+              tagErrors++;
+              continue;
+            }
+            
+            // Se a tag não existe globalmente, podemos criar normalmente
+            if (count === 0) {
+              const { error: createTagError } = await supabase
+                .from('tags')
+                .insert([
+                  {
+                    name: tagName,
+                    created_by: client.created_by
+                  }
+                ]);
+              
+              if (createTagError) {
+                console.error(`[TAGS] Erro ao criar tag ${tagName}: ${createTagError.message}`);
+                tagErrors++;
+              } else {
+                console.log(`[TAGS] Tag ${tagName} criada com sucesso para o cliente`);
+                tagsAdded++;
               }
-            ]);
-          
-          if (createTagError) {
-            console.error(`[TAGS] Erro ao criar tag ${tagName}: ${createTagError.message}`);
-          } else {
-            console.log(`[TAGS] Tag ${tagName} criada com sucesso para o cliente`);
+            } else {
+              // Se a tag já existe no sistema para outro usuário, tentamos inserir com ON CONFLICT DO NOTHING
+              // Isso é feito diretamente via SQL usando RPC
+              const { error: upsertError } = await supabase.rpc('insert_tag_if_not_exists_for_user', {
+                p_name: tagName,
+                p_created_by: client.created_by
+              });
+              
+              if (upsertError) {
+                console.error(`[TAGS] Erro ao inserir tag com RPC ${tagName}: ${upsertError.message}`);
+                tagErrors++;
+              } else {
+                console.log(`[TAGS] Tag ${tagName} criada/verificada via RPC com sucesso`);
+                tagsAdded++;
+              }
+            }
+          } catch (err) {
+            console.error(`[TAGS] Erro não tratado ao criar tag ${tagName}: ${err.message}`);
+            tagErrors++;
           }
         } else {
           console.log(`[TAGS] Tag ${tagName} já existe para o cliente`);
+          existingTags++;
         }
       }
     }
@@ -294,6 +339,7 @@ Deno.serve(async (req) => {
       
       if (deleteTagsError) {
         console.error(`[TAGS] Erro ao remover tags existentes: ${deleteTagsError.message}`);
+        tagErrors++;
       }
       
       // Inserir novas tags
@@ -308,6 +354,7 @@ Deno.serve(async (req) => {
       
       if (insertTagsError) {
         console.error(`[TAGS] Erro ao inserir novas tags: ${insertTagsError.message}`);
+        tagErrors++;
       } else {
         console.log(`[TAGS] Tags atualizadas com sucesso: ${JSON.stringify(tags)}`);
       }
@@ -327,11 +374,11 @@ Deno.serve(async (req) => {
           name: contact.name,
           tags
         },
-        logs: [
-          { level: 'info', message: `[QUERY] Cliente encontrado: ${client ? 'SIM' : 'NÃO'}` },
-          { level: 'info', message: `[CONTACT] Contato processado: ${contact.name}` },
-          { level: 'info', message: `[TAGS] Tags processadas: ${tags.length}` }
-        ]
+        stats: {
+          tagsAdded,
+          existingTags,
+          tagErrors
+        }
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
@@ -341,8 +388,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         error: 'Erro interno do servidor', 
-        details: error.message,
-        stack: error.stack
+        details: error.message
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

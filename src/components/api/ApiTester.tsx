@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,18 +10,18 @@ import { supabase } from "@/integrations/supabase/client";
 export const ApiTester = () => {
   const [tagChangePayload, setTagChangePayload] = useState(JSON.stringify({
     data: {
-      accountId: 1,
+      accountId: 9999,
       accountName: "Years In Box",
       contact: {
-        id: 16087,
-        name: "Emanuel Years In Box",
-        phoneNumber: "+5511937474703"
+        id: 99999,
+        name: "Emanuel Years In Box 2",
+        phoneNumber: "+5511937474702"
       },
       conversation: {
         inboxId: 46,
         conversationId: 23266,
         displayId: 1608,
-        labels: "lead, google, produto-xpto, nova-tag"
+        labels: "1-lead, 2-clienteZ1"
       }
     }
   }, null, 2));
