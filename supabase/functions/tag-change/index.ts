@@ -25,16 +25,16 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Parse do body
+    // [1. BODY RECEBIDO] - Parse do body
     const body = await req.text();
-    console.log(`[REQUEST] Body recebido: ${body}`);
+    console.log(`[1. BODY] Body recebido: ${body}`);
     
     let jsonData;
     try {
       jsonData = JSON.parse(body);
-      console.log(`[PARSE] JSON parseado com sucesso`);
+      console.log(`[1. BODY] JSON parseado com sucesso`);
     } catch (parseError) {
-      console.error(`[PARSE] Erro ao parsear JSON: ${parseError.message}`);
+      console.error(`[1. BODY] Erro ao parsear JSON: ${parseError.message}`);
       return new Response(
         JSON.stringify({ error: 'Payload JSON inválido', details: parseError.message }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -47,21 +47,21 @@ Deno.serve(async (req) => {
     // Formato 1: { body: { chatwootData: {...} } }
     if (jsonData.body && jsonData.body.chatwootData) {
       chatwootData = jsonData.body.chatwootData;
-      console.log(`[FORMAT] Usando formato body.chatwootData`);
+      console.log(`[1. BODY] Formato utilizado: body.chatwootData`);
     } 
     // Formato 2: { chatwootData: {...} } 
     else if (jsonData.chatwootData) {
       chatwootData = jsonData.chatwootData;
-      console.log(`[FORMAT] Usando formato chatwootData direto`);
+      console.log(`[1. BODY] Formato utilizado: chatwootData direto`);
     } 
     // Formato 3: { data: {...} } onde data contém os dados diretos
     else if (jsonData.data) {
       chatwootData = jsonData.data;
-      console.log(`[FORMAT] Usando formato data direto`);
+      console.log(`[1. BODY] Formato utilizado: data direto`);
     }
     
     if (!chatwootData) {
-      console.error(`[VALIDATE] Dados do Chatwoot ausentes`, JSON.stringify(jsonData));
+      console.error(`[1. BODY] Dados do Chatwoot ausentes`, JSON.stringify(jsonData));
       return new Response(
         JSON.stringify({ 
           error: 'Dados do Chatwoot ausentes', 
@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
     const { accountData, contactData, conversationData } = chatwootData;
     
     if (!accountData || !contactData || !conversationData) {
-      console.error(`[VALIDATE] Dados incompletos no payload:`, JSON.stringify({
+      console.error(`[1. BODY] Dados incompletos no payload:`, JSON.stringify({
         temAccountData: !!accountData,
         temContactData: !!contactData,
         temConversationData: !!conversationData
@@ -103,22 +103,24 @@ Deno.serve(async (req) => {
     const { inboxId, conversationId, displayId, labels: labelsString } = conversationData;
     const { accountId, accountName } = accountData;
 
-    console.log(`[CONTACT] Processando contato: ${contactId}, ${name}, ${phoneNumber}, tags: ${labelsString}`);
+    console.log(`[1. BODY] Processando dados: contactId=${contactId}, name=${name}, phoneNumber=${phoneNumber}, accountId=${accountId}, accountName=${accountName}, tags=${labelsString}`);
 
-    // Verificar se já existe um cliente para essa conta Chatwoot
-    console.log(`[CLIENT] Verificando cliente para conta ${accountId} (${accountName})`);
+    // [2. VERIFICAÇÃO DO CLIENTE] - Verificar se já existe um cliente para essa conta Chatwoot
+    console.log(`[2. CLIENTE] Verificando cliente para accountId=${accountId}, accountName="${accountName}"`);
     let { data: existingClient, error: clientError } = await supabase
       .from('clients')
-      .select('id')
+      .select('id, account_name, created_by')
       .eq('account_id', accountId)
       .maybeSingle();
 
     if (clientError) {
-      console.error(`[CLIENT] Erro ao buscar cliente: ${clientError.message}`);
+      console.error(`[2. CLIENTE] Erro ao buscar cliente: ${clientError.message}`);
     }
 
     if (!existingClient) {
       // Criar cliente se não existir
+      console.log(`[2. CLIENTE] Cliente não encontrado para accountId=${accountId}. Criando novo cliente...`);
+      
       const { data: createdClient, error: createError } = await supabase
         .from('clients')
         .insert({
@@ -127,22 +129,22 @@ Deno.serve(async (req) => {
           created_by: '00000000-0000-0000-0000-000000000000', // Sistema
           creator_account_name: 'Sistema'
         })
-        .select('id')
+        .select('id, account_name, created_by')
         .single();
 
       if (createError) {
-        console.error(`[CLIENT] Erro ao criar cliente: ${createError.message}`);
+        console.error(`[2. CLIENTE] Erro ao criar cliente: ${createError.message}`);
         throw createError;
       }
 
       existingClient = createdClient;
-      console.log(`[CLIENT] Cliente criado com ID: ${existingClient.id}`);
+      console.log(`[2. CLIENTE] Cliente criado com sucesso: id=${existingClient.id}, accountName=${existingClient.account_name}, createdBy=${existingClient.created_by}`);
     } else {
-      console.log(`[CLIENT] Cliente encontrado com ID: ${existingClient.id}`);
+      console.log(`[2. CLIENTE] Cliente encontrado: id=${existingClient.id}, accountName=${existingClient.account_name}, createdBy=${existingClient.created_by}`);
     }
 
-    // Verificar se o contato já existe
-    console.log(`[CONTACT] Verificando contato ${contactId}`);
+    // [3. VERIFICAÇÃO DO CONTATO] - Verificar se o contato já existe
+    console.log(`[3. CONTATO] Verificando existência do contato id=${contactId}`);
     const { data: existingContact, error: contactError } = await supabase
       .from('contacts')
       .select('*')
@@ -150,13 +152,15 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (contactError) {
-      console.error(`[CONTACT] Erro ao buscar contato: ${contactError.message}`);
+      console.error(`[3. CONTATO] Erro ao buscar contato: ${contactError.message}`);
     }
 
     // Criar ou atualizar contato
     if (!existingContact) {
       // Criar contato
-      const { error: createContactError } = await supabase
+      console.log(`[3. CONTATO] Contato id=${contactId} não encontrado. Criando novo contato...`);
+      
+      const { data: newContact, error: createContactError } = await supabase
         .from('contacts')
         .insert({
           id: contactId.toString(),
@@ -166,14 +170,16 @@ Deno.serve(async (req) => {
           conversation_id: conversationId,
           display_id: displayId,
           client_id: existingClient.id
-        });
+        })
+        .select('id')
+        .single();
 
       if (createContactError) {
-        console.error(`[CONTACT] Erro ao criar contato: ${createContactError.message}`);
+        console.error(`[3. CONTATO] Erro ao criar contato: ${createContactError.message}`);
         throw createContactError;
       }
 
-      console.log(`[CONTACT] Contato criado: ${contactId}`);
+      console.log(`[3. CONTATO] Contato criado com sucesso: id=${contactId}`);
 
       // Incrementar contadores de estatísticas
       const today = new Date().toISOString().split('T')[0];
@@ -185,6 +191,7 @@ Deno.serve(async (req) => {
         .eq('client_id', existingClient.id);
         
       if (instances && instances.length > 0) {
+        console.log(`[3. CONTATO] Atualizando estatísticas para ${instances.length} instância(s)`);
         for (const instance of instances) {
           const { error: statsError } = await supabase.rpc('increment_daily_stats', {
             instance_id: instance.id,
@@ -197,13 +204,19 @@ Deno.serve(async (req) => {
           });
           
           if (statsError) {
-            console.error(`[STATS] Erro ao atualizar estatísticas: ${statsError.message}`);
+            console.error(`[3. CONTATO] Erro ao atualizar estatísticas para instância ${instance.id}: ${statsError.message}`);
+          } else {
+            console.log(`[3. CONTATO] Estatísticas atualizadas para instância ${instance.id}`);
           }
         }
+      } else {
+        console.log(`[3. CONTATO] Nenhuma instância encontrada para atualizar estatísticas`);
       }
     } else {
       // Atualizar contato se necessário
-      const { error: updateContactError } = await supabase
+      console.log(`[3. CONTATO] Contato id=${contactId} encontrado. Atualizando dados...`);
+      
+      const { data: updatedContact, error: updateContactError } = await supabase
         .from('contacts')
         .update({
           name,
@@ -212,18 +225,20 @@ Deno.serve(async (req) => {
           conversation_id: conversationId,
           display_id: displayId
         })
-        .eq('id', contactId.toString());
+        .eq('id', contactId.toString())
+        .select('id')
+        .single();
 
       if (updateContactError) {
-        console.error(`[CONTACT] Erro ao atualizar contato: ${updateContactError.message}`);
+        console.error(`[3. CONTATO] Erro ao atualizar contato: ${updateContactError.message}`);
         throw updateContactError;
       }
 
-      console.log(`[CONTACT] Contato atualizado: ${contactId}`);
+      console.log(`[3. CONTATO] Contato atualizado com sucesso: id=${contactId}`);
     }
 
-    // Processar tags (labels)
-    console.log(`[TAGS] Processando tags: ${labelsString}`);
+    // [4. PROCESSAMENTO DE TAGS] - Processar tags (labels)
+    console.log(`[4. TAGS] Processando tags: "${labelsString}"`);
     const tags = labelsString ? labelsString.split(',').map(tag => tag.trim()) : [];
     
     // Buscar todas as tags atuais do contato
@@ -233,20 +248,56 @@ Deno.serve(async (req) => {
       .eq('contact_id', contactId.toString());
       
     if (tagsError) {
-      console.error(`[TAGS] Erro ao buscar tags existentes: ${tagsError.message}`);
+      console.error(`[4. TAGS] Erro ao buscar tags existentes: ${tagsError.message}`);
     }
     
     const currentTags = existingTags ? existingTags.map(t => t.tag_name) : [];
-    console.log(`[TAGS] Tags atuais: ${JSON.stringify(currentTags)}`);
-    console.log(`[TAGS] Novas tags: ${JSON.stringify(tags)}`);
+    console.log(`[4. TAGS] Tags atuais do contato: ${JSON.stringify(currentTags)}`);
+    console.log(`[4. TAGS] Novas tags a processar: ${JSON.stringify(tags)}`);
     
     // Tags a serem adicionadas (estão na nova lista mas não na atual)
     const tagsToAdd = tags.filter(tag => !currentTags.includes(tag));
-    console.log(`[TAGS] Tags a adicionar: ${JSON.stringify(tagsToAdd)}`);
+    console.log(`[4. TAGS] Tags a adicionar ao contato: ${JSON.stringify(tagsToAdd)}`);
     
     // Tags a serem removidas (estão na lista atual mas não na nova)
     const tagsToRemove = currentTags.filter(tag => !tags.includes(tag));
-    console.log(`[TAGS] Tags a remover: ${JSON.stringify(tagsToRemove)}`);
+    console.log(`[4. TAGS] Tags a remover do contato: ${JSON.stringify(tagsToRemove)}`);
+    
+    // Buscar usuário para criação de tags - usar o criador do cliente
+    const createdBy = existingClient.created_by;
+    console.log(`[4. TAGS] Usuário para criação de tags: ${createdBy}`);
+    
+    // Verificar se o usuário existe
+    let userExists = false;
+    if (createdBy !== '00000000-0000-0000-0000-000000000000') {
+      const { data: userCheck } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', createdBy)
+        .maybeSingle();
+      
+      userExists = !!userCheck;
+      console.log(`[4. TAGS] Verificação do usuário ${createdBy}: ${userExists ? 'Encontrado' : 'Não encontrado'}`);
+    } else {
+      console.log(`[4. TAGS] Usando usuário do sistema (00000000-0000-0000-0000-000000000000)`);
+    }
+    
+    // Se não encontrar o usuário criador, buscar um usuário qualquer para criar as tags
+    let tagCreationUser = createdBy;
+    if (!userExists) {
+      const { data: firstUser } = await supabase
+        .from('profiles')
+        .select('id')
+        .limit(1)
+        .maybeSingle();
+      
+      if (firstUser) {
+        tagCreationUser = firstUser.id;
+        console.log(`[4. TAGS] Usando primeiro usuário disponível para criação de tags: ${tagCreationUser}`);
+      } else {
+        console.log(`[4. TAGS] Nenhum usuário encontrado para criação de tags. Usando ID do sistema.`);
+      }
+    }
     
     // Adicionar novas tags
     let tagsAddedSuccess = 0;
@@ -254,49 +305,52 @@ Deno.serve(async (req) => {
     const tagErrors = [];
     
     for (const tag of tagsToAdd) {
-      if (!tag) continue;
+      if (!tag) {
+        console.log(`[4. TAGS] Tag vazia encontrada, ignorando`);
+        continue;
+      }
       
-      try {
-        // Verificar se a tag existe no sistema e criar se necessário
+      // Verificar se a tag já existe no sistema
+      console.log(`[4. TAGS] Processando tag: "${tag}"`);
+      const { data: existingTag } = await supabase
+        .from('tags')
+        .select('id, name')
+        .eq('name', tag)
+        .maybeSingle();
+      
+      // Se a tag não existir, criar
+      if (!existingTag) {
+        console.log(`[4. TAGS] Tag "${tag}" não encontrada no sistema. Criando...`);
+        
         try {
-          // Usar inserção direta em vez de RPC para evitar problemas com chave estrangeira
-          // A tag será criada com o primeiro usuário disponível em vez de um ID fixo
-          const { data: firstUser } = await supabase
-            .from('profiles')
-            .select('id')
-            .limit(1)
-            .single();
+          const { error: tagInsertError } = await supabase
+            .from('tags')
+            .insert({ 
+              name: tag,
+              created_by: tagCreationUser
+            });
             
-          if (firstUser) {
-            const { error: tagInsertError } = await supabase
-              .from('tags')
-              .insert({ 
-                name: tag,
-                created_by: firstUser.id
-              })
-              .on_conflict('name')
-              .do_nothing();
-              
-            if (tagInsertError && tagInsertError.code !== '23505') { // Ignorar violação de unicidade
-              console.error(`[TAGS] Erro ao inserir tag ${tag}: ${tagInsertError.message}`);
-              tagErrors.push({ tag, error: tagInsertError.message });
-              tagsAddedFail++;
-            } else {
-              tagsAddedSuccess++;
-            }
-          } else {
-            console.error(`[TAGS] Não foi possível criar a tag ${tag}: nenhum usuário encontrado`);
-            tagErrors.push({ tag, error: 'Nenhum usuário encontrado' });
+          if (tagInsertError) {
+            console.error(`[4. TAGS] Erro ao criar tag "${tag}": ${tagInsertError.message} (código: ${tagInsertError.code})`);
+            tagErrors.push({ tag, error: tagInsertError.message });
             tagsAddedFail++;
+          } else {
+            console.log(`[4. TAGS] Tag "${tag}" criada com sucesso`);
+            tagsAddedSuccess++;
           }
         } catch (error) {
-          console.error(`[TAGS] Erro na criação da tag ${tag}: ${error.message}`);
+          console.error(`[4. TAGS] Exceção ao criar tag "${tag}": ${error.message}`);
           tagErrors.push({ tag, error: error.message });
           tagsAddedFail++;
-          // Continuar mesmo com erro
         }
+      } else {
+        console.log(`[4. TAGS] Tag "${tag}" já existe no sistema com ID ${existingTag.id}`);
+      }
+      
+      // Associar a tag ao contato
+      try {
+        console.log(`[4. TAGS] Associando tag "${tag}" ao contato ${contactId}`);
         
-        // Adicionar a tag ao contato
         const { error: tagContactError } = await supabase
           .from('contact_tags')
           .insert({
@@ -306,23 +360,24 @@ Deno.serve(async (req) => {
         
         if (tagContactError) {
           if (tagContactError.code === '23505') { // Unique violation
-            console.log(`[TAGS] Tag ${tag} já associada ao contato ${contactId}`);
+            console.log(`[4. TAGS] Tag "${tag}" já associada ao contato ${contactId}`);
           } else {
-            console.error(`[TAGS] Erro ao associar tag ${tag} ao contato: ${tagContactError.message}`);
+            console.error(`[4. TAGS] Erro ao associar tag "${tag}" ao contato: ${tagContactError.message} (código: ${tagContactError.code})`);
             tagErrors.push({ tag, error: tagContactError.message });
           }
         } else {
-          console.log(`[TAGS] Tag ${tag} adicionada ao contato ${contactId}`);
+          console.log(`[4. TAGS] Tag "${tag}" associada com sucesso ao contato ${contactId}`);
         }
       } catch (error) {
-        console.error(`[TAGS] Erro geral ao processar tag ${tag}: ${error.message}`);
+        console.error(`[4. TAGS] Exceção ao associar tag "${tag}" ao contato: ${error.message}`);
         tagErrors.push({ tag, error: error.message });
-        tagsAddedFail++;
       }
     }
     
     // Remover tags que não estão mais presentes
     if (tagsToRemove.length > 0) {
+      console.log(`[4. TAGS] Removendo ${tagsToRemove.length} tag(s) do contato ${contactId}: ${JSON.stringify(tagsToRemove)}`);
+      
       const { error: removeError } = await supabase
         .from('contact_tags')
         .delete()
@@ -330,16 +385,17 @@ Deno.serve(async (req) => {
         .in('tag_name', tagsToRemove);
       
       if (removeError) {
-        console.error(`[TAGS] Erro ao remover tags do contato: ${removeError.message}`);
+        console.error(`[4. TAGS] Erro ao remover tags do contato: ${removeError.message}`);
       } else {
-        console.log(`[TAGS] ${tagsToRemove.length} tags removidas do contato ${contactId}`);
+        console.log(`[4. TAGS] ${tagsToRemove.length} tag(s) removidas com sucesso do contato ${contactId}`);
       }
     }
 
-    // Verificar e processar sequências
-    console.log(`[SEQUENCES] Verificando sequências elegíveis para o contato ${contactId}`);
+    // [5. VERIFICAÇÃO DE SEQUÊNCIAS] - Verificar e processar sequências
+    console.log(`[5. SEQUÊNCIAS] Verificando sequências elegíveis para o contato ${contactId}`);
     
     // Buscar todas as instâncias ativas do cliente
+    console.log(`[5. SEQUÊNCIAS] Buscando instâncias ativas para cliente ${existingClient.id} (${existingClient.account_name})`);
     const { data: activeInstances, error: instanceError } = await supabase
       .from('instances')
       .select('id, name')
@@ -347,29 +403,38 @@ Deno.serve(async (req) => {
       .eq('active', true);
       
     if (instanceError) {
-      console.error(`[INSTANCES] Erro ao buscar instâncias: ${instanceError.message}`, instanceError);
+      console.error(`[5. SEQUÊNCIAS] Erro ao buscar instâncias: ${instanceError.message}`, instanceError);
       throw instanceError;
     }
     
-    console.log(`[INSTANCES] Encontradas ${activeInstances?.length || 0} instâncias ativas para cliente ${existingClient.id}`);
+    console.log(`[5. SEQUÊNCIAS] Encontradas ${activeInstances?.length || 0} instâncias ativas para cliente ${existingClient.id}`);
     
     // Debug adicional para verificar se há instâncias
     const { data: allInstances } = await supabase
       .from('instances')
       .select('id, name, client_id, active');
       
-    console.log(`[INSTANCES DEBUG] Total de instâncias no banco: ${allInstances?.length || 0}`);
+    console.log(`[5. SEQUÊNCIAS] DEBUG: Total de instâncias no banco: ${allInstances?.length || 0}`);
     if (allInstances && allInstances.length > 0) {
-      console.log(`[INSTANCES DEBUG] Primeira instância: ID=${allInstances[0].id}, Nome=${allInstances[0].name}, Cliente=${allInstances[0].client_id}, Ativa=${allInstances[0].active}`);
+      console.log(`[5. SEQUÊNCIAS] DEBUG: Primeiras 3 instâncias:`);
+      allInstances.slice(0, 3).forEach((inst, i) => {
+        console.log(`  [${i+1}] ID=${inst.id}, Nome=${inst.name}, Cliente=${inst.client_id}, Ativa=${inst.active}`);
+      });
+      
+      console.log(`[5. SEQUÊNCIAS] DEBUG: Filtro aplicado: { client_id: ${existingClient.id}, active: true }`);
     }
       
     if (!activeInstances || activeInstances.length === 0) {
+      console.log(`[5. SEQUÊNCIAS] ALERTA: Nenhuma instância ativa encontrada para o cliente ${existingClient.id}`);
       return new Response(
         JSON.stringify({ 
           success: true, 
           message: 'Contato processado com sucesso, mas nenhuma instância ativa encontrada.',
           debug: {
             clientId: existingClient.id,
+            accountId: accountId,
+            accountName: accountName,
+            contactId: contactId,
             totalInstancesInDb: allInstances?.length || 0,
             activeFilter: { client_id: existingClient.id, active: true }
           },
@@ -392,7 +457,7 @@ Deno.serve(async (req) => {
     let totalRemovedSequences = 0;
     
     for (const instance of activeInstances) {
-      console.log(`[INSTANCE] Processando instância ${instance.id} (${instance.name})`);
+      console.log(`[5. SEQUÊNCIAS] Processando instância ${instance.id} (${instance.name})`);
       
       // Buscar sequências ativas da instância
       const { data: activeSequences, error: sequencesError } = await supabase
@@ -402,23 +467,24 @@ Deno.serve(async (req) => {
         .eq('status', 'active');
         
       if (sequencesError) {
-        console.error(`[SEQUENCES] Erro ao buscar sequências: ${sequencesError.message}`);
+        console.error(`[5. SEQUÊNCIAS] Erro ao buscar sequências para instância ${instance.name}: ${sequencesError.message}`);
         continue;
       }
       
-      console.log(`[SEQUENCES] Encontradas ${activeSequences?.length || 0} sequências ativas para instância ${instance.name}`);
+      console.log(`[5. SEQUÊNCIAS] Encontradas ${activeSequences?.length || 0} sequências ativas para instância ${instance.name}`);
       
       if (!activeSequences || activeSequences.length === 0) {
+        console.log(`[5. SEQUÊNCIAS] Nenhuma sequência ativa para instância ${instance.name}, pulando`);
         continue;
       }
       
       // Para cada sequência, verificar elegibilidade com base nas tags
       for (const sequence of activeSequences) {
-        console.log(`[SEQUENCE] Verificando elegibilidade para sequência ${sequence.id} (${sequence.name})`);
+        console.log(`[5. SEQUÊNCIAS] Verificando elegibilidade para sequência ${sequence.id} (${sequence.name})`);
         
         // Verificação de condição de início
         const { start_condition_type, start_condition_tags } = sequence;
-        console.log(`[SEQUENCE] Condição de início: ${start_condition_type}, tags: ${JSON.stringify(start_condition_tags)}`);
+        console.log(`[5. SEQUÊNCIAS] Condição de início: ${start_condition_type}, tags: ${JSON.stringify(start_condition_tags)}`);
         
         let isEligible = false;
         
@@ -426,18 +492,19 @@ Deno.serve(async (req) => {
         if (start_condition_type === 'AND') {
           // Todos os tags devem estar presentes
           isEligible = start_condition_tags.every(tag => tags.includes(tag));
-          console.log(`[SEQUENCE] Verificação AND - ${isEligible ? 'ELEGÍVEL' : 'NÃO ELEGÍVEL'}`);
+          console.log(`[5. SEQUÊNCIAS] Verificação AND - ${isEligible ? 'ELEGÍVEL' : 'NÃO ELEGÍVEL'}`);
         } else {
           // Qualquer uma das tags deve estar presente
           isEligible = start_condition_tags.some(tag => tags.includes(tag));
-          console.log(`[SEQUENCE] Verificação OR - ${isEligible ? 'ELEGÍVEL' : 'NÃO ELEGÍVEL'}`);
+          console.log(`[5. SEQUÊNCIAS] Verificação OR - ${isEligible ? 'ELEGÍVEL' : 'NÃO ELEGÍVEL'}`);
         }
         
         if (isEligible) {
           totalEligibleSequences++;
-          console.log(`[SEQUENCE] Contato ${contactId} é elegível para sequência ${sequence.name}`);
+          console.log(`[5. SEQUÊNCIAS] Contato ${contactId} é elegível para sequência ${sequence.name}`);
           
           // Verificar se o contato já está na sequência
+          console.log(`[5. SEQUÊNCIAS] Verificando se contato já está na sequência ${sequence.name}`);
           const { data: existingContactSequence, error: contactSeqError } = await supabase
             .from('contact_sequences')
             .select('id, status')
@@ -448,19 +515,19 @@ Deno.serve(async (req) => {
             .maybeSingle();
             
           if (contactSeqError) {
-            console.error(`[SEQUENCE] Erro ao verificar se contato já está na sequência: ${contactSeqError.message}`);
+            console.error(`[5. SEQUÊNCIAS] Erro ao verificar se contato já está na sequência: ${contactSeqError.message}`);
             continue;
           }
           
           // Se o contato já está ativo nesta sequência, pular
           if (existingContactSequence && existingContactSequence.status === 'active') {
-            console.log(`[SEQUENCE] Contato ${contactId} já está ativo na sequência ${sequence.name}`);
+            console.log(`[5. SEQUÊNCIAS] Contato ${contactId} já está ativo na sequência ${sequence.name}, pulando`);
             continue;
           }
           
           // Verificar condição de parada
           const { stop_condition_type, stop_condition_tags } = sequence;
-          console.log(`[SEQUENCE] Condição de parada: ${stop_condition_type}, tags: ${JSON.stringify(stop_condition_tags)}`);
+          console.log(`[5. SEQUÊNCIAS] Condição de parada: ${stop_condition_type}, tags: ${JSON.stringify(stop_condition_tags)}`);
           
           if (stop_condition_tags && stop_condition_tags.length > 0) {
             let shouldStop = false;
@@ -468,22 +535,25 @@ Deno.serve(async (req) => {
             if (stop_condition_type === 'AND') {
               // Todos os tags de parada devem estar presentes
               shouldStop = stop_condition_tags.every(tag => tags.includes(tag));
+              console.log(`[5. SEQUÊNCIAS] Verificação de parada AND - ${shouldStop ? 'DEVE PARAR' : 'NÃO DEVE PARAR'}`);
             } else {
               // Qualquer uma das tags de parada deve estar presente
               shouldStop = stop_condition_tags.some(tag => tags.includes(tag));
+              console.log(`[5. SEQUÊNCIAS] Verificação de parada OR - ${shouldStop ? 'DEVE PARAR' : 'NÃO DEVE PARAR'}`);
             }
             
             if (shouldStop) {
-              console.log(`[SEQUENCE] Contato ${contactId} atende condição de parada para sequência ${sequence.name}`);
+              console.log(`[5. SEQUÊNCIAS] Contato ${contactId} atende condição de parada para sequência ${sequence.name}`);
               
               // Se o contato estiver em uma sequência inativa ou concluída, não temos que fazer nada
               if (existingContactSequence && existingContactSequence.status !== 'active') {
-                console.log(`[SEQUENCE] Contato já está em estado não-ativo (${existingContactSequence.status}) na sequência`);
+                console.log(`[5. SEQUÊNCIAS] Contato já está em estado não-ativo (${existingContactSequence.status}) na sequência, pulando`);
                 continue;
               }
               
               // Se o contato estiver ativo na sequência, remover
               if (existingContactSequence) {
+                console.log(`[5. SEQUÊNCIAS] Removendo contato ${contactId} da sequência ${sequence.name}`);
                 const { error: removeError } = await supabase
                   .from('contact_sequences')
                   .update({
@@ -493,9 +563,9 @@ Deno.serve(async (req) => {
                   .eq('id', existingContactSequence.id);
                   
                 if (removeError) {
-                  console.error(`[SEQUENCE] Erro ao remover contato da sequência: ${removeError.message}`);
+                  console.error(`[5. SEQUÊNCIAS] Erro ao remover contato da sequência: ${removeError.message}`);
                 } else {
-                  console.log(`[SEQUENCE] Contato ${contactId} removido da sequência ${sequence.name}`);
+                  console.log(`[5. SEQUÊNCIAS] Contato ${contactId} removido com sucesso da sequência ${sequence.name}`);
                   totalRemovedSequences++;
                 }
               }
@@ -507,11 +577,12 @@ Deno.serve(async (req) => {
           // Se o contato já concluiu ou foi removido da sequência, não adicionar novamente
           if (existingContactSequence && 
               (existingContactSequence.status === 'completed' || existingContactSequence.status === 'removed')) {
-            console.log(`[SEQUENCE] Contato ${contactId} já esteve na sequência ${sequence.name} (status: ${existingContactSequence.status})`);
+            console.log(`[5. SEQUÊNCIAS] Contato ${contactId} já esteve na sequência ${sequence.name} (status: ${existingContactSequence.status}), não adicionar novamente`);
             continue;
           }
           
           // Adicionar contato à sequência
+          console.log(`[5. SEQUÊNCIAS] Adicionando contato ${contactId} à sequência ${sequence.name}`);
           try {
             // Buscar o primeiro estágio da sequência
             const { data: firstStage, error: stageError } = await supabase
@@ -523,16 +594,16 @@ Deno.serve(async (req) => {
               .maybeSingle();
               
             if (stageError) {
-              console.error(`[STAGE] Erro ao buscar primeiro estágio da sequência: ${stageError.message}`);
+              console.error(`[5. SEQUÊNCIAS] Erro ao buscar primeiro estágio da sequência: ${stageError.message}`);
               continue;
             }
             
             if (!firstStage) {
-              console.error(`[STAGE] Nenhum estágio encontrado para a sequência ${sequence.name}`);
+              console.error(`[5. SEQUÊNCIAS] Nenhum estágio encontrado para a sequência ${sequence.name}`);
               continue;
             }
             
-            console.log(`[STAGE] Primeiro estágio encontrado: ${firstStage.id} (${firstStage.name})`);
+            console.log(`[5. SEQUÊNCIAS] Primeiro estágio encontrado: ${firstStage.id} (${firstStage.name})`);
             
             // Criar registro na tabela contact_sequences
             const { data: contactSequence, error: createSeqError } = await supabase
@@ -548,11 +619,11 @@ Deno.serve(async (req) => {
               .single();
               
             if (createSeqError) {
-              console.error(`[SEQUENCE] Erro ao adicionar contato à sequência: ${createSeqError.message}`);
+              console.error(`[5. SEQUÊNCIAS] Erro ao adicionar contato à sequência: ${createSeqError.message} (código: ${createSeqError.code})`);
               continue;
             }
             
-            console.log(`[SEQUENCE] Contato ${contactId} adicionado à sequência ${sequence.name}`);
+            console.log(`[5. SEQUÊNCIAS] Contato ${contactId} adicionado à sequência ${sequence.name} com ID ${contactSequence.id}`);
             totalAddedSequences++;
             
             // Criar registro de progresso para o primeiro estágio
@@ -565,15 +636,18 @@ Deno.serve(async (req) => {
               });
               
             if (progressError) {
-              console.error(`[PROGRESS] Erro ao criar registro de progresso: ${progressError.message}`);
+              console.error(`[5. SEQUÊNCIAS] Erro ao criar registro de progresso: ${progressError.message}`);
+            } else {
+              console.log(`[5. SEQUÊNCIAS] Registro de progresso criado com sucesso para estágio ${firstStage.name}`);
             }
             
             // Calcular o tempo para o primeiro envio
-            console.log(`[SCHEDULE] Calculando tempo para primeiro envio do estágio ${firstStage.name}`);
+            console.log(`[5. SEQUÊNCIAS] Calculando tempo para primeiro envio do estágio ${firstStage.name}`);
             const now = new Date();
             let scheduledTime = new Date(now);
             
             // Adicionar o delay do estágio
+            console.log(`[5. SEQUÊNCIAS] Aplicando delay: ${firstStage.delay} ${firstStage.delay_unit}`);
             switch (firstStage.delay_unit) {
               case 'minutes':
                 scheduledTime.setMinutes(scheduledTime.getMinutes() + firstStage.delay);
@@ -589,14 +663,15 @@ Deno.serve(async (req) => {
             }
             
             const rawScheduledTime = new Date(scheduledTime);
-            console.log(`[SCHEDULE] Tempo inicial calculado: ${scheduledTime.toISOString()}`);
+            console.log(`[5. SEQUÊNCIAS] Tempo inicial calculado: ${scheduledTime.toISOString()}`);
             
             // Verificar restrições de horário
             // Aqui deveríamos ajustar o scheduledTime com base nas restrições
             // Por simplicidade, vamos pular esta etapa no exemplo
             
             // Criar mensagem agendada
-            const { error: scheduleError } = await supabase
+            console.log(`[5. SEQUÊNCIAS] Agendando mensagem para ${scheduledTime.toISOString()}`);
+            const { data: scheduledMessage, error: scheduleError } = await supabase
               .from('scheduled_messages')
               .insert({
                 contact_id: contactId.toString(),
@@ -605,12 +680,14 @@ Deno.serve(async (req) => {
                 raw_scheduled_time: rawScheduledTime.toISOString(),
                 scheduled_time: scheduledTime.toISOString(),
                 status: 'pending'
-              });
+              })
+              .select('id')
+              .single();
               
             if (scheduleError) {
-              console.error(`[SCHEDULE] Erro ao agendar mensagem: ${scheduleError.message}`);
+              console.error(`[5. SEQUÊNCIAS] Erro ao agendar mensagem: ${scheduleError.message}`);
             } else {
-              console.log(`[SCHEDULE] Mensagem agendada para ${scheduledTime.toISOString()}`);
+              console.log(`[5. SEQUÊNCIAS] Mensagem agendada com sucesso para ${scheduledTime.toISOString()}, ID: ${scheduledMessage.id}`);
               
               // Incrementar contadores de estatísticas
               const today = new Date().toISOString().split('T')[0];
@@ -626,14 +703,17 @@ Deno.serve(async (req) => {
               });
               
               if (statsError) {
-                console.error(`[STATS] Erro ao atualizar estatísticas: ${statsError.message}`);
+                console.error(`[5. SEQUÊNCIAS] Erro ao atualizar estatísticas: ${statsError.message}`);
+              } else {
+                console.log(`[5. SEQUÊNCIAS] Estatísticas atualizadas com sucesso`);
               }
             }
           } catch (error) {
-            console.error(`[CRITICAL] Erro ao processar adição à sequência: ${error.message}`);
+            console.error(`[5. SEQUÊNCIAS] Erro crítico ao processar adição à sequência: ${error.message}`);
+            console.error(error.stack);
           }
         } else {
-          console.log(`[SEQUENCE] Contato ${contactId} NÃO é elegível para sequência ${sequence.name}`);
+          console.log(`[5. SEQUÊNCIAS] Contato ${contactId} NÃO é elegível para sequência ${sequence.name}`);
           
           // Se o contato está na sequência mas não atende mais os critérios, verificar se deve ser removido
           const { data: existingContactSequence, error: contactSeqError } = await supabase
@@ -645,21 +725,23 @@ Deno.serve(async (req) => {
             .maybeSingle();
             
           if (contactSeqError) {
-            console.error(`[SEQUENCE] Erro ao verificar se contato está na sequência: ${contactSeqError.message}`);
+            console.error(`[5. SEQUÊNCIAS] Erro ao verificar se contato está na sequência: ${contactSeqError.message}`);
             continue;
           }
           
           if (existingContactSequence) {
-            console.log(`[SEQUENCE] Contato ${contactId} está na sequência ${sequence.name} mas não atende mais os critérios`);
-            
-            // Aqui você pode decidir se deseja remover o contato da sequência
+            console.log(`[5. SEQUÊNCIAS] Contato ${contactId} está na sequência ${sequence.name} mas não atende mais os critérios iniciais. Mantendo.`);
             // Por padrão, estamos deixando ele continuar na sequência mesmo que não atenda mais os critérios iniciais
           }
         }
       }
     }
 
-    // Responder com sucesso e estatísticas
+    // [6. RESPOSTA] - Responder com sucesso e estatísticas
+    console.log(`[6. RESPOSTA] Processamento concluído. Contato: ${contactId}, Cliente: ${existingClient.id} (${existingClient.account_name})`);
+    console.log(`[6. RESPOSTA] Tags adicionadas: ${tagsAddedSuccess} sucesso, ${tagsAddedFail} falhas`);
+    console.log(`[6. RESPOSTA] Sequências: ${totalEligibleSequences} elegíveis, ${totalAddedSequences} adicionadas, ${totalRemovedSequences} removidas`);
+    
     return new Response(
       JSON.stringify({
         success: true,
@@ -667,6 +749,8 @@ Deno.serve(async (req) => {
         details: {
           contactId,
           clientId: existingClient.id,
+          clientName: existingClient.account_name,
+          accountId: accountId,
           tagsAdded: tagsToAdd.length,
           tagsRemoved: tagsToRemove.length,
           tagsAddedSuccess,
@@ -683,7 +767,7 @@ Deno.serve(async (req) => {
     console.error(`[CRITICAL] Erro não tratado: ${error.message}`);
     console.error(error.stack);
     return new Response(
-      JSON.stringify({ error: 'Erro interno do servidor', details: error.message }),
+      JSON.stringify({ error: 'Erro interno do servidor', details: error.message, stack: error.stack }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
