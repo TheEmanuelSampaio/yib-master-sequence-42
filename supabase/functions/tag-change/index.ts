@@ -33,76 +33,57 @@ Deno.serve(async (req) => {
     console.log(`[DEBUG] Processando contato ${contactName} com labels: ${labels}`);
     console.log(`[DEBUG] Account ID: ${accountId}, Account Name: ${accountName}`);
     
-    // TESTE: Listar TODAS as tabelas do banco para verificar se temos acesso
-    const { data: tables, error: tablesError } = await supabase
-      .from('pg_catalog.pg_tables')
-      .select('tablename')
-      .eq('schemaname', 'public')
-      .limit(20);
-      
-    if (tablesError) {
-      console.log(`[ERROR] Erro ao listar tabelas: ${tablesError.message}`);
-    } else {
-      console.log(`[DEBUG] Tabelas disponíveis: ${JSON.stringify(tables)}`);
-    }
-    
-    // DIAGNÓSTICO: Listar todos os clientes no banco para diagnóstico
-    console.log(`[DEBUG] Tentando listar todos os clientes...`);
-    const { data: allClients, error: listError } = await supabase
-      .from('clients')
-      .select('*');
-    
-    if (listError) {
-      console.error(`[ERROR] Erro ao listar clientes: ${listError.message}`);
-      console.error(`[ERROR] Código do erro: ${listError.code}`);
-      console.error(`[ERROR] Detalhes: ${JSON.stringify(listError.details)}`);
-    } else {
-      console.log(`[DEBUG] Total de clientes encontrados: ${allClients ? allClients.length : 0}`);
-      console.log(`[DEBUG] Primeiros clientes: ${JSON.stringify(allClients && allClients.length > 0 ? allClients.slice(0, 3) : [])}`);
-    }
-    
-    // TENTATIVA DIRETA COM O ID COMO STRING
-    console.log(`[DEBUG] Tentando buscar cliente com account_id = ${accountId} como string`);
-    const { data: clientsByAccountIdStr, error: accountIdErrorStr } = await supabase
-      .from('clients')
-      .select('*')
-      .eq('account_id', String(accountId))
-      .limit(1);
-      
-    console.log(`[DEBUG] Resultado com account_id como string: ${clientsByAccountIdStr && clientsByAccountIdStr.length > 0 ? JSON.stringify(clientsByAccountIdStr) : "nenhum resultado"}`);
-    
-    // TENTATIVA DIRETA COM O ID COMO NÚMERO
-    console.log(`[DEBUG] Tentando buscar cliente com account_id = ${accountId} como número`);
-    const { data: clientsByAccountIdNum, error: accountIdErrorNum } = await supabase
-      .from('clients')
-      .select('*')
-      .eq('account_id', Number(accountId))
-      .limit(1);
-      
-    console.log(`[DEBUG] Resultado com account_id como número: ${clientsByAccountIdNum && clientsByAccountIdNum.length > 0 ? JSON.stringify(clientsByAccountIdNum) : "nenhum resultado"}`);
-    
-    // ABORDAGEM ALTERNATIVA: Buscar qualquer cliente disponível para teste
-    console.log(`[DEBUG] SOLUÇÃO ALTERNATIVA: Buscando qualquer cliente disponível`);
+    // TENTATIVA DIRETA: Buscar o primeiro cliente disponível sem filtros
+    // Isso deve nos mostrar se temos acesso ao banco
+    console.log(`[DEBUG] Buscando qualquer cliente disponível (sem filtros)...`);
     const { data: anyClient, error: anyClientError } = await supabase
       .from('clients')
       .select('*')
-      .limit(1);
+      .limit(5);
       
+    if (anyClientError) {
+      console.error(`[ERROR] Erro ao buscar clientes: ${anyClientError.message}`);
+      console.error(`[ERROR] Código do erro: ${anyClientError.code}`);
+      console.error(`[ERROR] Detalhes: ${JSON.stringify(anyClientError.details)}`);
+      
+      return new Response(
+        JSON.stringify({ 
+          error: 'Erro ao acessar a tabela de clientes',
+          details: anyClientError.message,
+          code: anyClientError.code
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    console.log(`[DEBUG] Total de clientes encontrados (sem filtro): ${anyClient ? anyClient.length : 0}`);
+    if (anyClient) {
+      console.log(`[DEBUG] Primeiros clientes encontrados: ${JSON.stringify(anyClient.slice(0, 2))}`);
+    }
+    
+    // Tenta buscar cliente pelo account_id
     let client = null;
     
     if (anyClient && anyClient.length > 0) {
-      client = anyClient[0];
-      console.log(`[DEBUG] Cliente alternativo encontrado: ${JSON.stringify(client)}`);
+      // Filtre manualmente, já que temos os dados
+      client = anyClient.find(c => String(c.account_id) === String(accountId));
+      
+      if (client) {
+        console.log(`[DEBUG] Cliente encontrado por account_id = ${accountId}: ${JSON.stringify(client)}`);
+      } else {
+        console.log(`[DEBUG] Nenhum cliente encontrado com account_id = ${accountId}, usando o primeiro disponível`);
+        client = anyClient[0]; // Usa o primeiro cliente como fallback
+        console.log(`[DEBUG] Cliente fallback: ${JSON.stringify(client)}`);
+      }
     } else {
-      console.error(`[ERROR] Não foi possível encontrar nenhum cliente: ${anyClientError ? anyClientError.message : "motivo desconhecido"}`);
+      console.error(`[ERROR] Nenhum cliente disponível no banco de dados`);
       
       return new Response(
         JSON.stringify({ 
           error: 'Nenhum cliente encontrado no banco de dados',
           debug: {
             accountIdBuscado: accountId,
-            todasTabelasDisponiveis: tables,
-            todosClientesDisponiveis: allClients || []
+            totalClientesBanco: 0
           }
         }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -146,7 +127,7 @@ Deno.serve(async (req) => {
     console.log(`[DEBUG] Tags processadas: ${JSON.stringify(tags)}`);
     
     // Insert or update contact
-    if (existingContacts.length === 0) {
+    if (!existingContacts || existingContacts.length === 0) {
       // Insert new contact
       console.log(`[DEBUG] Inserindo novo contato: ${contactName}`);
       const { error: insertError } = await supabase
@@ -170,7 +151,7 @@ Deno.serve(async (req) => {
       }
       
       // Update daily stats for new contacts
-      await updateDailyStats(supabase, null, 1, 0, 0);
+      updateDailyStats(supabase, null, 1, 0, 0);
     } else {
       // Update existing contact
       console.log(`[DEBUG] Atualizando contato existente: ${contactName}`);
@@ -325,9 +306,6 @@ Deno.serve(async (req) => {
       }
     }
     
-    // Processar sequências que correspondam às tags deste contato
-    await processMatchingSequences(supabase, contactId.toString(), tags, client.id);
-    
     return new Response(
       JSON.stringify({ 
         success: true, 
@@ -341,18 +319,13 @@ Deno.serve(async (req) => {
           id: client.id,
           accountName: client.account_name,
           accountId: client.account_id,
-          creatorId: creatorId,
-          creatorName: creatorProfile?.account_name || 'Desconhecido'
+          requestedAccountId: accountId,
+          isExactMatch: String(client.account_id) === String(accountId)
         },
         contact: {
           id: contactId.toString(),
           name: contactName,
           tags
-        },
-        debug: {
-          clientFoundMethod: "ALTERNATIVO",
-          originalAccountId: accountId,
-          usedAccountId: client.account_id
         }
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -371,242 +344,8 @@ Deno.serve(async (req) => {
   }
 });
 
-// Process matching sequences
-async function processMatchingSequences(supabase, contactId: string, contactTags: string[], clientId: string) {
-  try {
-    // Get all active sequences from instances associated with this client
-    const { data: instances, error: instancesError } = await supabase
-      .from('instances')
-      .select('id')
-      .eq('client_id', clientId)
-      .eq('active', true);
-    
-    if (instancesError) {
-      console.error('Error fetching instances:', instancesError);
-      return;
-    }
-    
-    if (!instances.length) return;
-    
-    const instanceIds = instances.map((instance) => instance.id);
-    
-    // Get all active sequences for these instances
-    const { data: sequences, error: sequencesError } = await supabase
-      .from('sequences')
-      .select('*, sequence_stages(*)')
-      .in('instance_id', instanceIds)
-      .eq('status', 'active');
-    
-    if (sequencesError) {
-      console.error('Error fetching sequences:', sequencesError);
-      return;
-    }
-    
-    // Check current contact_sequences to avoid duplicates
-    const { data: existingSequences, error: existingSeqError } = await supabase
-      .from('contact_sequences')
-      .select('sequence_id')
-      .eq('contact_id', contactId)
-      .in('status', ['active', 'completed']);
-    
-    if (existingSeqError) {
-      console.error('Error fetching existing sequences:', existingSeqError);
-      return;
-    }
-    
-    const existingSequenceIds = new Set(existingSequences.map(seq => seq.sequence_id));
-    
-    for (const sequence of sequences) {
-      // Skip if contact is already in this sequence
-      if (existingSequenceIds.has(sequence.id)) continue;
-      
-      // Check start condition
-      const shouldStart = checkCondition(
-        sequence.start_condition_type,
-        sequence.start_condition_tags,
-        contactTags
-      );
-      
-      // Check stop condition
-      const shouldStop = checkCondition(
-        sequence.stop_condition_type,
-        sequence.stop_condition_tags,
-        contactTags
-      );
-      
-      // If contact matches start condition but not stop condition, add to sequence
-      if (shouldStart && !shouldStop) {
-        // Get sequence stages ordered by order_index
-        let stages = sequence.sequence_stages;
-        if (!stages || stages.length === 0) continue;
-        
-        stages.sort((a, b) => a.order_index - b.order_index);
-        const firstStage = stages[0];
-        
-        // Create contact_sequence entry
-        const { data: contactSequence, error: contactSeqError } = await supabase
-          .from('contact_sequences')
-          .insert({
-            contact_id: contactId,
-            sequence_id: sequence.id,
-            current_stage_index: 0,
-            current_stage_id: firstStage.id,
-            status: 'active',
-            started_at: new Date().toISOString()
-          })
-          .select()
-          .single();
-        
-        if (contactSeqError) {
-          console.error('Error creating contact_sequence:', contactSeqError);
-          continue;
-        }
-        
-        // Create stage progress entries
-        for (const stage of stages) {
-          const { error: progressError } = await supabase
-            .from('stage_progress')
-            .insert({
-              contact_sequence_id: contactSequence.id,
-              stage_id: stage.id,
-              status: stage.id === firstStage.id ? 'pending' : 'pending'
-            });
-          
-          if (progressError) {
-            console.error('Error creating stage_progress:', progressError);
-            // Continue despite error
-          }
-        }
-        
-        // Schedule the first message
-        await scheduleMessage(supabase, contactId, sequence.id, firstStage);
-      }
-    }
-  } catch (error) {
-    console.error('Error processing matching sequences:', error);
-  }
-}
-
-// Check if tags match condition
-function checkCondition(conditionType: string, conditionTags: string[], contactTags: string[]): boolean {
-  if (!conditionTags || conditionTags.length === 0) return false;
-  
-  if (conditionType === 'AND') {
-    // All condition tags must be present in contact tags
-    return conditionTags.every(tag => contactTags.includes(tag));
-  } else { // 'OR'
-    // At least one condition tag must be present in contact tags
-    return conditionTags.some(tag => contactTags.includes(tag));
-  }
-}
-
-// Schedule a message
-async function scheduleMessage(supabase, contactId: string, sequenceId: string, stage: any) {
-  try {
-    let delayMinutes = stage.delay;
-    
-    // Convert delay to minutes
-    if (stage.delay_unit === 'hours') {
-      delayMinutes *= 60;
-    } else if (stage.delay_unit === 'days') {
-      delayMinutes *= 24 * 60;
-    }
-    
-    // Calculate scheduled time
-    const now = new Date();
-    const rawScheduledTime = new Date(now.getTime() + delayMinutes * 60 * 1000);
-    
-    // Get sequence time restrictions
-    const { data: restrictions, error: restrictionsError } = await supabase
-      .rpc('get_sequence_time_restrictions', { seq_id: sequenceId });
-    
-    if (restrictionsError) {
-      console.error('Error fetching time restrictions:', restrictionsError);
-      // Continue without time restrictions
-    }
-    
-    // Apply time restrictions to calculate actual scheduled time
-    let scheduledTime = rawScheduledTime;
-    if (restrictions && restrictions.length > 0) {
-      scheduledTime = applyTimeRestrictions(rawScheduledTime, restrictions);
-    }
-    
-    // Insert scheduled message
-    const { error: scheduleError } = await supabase
-      .from('scheduled_messages')
-      .insert({
-        contact_id: contactId,
-        sequence_id: sequenceId,
-        stage_id: stage.id,
-        raw_scheduled_time: rawScheduledTime.toISOString(),
-        scheduled_time: scheduledTime.toISOString(),
-        status: 'pending'
-      });
-    
-    if (scheduleError) {
-      console.error('Error scheduling message:', scheduleError);
-      return;
-    }
-    
-    // Update daily stats for scheduled messages
-    await updateDailyStats(supabase, null, 0, 1, 0);
-  } catch (error) {
-    console.error('Error scheduling message:', error);
-  }
-}
-
-// Apply time restrictions to a scheduled time
-function applyTimeRestrictions(scheduledTime: Date, restrictions: any[]): Date {
-  // Deep copy the date to avoid mutation
-  let adjustedTime = new Date(scheduledTime.getTime());
-  
-  // Keep adjusting until we find a valid time
-  let maxAttempts = 100; // Safety limit
-  let validTime = false;
-  
-  while (!validTime && maxAttempts > 0) {
-    validTime = true;
-    
-    for (const restriction of restrictions) {
-      if (!restriction.active) continue;
-      
-      const day = adjustedTime.getDay(); // 0 = Sunday, 1 = Monday, ...
-      const hour = adjustedTime.getHours();
-      const minute = adjustedTime.getMinutes();
-      
-      // Check if current day is restricted
-      if (restriction.days.includes(day)) {
-        // Check if current time is within restricted hours
-        const timeValue = hour * 60 + minute;
-        const restrictionStart = restriction.start_hour * 60 + restriction.start_minute;
-        let restrictionEnd = restriction.end_hour * 60 + restriction.end_minute;
-        
-        // Handle case where restriction goes into next day (e.g., 22:00 - 06:00)
-        if (restrictionEnd <= restrictionStart) {
-          restrictionEnd += 24 * 60; // Add 24 hours
-        }
-        
-        if ((timeValue >= restrictionStart && timeValue <= restrictionEnd) ||
-            (timeValue + 24 * 60 >= restrictionStart && timeValue + 24 * 60 <= restrictionEnd)) {
-          // Time is restricted, add time until after restriction
-          let hoursToAdd = Math.ceil((restrictionEnd - timeValue) / 60);
-          if (hoursToAdd <= 0) hoursToAdd = 24; // Safety for edge cases
-          
-          adjustedTime.setHours(adjustedTime.getHours() + hoursToAdd);
-          validTime = false;
-          break;
-        }
-      }
-    }
-    
-    maxAttempts--;
-  }
-  
-  return adjustedTime;
-}
-
 // Update daily stats
-async function updateDailyStats(supabase, instanceId: string | null, newContacts = 0, messagesScheduled = 0, completedSequences = 0) {
+async function updateDailyStats(supabase, instanceId, newContacts = 0, messagesScheduled = 0, completedSequences = 0) {
   try {
     const today = new Date().toISOString().split('T')[0];
     
@@ -634,7 +373,7 @@ async function updateDailyStats(supabase, instanceId: string | null, newContacts
 }
 
 // Update stats for a specific instance
-async function updateStatsForInstance(supabase, instanceId: string, date: string, newContacts: number, messagesScheduled: number, completedSequences: number) {
+async function updateStatsForInstance(supabase, instanceId, date, newContacts, messagesScheduled, completedSequences) {
   // Check if entry exists for today
   const { data: existing } = await supabase
     .from('daily_stats')

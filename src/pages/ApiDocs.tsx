@@ -72,8 +72,8 @@ const ApiDocs = () => {
     "id": "uuid-do-cliente",
     "accountName": "Nome da Conta",
     "accountId": 1,
-    "creatorId": "uuid-do-criador",
-    "creatorName": "Nome do Criador"
+    "requestedAccountId": 1,
+    "isExactMatch": true
   },
   "contact": {
     "id": "12345",
