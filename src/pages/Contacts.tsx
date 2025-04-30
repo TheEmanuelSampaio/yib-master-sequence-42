@@ -1,7 +1,7 @@
 
 import { useState } from "react";
 import { useApp } from '@/context/AppContext';
-import { Search, User, Tag, CheckCircle2, Clock, AlertCircle, ChevronDown, MoreVertical } from "lucide-react";
+import { Search, User, Tag, CheckCircle2, Clock, AlertCircle, ChevronDown, MoreVertical, Trash, Pencil } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -16,6 +16,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +28,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   DropdownMenu,
@@ -38,12 +40,19 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Contact, ContactSequence } from '@/types';
 import { cn } from '@/lib/utils';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Label } from "@/components/ui/label";
 
 export default function Contacts() {
-  const { contacts, sequences, contactSequences } = useApp();
+  const { contacts, sequences, contactSequences, deleteContact, updateContact } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [showSequences, setShowSequences] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editContactData, setEditContactData] = useState<{name: string, phoneNumber: string}>({
+    name: '',
+    phoneNumber: ''
+  });
   
   // Helper function to get contact sequences
   const getContactSequences = (contactId: string) => {
@@ -78,6 +87,33 @@ export default function Contacts() {
   const handleViewSequences = (contact: Contact) => {
     setSelectedContact(contact);
     setShowSequences(true);
+  };
+  
+  // Handle edit contact
+  const handleEditContact = (contact: Contact) => {
+    setSelectedContact(contact);
+    setEditContactData({
+      name: contact.name,
+      phoneNumber: contact.phoneNumber
+    });
+    setShowEditDialog(true);
+  };
+  
+  // Handle save edit
+  const handleSaveEdit = () => {
+    if (!selectedContact) return;
+    
+    updateContact(selectedContact.id, {
+      name: editContactData.name,
+      phoneNumber: editContactData.phoneNumber
+    });
+    
+    setShowEditDialog(false);
+  };
+  
+  // Handle delete contact
+  const handleDeleteContact = (contactId: string) => {
+    deleteContact(contactId);
   };
   
   const formatContactSequenceStatus = (status: string) => {
@@ -158,7 +194,7 @@ export default function Contacts() {
                       <TableHead>Telefone</TableHead>
                       <TableHead>Tags</TableHead>
                       <TableHead>Sequências</TableHead>
-                      <TableHead></TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -199,14 +235,54 @@ export default function Contacts() {
                             )}
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleViewSequences(contact)}
-                              disabled={seqDetails.total === 0}
-                            >
-                              Detalhes
-                            </Button>
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleViewSequences(contact)}
+                                disabled={seqDetails.total === 0}
+                              >
+                                Detalhes
+                              </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon">
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => handleEditContact(contact)}>
+                                    <Pencil className="h-4 w-4 mr-2" />
+                                    Editar
+                                  </DropdownMenuItem>
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                        <Trash className="h-4 w-4 mr-2 text-red-500" />
+                                        <span className="text-red-500">Excluir</span>
+                                      </DropdownMenuItem>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Excluir contato</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          Tem certeza que deseja excluir o contato {contact.name}? Esta ação não pode ser desfeita.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                        <AlertDialogAction 
+                                          onClick={() => handleDeleteContact(contact.id)}
+                                          className="bg-red-500 text-white hover:bg-red-600"
+                                        >
+                                          Excluir
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
                           </TableCell>
                         </TableRow>
                       );
@@ -241,7 +317,7 @@ export default function Contacts() {
                       <TableHead>Telefone</TableHead>
                       <TableHead>Tags</TableHead>
                       <TableHead>Sequências</TableHead>
-                      <TableHead></TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -274,13 +350,53 @@ export default function Contacts() {
                             </div>
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleViewSequences(contact)}
-                            >
-                              Detalhes
-                            </Button>
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleViewSequences(contact)}
+                              >
+                                Detalhes
+                              </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon">
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => handleEditContact(contact)}>
+                                    <Pencil className="h-4 w-4 mr-2" />
+                                    Editar
+                                  </DropdownMenuItem>
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                        <Trash className="h-4 w-4 mr-2 text-red-500" />
+                                        <span className="text-red-500">Excluir</span>
+                                      </DropdownMenuItem>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Excluir contato</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          Tem certeza que deseja excluir o contato {contact.name}? Esta ação não pode ser desfeita.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                        <AlertDialogAction 
+                                          onClick={() => handleDeleteContact(contact.id)}
+                                          className="bg-red-500 text-white hover:bg-red-600"
+                                        >
+                                          Excluir
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
                           </TableCell>
                         </TableRow>
                       );
@@ -298,6 +414,48 @@ export default function Contacts() {
           </Card>
         </TabsContent>
       </Tabs>
+      
+      {/* Contact Edit Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Editar Contato</DialogTitle>
+            <DialogDescription>
+              Faça alterações nas informações do contato abaixo.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="name" className="text-right">
+                Nome
+              </Label>
+              <Input
+                id="name"
+                value={editContactData.name}
+                onChange={(e) => setEditContactData({...editContactData, name: e.target.value})}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="phoneNumber" className="text-right">
+                Telefone
+              </Label>
+              <Input
+                id="phoneNumber"
+                value={editContactData.phoneNumber}
+                onChange={(e) => setEditContactData({...editContactData, phoneNumber: e.target.value})}
+                className="col-span-3"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveEdit}>Salvar Alterações</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       
       {/* Contact Sequences Dialog */}
       <Dialog open={showSequences} onOpenChange={setShowSequences}>
