@@ -45,13 +45,15 @@ const App = () => (
               <Route path="/login" element={<Login />} />
 
               {/* Protected Routes */}
-              <Route path="/" element={<RequireAuth><MainLayout><Dashboard /></MainLayout></RequireAuth>} />
-              <Route path="/sequences" element={<RequireAuth><MainLayout><Sequences /></MainLayout></RequireAuth>} />
-              <Route path="/contacts" element={<RequireAuth><MainLayout><Contacts /></MainLayout></RequireAuth>} />
-              <Route path="/messages" element={<RequireAuth><MainLayout><Messages /></MainLayout></RequireAuth>} />
-              <Route path="/instances" element={<RequireAuth><MainLayout><Instances /></MainLayout></RequireAuth>} />
-              <Route path="/settings" element={<RequireAuth><MainLayout><Settings /></MainLayout></RequireAuth>} />
-              <Route path="/api-docs" element={<RequireAuth><MainLayout><ApiDocs /></MainLayout></RequireAuth>} />
+              <Route element={<RequireAuth><MainLayout /></RequireAuth>}>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/sequences" element={<Sequences />} />
+                <Route path="/contacts" element={<Contacts />} />
+                <Route path="/messages" element={<Messages />} />
+                <Route path="/instances" element={<Instances />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="/api-docs" element={<ApiDocs />} />
+              </Route>
               
               {/* 404 Route */}
               <Route path="*" element={<NotFound />} />
