@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { TimeRestriction } from "@/types";
+import { fetchClientsWithCreatorInfo } from "@/integrations/supabase/client";
 
 export default function Settings() {
   const { users, clients, tags, timeRestrictions, addUser, updateUser, deleteUser, addClient, updateClient, deleteClient, addTag, deleteTag, addTimeRestriction, updateTimeRestriction, deleteTimeRestriction } = useApp();
@@ -35,6 +36,22 @@ export default function Settings() {
   const [openAddClient, setOpenAddClient] = useState(false);
   const [openAddTimeRestriction, setOpenAddTimeRestriction] = useState(false);
   const [newTagName, setNewTagName] = useState("");
+  const [clientsWithCreator, setClientsWithCreator] = useState<any[]>([]);
+  
+  // Buscar clientes com informações do criador
+  useEffect(() => {
+    const loadClientsWithCreator = async () => {
+      try {
+        const data = await fetchClientsWithCreatorInfo();
+        setClientsWithCreator(data || []);
+      } catch (error) {
+        console.error("Erro ao carregar clientes com criador:", error);
+        toast.error("Não foi possível carregar as informações completas dos clientes");
+      }
+    };
+
+    loadClientsWithCreator();
+  }, [clients]);
   
   const [newUser, setNewUser] = useState({
     accountName: "",
@@ -56,7 +73,7 @@ export default function Settings() {
     endHour: 18,
     endMinute: 0,
     active: true,
-    isGlobal: true // Adicionando a propriedade isGlobal que estava faltando
+    isGlobal: true
   });
 
   const [editTimeRestriction, setEditTimeRestriction] = useState<TimeRestriction | null>(null);
@@ -211,7 +228,7 @@ export default function Settings() {
       endHour: 18,
       endMinute: 0,
       active: true,
-      isGlobal: true // Adicionando a propriedade isGlobal
+      isGlobal: true
     });
     
     toast.success("Restrição adicionada. Você pode editá-la na lista.");
@@ -547,14 +564,18 @@ export default function Settings() {
                   <TableRow>
                     <TableHead>Nome</TableHead>
                     <TableHead>ID da Conta</TableHead>
+                    <TableHead>Criado por</TableHead>
                     <TableHead className="w-[100px]">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {clients.map((client) => (
+                  {clientsWithCreator.map((client) => (
                     <TableRow key={client.id}>
                       <TableCell className="font-medium">{client.accountName}</TableCell>
                       <TableCell>{client.accountId}</TableCell>
+                      <TableCell>
+                        {client.creator?.account_name || "Desconhecido"}
+                      </TableCell>
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -587,9 +608,9 @@ export default function Settings() {
                       </TableCell>
                     </TableRow>
                   ))}
-                  {clients.length === 0 && (
+                  {clientsWithCreator.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
                         Nenhum cliente cadastrado
                       </TableCell>
                     </TableRow>
