@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/context/AuthContext";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { AppProvider } from "@/context/AppContext"; // Import AppProvider
 
 // Pages
 import Dashboard from "./pages/Dashboard";
@@ -38,29 +39,31 @@ const App = () => (
     <ThemeProvider defaultTheme="system">
       <BrowserRouter>
         <AuthProvider>
-          <TooltipProvider>
-            <Routes>
-              {/* Auth Routes */}
-              <Route path="/setup" element={<RequireSetup><Setup /></RequireSetup>} />
-              <Route path="/login" element={<Login />} />
+          <AppProvider> {/* Add AppProvider here */}
+            <TooltipProvider>
+              <Routes>
+                {/* Auth Routes */}
+                <Route path="/setup" element={<RequireSetup><Setup /></RequireSetup>} />
+                <Route path="/login" element={<Login />} />
 
-              {/* Protected Routes */}
-              <Route element={<RequireAuth><MainLayout /></RequireAuth>}>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/sequences" element={<Sequences />} />
-                <Route path="/contacts" element={<Contacts />} />
-                <Route path="/messages" element={<Messages />} />
-                <Route path="/instances" element={<Instances />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="/api-docs" element={<ApiDocs />} />
-              </Route>
-              
-              {/* 404 Route */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-            <Toaster />
-            <Sonner />
-          </TooltipProvider>
+                {/* Protected Routes */}
+                <Route element={<RequireAuth><MainLayout /></RequireAuth>}>
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/sequences" element={<Sequences />} />
+                  <Route path="/contacts" element={<Contacts />} />
+                  <Route path="/messages" element={<Messages />} />
+                  <Route path="/instances" element={<Instances />} />
+                  <Route path="/settings" element={<Settings />} />
+                  <Route path="/api-docs" element={<ApiDocs />} />
+                </Route>
+                
+                {/* 404 Route */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+              <Toaster />
+              <Sonner />
+            </TooltipProvider>
+          </AppProvider> {/* Close AppProvider */}
         </AuthProvider>
       </BrowserRouter>
     </ThemeProvider>
