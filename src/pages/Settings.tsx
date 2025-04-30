@@ -1,4 +1,3 @@
-
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,7 +35,11 @@ export default function Settings() {
   const [openAddClient, setOpenAddClient] = useState(false);
   const [openAddTimeRestriction, setOpenAddTimeRestriction] = useState(false);
   const [newTagName, setNewTagName] = useState("");
-  const [userFilter, setUserFilter] = useState<string>("");
+
+  console.log('Settings - Rendering with clients:', clients);
+  
+  // Não precisamos mais filtrar os dados manualmente, o RLS do Supabase cuida disso para nós
+  // As variáveis abaixo agora usam diretamente os dados do contexto
   
   const [newUser, setNewUser] = useState({
     accountName: "",
@@ -75,15 +78,19 @@ export default function Settings() {
     accountId: number;
   } | null>(null);
 
-  // Função para obter o nome do criador a partir do ID
+  // Improved function to get creator name from a client
   const getCreatorName = (client) => {
+    console.log('Getting creator name for client:', client);
+    
+    // Find matching user from users array using createdBy ID
     if (client.createdBy && users && users.length > 0) {
       const creator = users.find(user => user.id === client.createdBy);
       if (creator) {
-        return creator.accountName;
+        return creator.accountName || 'Usuário';
       }
     }
     
+    // Fallbacks for backward compatibility
     if (client.creator && client.creator.account_name) {
       return client.creator.account_name;
     }
@@ -92,13 +99,9 @@ export default function Settings() {
       return client.creator_account_name;
     }
     
-    return "—";
+    // Final fallback for older data
+    return client.createdBy ? `Usuário (${client.createdBy.substring(0, 4)})` : '—';
   };
-
-  // Filtrar clientes por usuário criador (para super admin)
-  const filteredClients = isSuper && userFilter 
-    ? clients.filter(client => client.createdBy === userFilter)
-    : clients;
 
   const handleAddUser = async () => {
     if (!newUser.accountName || !newUser.email || !newUser.password || !newUser.confirmPassword) {
@@ -238,7 +241,7 @@ export default function Settings() {
       endHour: 18,
       endMinute: 0,
       active: true,
-      isGlobal: true
+      isGlobal: true // Adicionando a propriedade isGlobal
     });
     
     toast.success("Restrição adicionada. Você pode editá-la na lista.");
@@ -524,67 +527,52 @@ export default function Settings() {
                   Gerencie os clientes do sistema
                 </CardDescription>
               </div>
-              <div className="flex gap-2">
-                {isSuper && users.length > 0 && (
-                  <Select value={userFilter} onValueChange={setUserFilter}>
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue placeholder="Filtrar por usuário" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">Todos os usuários</SelectItem>
-                      {users.map(user => (
-                        <SelectItem key={user.id} value={user.id}>{user.accountName}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-                <Dialog open={openAddClient} onOpenChange={setOpenAddClient}>
-                  <DialogTrigger asChild>
-                    <Button>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Novo Cliente
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Adicionar Novo Cliente</DialogTitle>
-                      <DialogDescription>
-                        Cadastre um novo cliente para receber webhooks do Chatwoot
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="client-name">Nome do Cliente</Label>
-                        <Input
-                          id="client-name"
-                          value={newClient.accountName}
-                          onChange={(e) => setNewClient({ ...newClient, accountName: e.target.value })}
-                          placeholder="Nome do cliente"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="client-id">ID da Conta</Label>
-                        <Input
-                          id="client-id"
-                          type="number"
-                          min="1"
-                          value={newClient.accountId}
-                          onChange={(e) => setNewClient({ ...newClient, accountId: e.target.value })}
-                          placeholder="ID da conta no Chatwoot"
-                        />
-                      </div>
+              <Dialog open={openAddClient} onOpenChange={setOpenAddClient}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Novo Cliente
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Adicionar Novo Cliente</DialogTitle>
+                    <DialogDescription>
+                      Cadastre um novo cliente para receber webhooks do Chatwoot
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="client-name">Nome do Cliente</Label>
+                      <Input
+                        id="client-name"
+                        value={newClient.accountName}
+                        onChange={(e) => setNewClient({ ...newClient, accountName: e.target.value })}
+                        placeholder="Nome do cliente"
+                      />
                     </div>
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setOpenAddClient(false)}>
-                        Cancelar
-                      </Button>
-                      <Button onClick={handleAddClient}>
-                        Adicionar Cliente
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="client-id">ID da Conta</Label>
+                      <Input
+                        id="client-id"
+                        type="number"
+                        min="1"
+                        value={newClient.accountId}
+                        onChange={(e) => setNewClient({ ...newClient, accountId: e.target.value })}
+                        placeholder="ID da conta no Chatwoot"
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setOpenAddClient(false)}>
+                      Cancelar
+                    </Button>
+                    <Button onClick={handleAddClient}>
+                      Adicionar Cliente
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </CardHeader>
             <CardContent>
               <Table>
@@ -592,16 +580,18 @@ export default function Settings() {
                   <TableRow>
                     <TableHead>Nome</TableHead>
                     <TableHead>ID da Conta</TableHead>
-                    {isSuper && <TableHead>Criado por</TableHead>}
+                    <TableHead>Criado por</TableHead>
                     <TableHead className="w-[100px]">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredClients.map((client) => (
+                  {clients.map((client) => (
                     <TableRow key={client.id}>
                       <TableCell className="font-medium">{client.accountName}</TableCell>
                       <TableCell>{client.accountId}</TableCell>
-                      {isSuper && <TableCell>{getCreatorName(client)}</TableCell>}
+                      <TableCell>
+                        {getCreatorName(client)}
+                      </TableCell>
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -634,9 +624,9 @@ export default function Settings() {
                       </TableCell>
                     </TableRow>
                   ))}
-                  {filteredClients.length === 0 && (
+                  {clients.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={isSuper ? 4 : 3} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
                         Nenhum cliente cadastrado
                       </TableCell>
                     </TableRow>
