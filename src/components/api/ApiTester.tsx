@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,7 +20,7 @@ export const ApiTester = () => {
         inboxId: 46,
         conversationId: 23266,
         displayId: 1608,
-        labels: "lead, google, produto-xpto"
+        labels: "lead, google, produto-xpto, nova-tag"
       }
     }
   }, null, 2));
