@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Trash2, Edit, Check, X, Plus, CheckCircle, Lock } from "lucide-react";
 import { TimeRestriction } from "@/types";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface RestrictionItemProps {
   restriction: TimeRestriction;
@@ -201,7 +202,16 @@ export function RestrictionItem({ restriction, readonly, isSelected, onUpdate, o
                 ) : (
                   <>
                     {restriction.isGlobal ? (
-                      <Lock className="h-4 w-4 text-muted-foreground mr-2" title="Restrição global (não editável)" />
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Lock className="h-4 w-4 text-muted-foreground mr-2" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Restrição global (não editável)</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     ) : (
                       <Switch 
                         checked={restriction.active} 
