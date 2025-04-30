@@ -30,10 +30,10 @@ Deno.serve(async (req) => {
     
     console.log(`Processing contact ${contactName} with labels: ${labels}`);
     
-    // Find the client with the provided account ID
+    // Modificamos a consulta para não buscar o perfil diretamente, apenas o cliente
     const { data: clients, error: clientError } = await supabase
       .from('clients')
-      .select('*, profiles:created_by(id, account_name)')
+      .select('*')
       .eq('account_id', accountId)
       .limit(1);
     
@@ -53,7 +53,18 @@ Deno.serve(async (req) => {
     }
     
     const client = clients[0];
-    const clientCreator = client.profiles;
+    
+    // Buscamos separadamente o perfil do criador do cliente
+    const { data: creatorProfile, error: creatorError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', client.created_by)
+      .maybeSingle();
+    
+    if (creatorError) {
+      console.log('Error fetching creator profile:', creatorError);
+      // Continuamos mesmo com esse erro
+    }
     
     // Check if contact exists
     const { data: existingContacts, error: contactError } = await supabase
@@ -134,9 +145,9 @@ Deno.serve(async (req) => {
     // Usar o ID do criador do cliente como criador das tags
     let creatorId = null;
     
-    if (clientCreator && clientCreator.id) {
-      creatorId = clientCreator.id;
-      console.log(`Usando o criador do cliente como criador das tags, ID: ${creatorId}, Nome: ${clientCreator.account_name}`);
+    if (creatorProfile && creatorProfile.id) {
+      creatorId = creatorProfile.id;
+      console.log(`Usando o criador do cliente como criador das tags, ID: ${creatorId}, Nome: ${creatorProfile.account_name}`);
     } else {
       console.log('Criador do cliente não encontrado, buscando um usuário válido alternativo...');
       
@@ -266,7 +277,7 @@ Deno.serve(async (req) => {
           id: client.id,
           accountName: client.account_name,
           creatorId: creatorId,
-          creatorName: clientCreator?.account_name || 'Desconhecido'
+          creatorName: creatorProfile?.account_name || 'Desconhecido'
         },
         contact: {
           id: contactId.toString(),
