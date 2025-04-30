@@ -214,7 +214,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       
       // Buscar também as restrições locais para cada sequência
       // Adicionar essas informações aos objetos de sequência
-      for (const sequence of sequencesData) {
+      const processedSequences = [...sequencesData];
+      
+      for (const sequence of processedSequences) {
+        // Adicionar uma propriedade para restrições de tempo local
+        sequence.localTimeRestrictions = [];
+        
         const { data: localRestrictions, error: localRestError } = await supabase
           .from('sequence_local_restrictions')
           .select('*')
@@ -224,9 +229,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           console.error("Erro ao carregar restrições locais:", localRestError);
           continue;
         }
-        
-        // Inicializar o array de restrições de tempo se não existir
-        sequence.timeRestrictions = [];
         
         // Adicionar restrições locais se existirem
         if (localRestrictions && localRestrictions.length > 0) {
@@ -242,16 +244,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             isGlobal: false // Marca explicitamente como restrição local
           }));
           
-          sequence.timeRestrictions = [
-            ...sequence.timeRestrictions,
-            ...typedLocalRestrictions
-          ];
+          sequence.localTimeRestrictions = typedLocalRestrictions;
         }
       }
       
       console.log(`Sequences fetched: ${sequencesData.length}`);
       
-      const typedSequences: Sequence[] = sequencesData.map(sequence => {
+      const typedSequences: Sequence[] = processedSequences.map(sequence => {
         // Transformar os estágios no formato correto
         const stages = sequence.sequence_stages
           .sort((a: any, b: any) => a.order_index - b.order_index)
@@ -281,10 +280,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             isGlobal: true // Todas as restrições desta junção são globais
           }));
         
-        // Combinar restrições globais e locais, se sequence.timeRestrictions existir
+        // Combinar restrições globais e locais
         const allTimeRestrictions = [
           ...globalTimeRestrictions,
-          ...(sequence.timeRestrictions || [])
+          ...(sequence.localTimeRestrictions || [])
         ];
         
         // Ensure startCondition.type and stopCondition.type are "AND" or "OR"

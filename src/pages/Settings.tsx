@@ -55,7 +55,8 @@ export default function Settings() {
     startMinute: 0,
     endHour: 18,
     endMinute: 0,
-    active: true
+    active: true,
+    isGlobal: true // Adicionando a propriedade isGlobal que estava faltando
   });
 
   const [editTimeRestriction, setEditTimeRestriction] = useState<TimeRestriction | null>(null);
