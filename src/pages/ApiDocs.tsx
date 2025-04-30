@@ -1,5 +1,5 @@
 
-import React from 'react';
+import { ApiTester } from "@/components/api/ApiTester";
 
 const ApiDocs = () => {
   return (
@@ -7,7 +7,7 @@ const ApiDocs = () => {
       <div className="mb-8">
         <h1 className="text-3xl font-bold">Documentação da API</h1>
         <p className="text-muted-foreground mt-2">
-          Integração com as APIs do Master Sequence
+          Teste e integre as APIs do Master Sequence
         </p>
       </div>
       
@@ -39,20 +39,20 @@ const ApiDocs = () => {
                 <h4 className="text-sm font-medium mb-1">Payload</h4>
                 <pre className="text-sm font-mono whitespace-pre-wrap">
 {`{
-  "accountData": {
-    "accountId": 555555555,
-    "accountName": "Chat Account"
-  },
-  "contactData": {
-    "id": 1001,
-    "name": "João 2",
-    "phoneNumber": "+777777772"
-  },
-  "conversationData": {
-    "inboxId": 46,
-    "conversationId": 23266,
-    "displayId": 1608,
-    "labels": "1-lead, 2-clienteXXX, PPP, AAAAAAA"
+  "data": {
+    "accountId": 1,
+    "accountName": "Nome da Conta",
+    "contact": {
+      "id": 12345,
+      "name": "Nome do Contato",
+      "phoneNumber": "+5511999999999"
+    },
+    "conversation": {
+      "inboxId": 46,
+      "conversationId": 23266,
+      "displayId": 1608,
+      "labels": "tag1, tag2, tag3"
+    }
   }
 }`}
                 </pre>
@@ -94,56 +94,9 @@ const ApiDocs = () => {
                 <h4 className="text-sm font-medium mb-1">Payload</h4>
                 <pre className="text-sm font-mono whitespace-pre-wrap">
 {`{
-  "instanceId": "optional-instance-id-here" // Opcional - pode filtrar por instância
-}`}
-                </pre>
-              </div>
-              <div className="bg-secondary/50 p-4 rounded-md">
-                <h4 className="text-sm font-medium mb-1">Resposta (Sucesso)</h4>
-                <pre className="text-sm font-mono whitespace-pre-wrap">
-{`{
-  "success": true,
-  "messages": [
-    {
-      "id": "message-uuid",
-      "chatwootData": {
-        "accountData": {
-          "accountId": 555555555,
-          "accountName": "Chat Account"
-        },
-        "contactData": {
-          "id": 1001,
-          "name": "João 2",
-          "phoneNumber": "+777777772"
-        },
-        "conversationData": {
-          "inboxId": 46,
-          "conversationId": 23266,
-          "displayId": 1608,
-          "labels": "1-lead, 2-clienteXXX"
-        }
-      },
-      "instanceData": {
-        "id": "instance-uuid",
-        "name": "Instance Name",
-        "evolutionApiUrl": "https://evolution-api.example.com",
-        "apiKey": "your-api-key"
-      },
-      "sequenceData": {
-        "instanceName": "Instance Name",
-        "sequenceName": "Sequence Name",
-        "type": "message", // ou "pattern" ou "typebot"
-        "stage": {
-          "stg1": {
-            "id": "stage-uuid",
-            "content": "Conteúdo da mensagem",
-            "rawScheduledTime": "2025-04-30T10:00:00Z",
-            "scheduledTime": "2025-04-30T10:00:00Z"
-          }
-        }
-      }
-    }
-  ]
+  "data": {
+    // Filtragem opcional
+  }
 }`}
                 </pre>
               </div>
@@ -158,23 +111,9 @@ const ApiDocs = () => {
                 <h4 className="text-sm font-medium mb-1">Payload</h4>
                 <pre className="text-sm font-mono whitespace-pre-wrap">
 {`{
-  "messageId": "message-uuid-here",
-  "status": "success", // ou "failed"
-  "attempts": 1 // opcional - número de tentativas
-}`}
-                </pre>
-              </div>
-              <div className="bg-secondary/50 p-4 rounded-md">
-                <h4 className="text-sm font-medium mb-1">Resposta (Sucesso)</h4>
-                <pre className="text-sm font-mono whitespace-pre-wrap">
-{`{
-  "success": true,
-  "message": "Status da mensagem atualizado com sucesso",
-  "messageId": "message-uuid-here",
-  "status": "sent", // ou "failed" ou "persistent_error"
-  "nextStage": { // Se houver um próximo estágio
-    "id": "next-stage-uuid",
-    "scheduledTime": "2025-05-01T10:00:00Z"
+  "data": {
+    "messageId": "uuid-da-mensagem",
+    "status": "delivered" // ou "failed"
   }
 }`}
                 </pre>
@@ -182,6 +121,8 @@ const ApiDocs = () => {
             </div>
           </div>
         </div>
+        
+        <ApiTester />
       </div>
     </div>
   );
