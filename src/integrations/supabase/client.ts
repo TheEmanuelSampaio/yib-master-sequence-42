@@ -17,8 +17,8 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
   },
   global: {
     // Opção para habilitar logs detalhados - isto ajudará em debugs
-    fetch: (...args) => {
-      return fetch(...args);
+    fetch: (url: string, options: RequestInit) => {
+      return fetch(url, options);
     }
   }
 });
