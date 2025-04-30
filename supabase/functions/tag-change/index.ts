@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
     // Find the client with the provided account ID
     const { data: clients, error: clientError } = await supabase
       .from('clients')
-      .select('*')
+      .select('*, profiles:created_by(id, account_name)')
       .eq('account_id', accountId)
       .limit(1);
     
@@ -53,6 +53,7 @@ Deno.serve(async (req) => {
     }
     
     const client = clients[0];
+    const clientCreator = client.profiles;
     
     // Check if contact exists
     const { data: existingContacts, error: contactError } = await supabase
@@ -130,35 +131,40 @@ Deno.serve(async (req) => {
       // Continue despite error
     }
     
-    // IMPORTANTE: Obter um criador válido para as tags
-    // Primeiro, tentar obter um usuário admin
-    console.log('Buscando um usuário válido para criar as tags...');
+    // Usar o ID do criador do cliente como criador das tags
     let creatorId = null;
     
-    // 1. Tentar buscar um admin
-    const { data: adminUsers, error: adminError } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('role', 'admin')
-      .limit(1);
-    
-    if (!adminError && adminUsers && adminUsers.length > 0) {
-      creatorId = adminUsers[0].id;
-      console.log(`Usando usuário admin como criador, ID: ${creatorId}`);
+    if (clientCreator && clientCreator.id) {
+      creatorId = clientCreator.id;
+      console.log(`Usando o criador do cliente como criador das tags, ID: ${creatorId}, Nome: ${clientCreator.account_name}`);
     } else {
-      console.log('Nenhum usuário admin encontrado, buscando qualquer usuário válido...');
+      console.log('Criador do cliente não encontrado, buscando um usuário válido alternativo...');
       
-      // 2. Se não encontrar admin, buscar qualquer usuário
-      const { data: anyUser, error: anyUserError } = await supabase
+      // 1. Tentar buscar um admin
+      const { data: adminUsers, error: adminError } = await supabase
         .from('profiles')
         .select('id')
+        .eq('role', 'admin')
         .limit(1);
       
-      if (!anyUserError && anyUser && anyUser.length > 0) {
-        creatorId = anyUser[0].id;
-        console.log(`Usando primeiro usuário encontrado como criador, ID: ${creatorId}`);
+      if (!adminError && adminUsers && adminUsers.length > 0) {
+        creatorId = adminUsers[0].id;
+        console.log(`Usando usuário admin como criador alternativo, ID: ${creatorId}`);
       } else {
-        console.error('Nenhum usuário válido encontrado para usar como criador de tags!');
+        console.log('Nenhum usuário admin encontrado, buscando qualquer usuário válido...');
+        
+        // 2. Se não encontrar admin, buscar qualquer usuário
+        const { data: anyUser, error: anyUserError } = await supabase
+          .from('profiles')
+          .select('id')
+          .limit(1);
+        
+        if (!anyUserError && anyUser && anyUser.length > 0) {
+          creatorId = anyUser[0].id;
+          console.log(`Usando primeiro usuário encontrado como criador, ID: ${creatorId}`);
+        } else {
+          console.error('Nenhum usuário válido encontrado para usar como criador de tags!');
+        }
       }
     }
     
@@ -214,7 +220,7 @@ Deno.serve(async (req) => {
           tagErrors++;
         }
         
-        // 3. Se a tag não existir, adicioná-la à tabela global
+        // 3. Se a tag não existir, adicioná-la à tabela global usando o criador do cliente
         if (!existingTag) {
           console.log(`Tag "${tag}" não encontrada na tabela global, adicionando...`);
           
@@ -255,6 +261,12 @@ Deno.serve(async (req) => {
           tagsAdded: addedTags,
           existingTags: existingTagsCount,
           tagErrors
+        },
+        client: {
+          id: client.id,
+          accountName: client.account_name,
+          creatorId: creatorId,
+          creatorName: clientCreator?.account_name || 'Desconhecido'
         },
         contact: {
           id: contactId.toString(),
