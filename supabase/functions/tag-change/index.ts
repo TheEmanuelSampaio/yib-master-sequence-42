@@ -126,6 +126,20 @@ Deno.serve(async (req) => {
       // Continue despite error
     }
     
+    // Get the first admin user to use as creator for tags
+    const { data: adminUsers, error: adminError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('role', 'admin')
+      .limit(1);
+    
+    let creatorId = null;
+    if (adminError) {
+      console.error('Error fetching admin user:', adminError);
+    } else if (adminUsers && adminUsers.length > 0) {
+      creatorId = adminUsers[0].id;
+    }
+    
     // Add new tags for the contact and ensure tags exists in the tags table
     for (const tag of tags) {
       // Insert the contact_tag relationship
@@ -148,14 +162,14 @@ Deno.serve(async (req) => {
         .eq('name', tag)
         .maybeSingle();
       
-      // Only insert if tag doesn't exist
-      if (!existingTag) {
-        console.log(`Tag ${tag} not found, adding to tags table`);
+      // Only insert if tag doesn't exist and we have a valid creator ID
+      if (!existingTag && creatorId) {
+        console.log(`Tag ${tag} not found, adding to tags table with creator ID: ${creatorId}`);
         const { error: insertGlobalTagError } = await supabase
           .from('tags')
           .insert({
             name: tag,
-            created_by: 'system' // Use a system identifier for tags created via webhooks
+            created_by: creatorId
           });
         
         if (insertGlobalTagError) {
@@ -164,6 +178,8 @@ Deno.serve(async (req) => {
         } else {
           console.log(`Successfully added tag ${tag} to tags table`);
         }
+      } else if (!existingTag) {
+        console.error(`Could not add tag ${tag} to tags table: no admin user found to use as creator`);
       }
     }
     
