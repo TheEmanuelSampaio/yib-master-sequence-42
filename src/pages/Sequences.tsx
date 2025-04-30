@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useApp } from '@/context/AppContext';
 import {
@@ -103,26 +102,26 @@ export default function Sequences() {
     setIsEditMode(true);
   };
   
-  const handleToggleStatus = (sequence: Sequence) => {
+  const handleToggleStatus = async (sequence: Sequence) => {
     const newStatus = sequence.status === 'active' ? 'inactive' : 'active';
-    updateSequence(sequence.id, {
+    await updateSequence(sequence.id, {
       status: newStatus
-    }).then(() => {
-      toast({
-        title: `Sequência ${newStatus === 'active' ? 'ativada' : 'desativada'}`,
-        description: `A sequência "${sequence.name}" foi ${newStatus === 'active' ? 'ativada' : 'desativada'}.`,
-        duration: 3000,
-      });
+    });
+    
+    toast({
+      title: `Sequência ${newStatus === 'active' ? 'ativada' : 'desativada'}`,
+      description: `A sequência "${sequence.name}" foi ${newStatus === 'active' ? 'ativada' : 'desativada'}.`,
+      duration: 3000,
     });
   };
   
-  const handleDeleteSequence = (id: string) => {
-    deleteSequence(id).then(() => {
-      toast({
-        title: "Sequência excluída",
-        description: "A sequência foi excluída permanentemente.",
-        duration: 3000,
-      });
+  const handleDeleteSequence = async (id: string) => {
+    await deleteSequence(id);
+    
+    toast({
+      title: "Sequência excluída",
+      description: "A sequência foi excluída permanentemente.",
+      duration: 3000,
     });
   };
   
