@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
@@ -481,18 +480,23 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         console.log("Stage created:", stageData);
       }
       
-      // Finally, add time restrictions
-      for (const restriction of sequenceData.timeRestrictions) {
-        const { data: restrictionData, error: restrictionError } = await supabase
-          .from('sequence_time_restrictions')
-          .insert({
-            sequence_id: seqData.id,
-            time_restriction_id: restriction.id
-          })
-          .select();
-        
-        if (restrictionError) throw restrictionError;
-        console.log("Restriction added:", restrictionData);
+      // Add time restrictions - handle both global and local restrictions
+      if (sequenceData.timeRestrictions && sequenceData.timeRestrictions.length > 0) {
+        for (const restriction of sequenceData.timeRestrictions) {
+          // If the restriction has a valid UUID, it's a global restriction
+          if (restriction.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(restriction.id)) {
+            const { data: restrictionData, error: restrictionError } = await supabase
+              .from('sequence_time_restrictions')
+              .insert({
+                sequence_id: seqData.id,
+                time_restriction_id: restriction.id
+              })
+              .select();
+            
+            if (restrictionError) throw restrictionError;
+            console.log("Global restriction added:", restrictionData);
+          }
+        }
       }
       
       toast.success(`Sequência "${sequenceData.name}" criada com sucesso`);
@@ -568,22 +572,24 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       
       // Update time restrictions if provided
       if (sequenceData.timeRestrictions) {
-        // First, validate that all restriction IDs exist in the database
-        if (sequenceData.timeRestrictions.length > 0) {
-          const restrictionIds = sequenceData.timeRestrictions.map(r => r.id);
-          
+        // Only validate global restrictions (with valid UUIDs)
+        const globalRestrictionIds = sequenceData.timeRestrictions
+          .filter(r => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(r.id))
+          .map(r => r.id);
+        
+        if (globalRestrictionIds.length > 0) {
           // Check if all restriction IDs exist
           const { data: existingRestrictions, error: checkError } = await supabase
             .from('time_restrictions')
             .select('id')
-            .in('id', restrictionIds);
+            .in('id', globalRestrictionIds);
           
           if (checkError) throw checkError;
           
-          if (!existingRestrictions || existingRestrictions.length !== restrictionIds.length) {
+          if (!existingRestrictions || existingRestrictions.length !== globalRestrictionIds.length) {
             // Some restrictions don't exist, identify which ones
             const existingIds = existingRestrictions?.map(r => r.id) || [];
-            const missingIds = restrictionIds.filter(id => !existingIds.includes(id));
+            const missingIds = globalRestrictionIds.filter(id => !existingIds.includes(id));
             
             throw new Error(`Algumas restrições de horário não existem no banco de dados: ${missingIds.join(', ')}`);
           }
@@ -597,16 +603,18 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         
         if (deleteRestError) throw deleteRestError;
         
-        // Then create the new restrictions - only if there are valid ones
+        // Then add the global restrictions again
         for (const restriction of sequenceData.timeRestrictions) {
-          const { error: restrictionError } = await supabase
-            .from('sequence_time_restrictions')
-            .insert({
-              sequence_id: id,
-              time_restriction_id: restriction.id
-            });
-          
-          if (restrictionError) throw restrictionError;
+          if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(restriction.id)) {
+            const { error: restrictionError } = await supabase
+              .from('sequence_time_restrictions')
+              .insert({
+                sequence_id: id,
+                time_restriction_id: restriction.id
+              });
+            
+            if (restrictionError) throw restrictionError;
+          }
         }
       }
       

@@ -1,4 +1,3 @@
-
 // User related types
 export interface User {
   id: string;
@@ -68,6 +67,7 @@ export interface TimeRestriction {
   startMinute: number;
   endHour: number;
   endMinute: number;
+  isGlobal?: boolean;
 }
 
 export interface Contact {

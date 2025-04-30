@@ -890,18 +890,29 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
               <CardContent>
                 <ScrollArea className="h-[200px]">
                   <div className="space-y-2">
-                    {globalTimeRestrictions.map((restriction) => (
-                      <RestrictionItem
-                        key={restriction.id}
-                        restriction={restriction}
-                        readonly
-                        onSelect={() => {
-                          if (!timeRestrictions.some(r => r.id === restriction.id)) {
-                            setTimeRestrictions([...timeRestrictions, restriction]);
-                          }
-                        }}
-                      />
-                    ))}
+                    {globalTimeRestrictions.map((restriction) => {
+                      // Verificar se a restrição já foi adicionada à sequência
+                      const isAdded = timeRestrictions.some(r => r.id === restriction.id);
+                      
+                      return (
+                        <RestrictionItem
+                          key={restriction.id}
+                          restriction={restriction}
+                          readonly
+                          isSelected={isAdded}
+                          onSelect={() => {
+                            if (!isAdded) {
+                              setTimeRestrictions([...timeRestrictions, restriction]);
+                            } else {
+                              // Se já foi adicionada, remova da lista
+                              setTimeRestrictions(
+                                timeRestrictions.filter(r => r.id !== restriction.id)
+                              );
+                            }
+                          }}
+                        />
+                      );
+                    })}
                   </div>
                 </ScrollArea>
               </CardContent>

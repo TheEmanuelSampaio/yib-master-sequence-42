@@ -9,7 +9,8 @@ RETURNS TABLE (
   start_hour INTEGER,
   start_minute INTEGER,
   end_hour INTEGER,
-  end_minute INTEGER
+  end_minute INTEGER,
+  is_global BOOLEAN
 ) AS $$
 BEGIN
   RETURN QUERY
@@ -21,7 +22,8 @@ BEGIN
     tr.start_hour,
     tr.start_minute,
     tr.end_hour,
-    tr.end_minute
+    tr.end_minute,
+    TRUE as is_global
   FROM
     time_restrictions tr
   JOIN
