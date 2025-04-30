@@ -16,6 +16,7 @@ export interface RestrictionItemProps {
   onUpdate?: (updatedRestriction: TimeRestriction) => void;
   selected?: boolean;
   onSelect?: () => void;
+  editable?: boolean;
 }
 
 export function RestrictionItem({ 
@@ -23,7 +24,8 @@ export function RestrictionItem({
   onRemove, 
   onUpdate, 
   selected = false,
-  onSelect 
+  onSelect,
+  editable = true 
 }: RestrictionItemProps) {
   const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
   
@@ -101,7 +103,7 @@ export function RestrictionItem({
       </div>
       
       <div className="flex items-center gap-2 self-end md:self-center">
-        {onUpdate && (
+        {onUpdate && editable && (
           <div className="flex items-center gap-1.5">
             <span className="text-xs text-muted-foreground">
               {restriction.active ? "Ativo" : "Inativo"}
@@ -109,7 +111,6 @@ export function RestrictionItem({
             <Switch 
               checked={restriction.active} 
               onCheckedChange={handleToggleActive} 
-              size="sm"
               className="data-[state=checked]:bg-green-600"
             />
           </div>
@@ -131,7 +132,7 @@ export function RestrictionItem({
           <Check className="h-5 w-5 text-blue-500" />
         )}
         
-        {onRemove && !restriction.isGlobal && (
+        {onRemove && !restriction.isGlobal && editable && (
           <Button 
             variant="ghost" 
             size="sm"
