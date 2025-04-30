@@ -12,20 +12,3 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     autoRefreshToken: true,
   }
 });
-
-// Função auxiliar para buscar clientes com dados do criador
-export const fetchClientsWithCreatorInfo = async () => {
-  const { data, error } = await supabase
-    .from('clients')
-    .select(`
-      *,
-      creator:created_by(id, account_name)
-    `);
-
-  if (error) {
-    console.error('Erro ao buscar clientes com informações do criador:', error);
-    throw error;
-  }
-
-  return data;
-};
