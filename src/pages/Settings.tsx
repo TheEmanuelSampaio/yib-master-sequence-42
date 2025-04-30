@@ -1,9 +1,10 @@
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +37,30 @@ export default function Settings() {
   const [openAddTimeRestriction, setOpenAddTimeRestriction] = useState(false);
   const [newTagName, setNewTagName] = useState("");
   
+  // Filtrar os dados que o usuário atual pode ver
+  const [filteredClients, setFilteredClients] = useState([]);
+  const [filteredTags, setFilteredTags] = useState([]);
+  const [filteredTimeRestrictions, setFilteredTimeRestrictions] = useState([]);
+
+  // Filtrar dados com base no usuário atual
+  useEffect(() => {
+    // Se for super admin, vê tudo. Caso contrário, filtra
+    if (isSuper) {
+      setFilteredClients(clients);
+      setFilteredTags(tags);
+      setFilteredTimeRestrictions(timeRestrictions);
+    } else if (currentUser) {
+      // Filtra clientes criados pelo usuário
+      setFilteredClients(clients.filter(client => client.created_by === currentUser.id));
+      
+      // Filtra tags criadas pelo usuário
+      setFilteredTags(tags.filter(tag => tag.created_by === currentUser.id));
+      
+      // Filtra restrições de horário criadas pelo usuário
+      setFilteredTimeRestrictions(timeRestrictions.filter(restriction => restriction.created_by === currentUser.id));
+    }
+  }, [clients, tags, timeRestrictions, currentUser, isSuper]);
+
   const [newUser, setNewUser] = useState({
     accountName: "",
     email: "",
@@ -281,208 +306,211 @@ export default function Settings() {
         </p>
       </div>
       
-      <Tabs defaultValue="accounts">
+      <Tabs defaultValue={isSuper ? "users" : "clients"}>
         <TabsList>
-          <TabsTrigger value="accounts">Contas</TabsTrigger>
+          {/* Modificação 3: Mostrar a aba Usuários apenas para super admins e renomeá-la */}
+          {isSuper && <TabsTrigger value="users">Usuários</TabsTrigger>}
           <TabsTrigger value="clients">Clientes</TabsTrigger>
           <TabsTrigger value="time-restrictions">Restrições de Horário</TabsTrigger>
           <TabsTrigger value="tags">Tags</TabsTrigger>
           <TabsTrigger value="general">Configurações Gerais</TabsTrigger>
         </TabsList>
         
-        {/* Accounts Tab */}
-        <TabsContent value="accounts">
-          <Card className="mt-6">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Usuários</CardTitle>
-                <CardDescription>
-                  Gerencie os usuários que podem acessar o sistema
-                </CardDescription>
-              </div>
-              {isSuper && (
-                <Dialog open={openAddUser} onOpenChange={setOpenAddUser}>
-                  <DialogTrigger asChild>
-                    <Button>
-                      <UserPlus className="h-4 w-4 mr-2" />
-                      Novo Usuário
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Adicionar Novo Usuário</DialogTitle>
-                      <DialogDescription>
-                        Crie uma nova conta de usuário para acesso ao sistema
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="account-name">Nome da Conta</Label>
-                        <Input
-                          id="account-name"
-                          value={newUser.accountName}
-                          onChange={(e) => setNewUser({ ...newUser, accountName: e.target.value })}
-                          placeholder="Nome da conta"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="email">Email</Label>
-                        <Input
-                          id="email"
-                          type="email"
-                          value={newUser.email}
-                          onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                          placeholder="email@exemplo.com"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="password">Senha</Label>
-                        <Input
-                          id="password"
-                          type="password"
-                          value={newUser.password}
-                          onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="confirm-password">Confirmar Senha</Label>
-                        <Input
-                          id="confirm-password"
-                          type="password"
-                          value={newUser.confirmPassword}
-                          onChange={(e) => setNewUser({ ...newUser, confirmPassword: e.target.value })}
-                        />
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setOpenAddUser(false)}>
-                        Cancelar
+        {/* Renomeado de "accounts" para "users" e visível apenas para super admin */}
+        {isSuper && (
+          <TabsContent value="users">
+            <Card className="mt-6">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>Usuários</CardTitle>
+                  <CardDescription>
+                    Gerencie os usuários que podem acessar o sistema
+                  </CardDescription>
+                </div>
+                {isSuper && (
+                  <Dialog open={openAddUser} onOpenChange={setOpenAddUser}>
+                    <DialogTrigger asChild>
+                      <Button>
+                        <UserPlus className="h-4 w-4 mr-2" />
+                        Novo Usuário
                       </Button>
-                      <Button onClick={handleAddUser}>
-                        Adicionar Usuário
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              )}
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nome</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Função</TableHead>
-                    <TableHead className="w-[100px]">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {users.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell className="font-medium">{user.accountName}</TableCell>
-                      <TableCell>{user.email}</TableCell>
-                      <TableCell>
-                        {user.role === 'super_admin' ? (
-                          <div className="flex items-center">
-                            <UserCog className="h-4 w-4 mr-2 text-orange-500" />
-                            <span>Super Admin</span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center">
-                            <User className="h-4 w-4 mr-2 text-blue-500" />
-                            <span>Admin</span>
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {isSuper && currentUser?.id !== user.id && (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreHorizontal className="h-4 w-4" />
-                                <span className="sr-only">Ações</span>
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem 
-                                onClick={() => setEditUser({
-                                  id: user.id,
-                                  accountName: user.accountName,
-                                  role: user.role
-                                })}
-                              >
-                                <Edit className="h-4 w-4 mr-2" />
-                                Editar
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem 
-                                className="text-red-600"
-                                onClick={() => handleDeleteUser(user.id)}
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Excluir
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
-                      </TableCell>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Adicionar Novo Usuário</DialogTitle>
+                        <DialogDescription>
+                          Crie uma nova conta de usuário para acesso ao sistema
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="grid gap-4 py-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="account-name">Nome da Conta</Label>
+                          <Input
+                            id="account-name"
+                            value={newUser.accountName}
+                            onChange={(e) => setNewUser({ ...newUser, accountName: e.target.value })}
+                            placeholder="Nome da conta"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="email">Email</Label>
+                          <Input
+                            id="email"
+                            type="email"
+                            value={newUser.email}
+                            onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                            placeholder="email@exemplo.com"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="password">Senha</Label>
+                          <Input
+                            id="password"
+                            type="password"
+                            value={newUser.password}
+                            onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="confirm-password">Confirmar Senha</Label>
+                          <Input
+                            id="confirm-password"
+                            type="password"
+                            value={newUser.confirmPassword}
+                            onChange={(e) => setNewUser({ ...newUser, confirmPassword: e.target.value })}
+                          />
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setOpenAddUser(false)}>
+                          Cancelar
+                        </Button>
+                        <Button onClick={handleAddUser}>
+                          Adicionar Usuário
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                )}
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nome</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Função</TableHead>
+                      <TableHead className="w-[100px]">Ações</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              
-              {/* Edit User Dialog */}
-              {editUser && (
-                <Dialog open={!!editUser} onOpenChange={(open) => !open && setEditUser(null)}>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Editar Usuário</DialogTitle>
-                      <DialogDescription>
-                        Atualize as informações do usuário
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="edit-account-name">Nome da Conta</Label>
-                        <Input
-                          id="edit-account-name"
-                          value={editUser.accountName}
-                          onChange={(e) => setEditUser({ ...editUser, accountName: e.target.value })}
-                        />
+                  </TableHeader>
+                  <TableBody>
+                    {users.map((user) => (
+                      <TableRow key={user.id}>
+                        <TableCell className="font-medium">{user.accountName}</TableCell>
+                        <TableCell>{user.email}</TableCell>
+                        <TableCell>
+                          {user.role === 'super_admin' ? (
+                            <div className="flex items-center">
+                              <UserCog className="h-4 w-4 mr-2 text-orange-500" />
+                              <span>Super Admin</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center">
+                              <User className="h-4 w-4 mr-2 text-blue-500" />
+                              <span>Admin</span>
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {isSuper && currentUser?.id !== user.id && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                  <span className="sr-only">Ações</span>
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem 
+                                  onClick={() => setEditUser({
+                                    id: user.id,
+                                    accountName: user.accountName,
+                                    role: user.role
+                                  })}
+                                >
+                                  <Edit className="h-4 w-4 mr-2" />
+                                  Editar
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem 
+                                  className="text-red-600"
+                                  onClick={() => handleDeleteUser(user.id)}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Excluir
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                
+                {/* Edit User Dialog */}
+                {editUser && (
+                  <Dialog open={!!editUser} onOpenChange={(open) => !open && setEditUser(null)}>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Editar Usuário</DialogTitle>
+                        <DialogDescription>
+                          Atualize as informações do usuário
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="grid gap-4 py-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="edit-account-name">Nome da Conta</Label>
+                          <Input
+                            id="edit-account-name"
+                            value={editUser.accountName}
+                            onChange={(e) => setEditUser({ ...editUser, accountName: e.target.value })}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="edit-role">Função</Label>
+                          <Select
+                            value={editUser.role}
+                            onValueChange={(value) => setEditUser({ 
+                              ...editUser, 
+                              role: value as "super_admin" | "admin" 
+                            })}
+                          >
+                            <SelectTrigger id="edit-role">
+                              <SelectValue placeholder="Selecione uma função" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="admin">Admin</SelectItem>
+                              <SelectItem value="super_admin">Super Admin</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="edit-role">Função</Label>
-                        <Select
-                          value={editUser.role}
-                          onValueChange={(value) => setEditUser({ 
-                            ...editUser, 
-                            role: value as "super_admin" | "admin" 
-                          })}
-                        >
-                          <SelectTrigger id="edit-role">
-                            <SelectValue placeholder="Selecione uma função" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="admin">Admin</SelectItem>
-                            <SelectItem value="super_admin">Super Admin</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setEditUser(null)}>
-                        Cancelar
-                      </Button>
-                      <Button onClick={handleEditUser}>
-                        Atualizar
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setEditUser(null)}>
+                          Cancelar
+                        </Button>
+                        <Button onClick={handleEditUser}>
+                          Atualizar
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
         
         {/* Clients Tab */}
         <TabsContent value="clients">
@@ -547,14 +575,18 @@ export default function Settings() {
                   <TableRow>
                     <TableHead>Nome</TableHead>
                     <TableHead>ID da Conta</TableHead>
+                    {/* Modificação 1: Adicionar coluna para o criador do cliente */}
+                    <TableHead>Criado por</TableHead>
                     <TableHead className="w-[100px]">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {clients.map((client) => (
+                  {filteredClients.map((client) => (
                     <TableRow key={client.id}>
                       <TableCell className="font-medium">{client.accountName}</TableCell>
                       <TableCell>{client.accountId}</TableCell>
+                      {/* Exibindo o nome do criador do cliente */}
+                      <TableCell>{client.creator ? client.creator.account_name : client.creator_account_name}</TableCell>
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -587,9 +619,9 @@ export default function Settings() {
                       </TableCell>
                     </TableRow>
                   ))}
-                  {clients.length === 0 && (
+                  {filteredClients.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
                         Nenhum cliente cadastrado
                       </TableCell>
                     </TableRow>
@@ -791,7 +823,7 @@ export default function Settings() {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {timeRestrictions.map((restriction) => (
+                {filteredTimeRestrictions.map((restriction) => (
                   <Card key={restriction.id} className="overflow-hidden">
                     <CardHeader className="bg-muted/50 flex flex-row items-center justify-between py-4 px-6">
                       <div className="flex items-center space-x-2">
@@ -854,7 +886,7 @@ export default function Settings() {
                   </Card>
                 ))}
                 
-                {timeRestrictions.length === 0 && (
+                {filteredTimeRestrictions.length === 0 && (
                   <div className="col-span-3 flex flex-col items-center justify-center p-8 bg-muted/30 rounded-lg">
                     <Clock className="h-12 w-12 text-muted-foreground mb-4" />
                     <h3 className="text-lg font-medium mb-2">Nenhuma restrição de horário</h3>
@@ -1033,7 +1065,8 @@ export default function Settings() {
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-2">
-                {tags.map((tag) => (
+                {/* Usando as tags filtradas por usuário */}
+                {filteredTags.map((tag) => (
                   <Badge key={tag} variant="secondary" className="px-3 py-1 text-sm">
                     <span className="mr-1">{tag}</span>
                     <button 
@@ -1045,7 +1078,7 @@ export default function Settings() {
                   </Badge>
                 ))}
                 
-                {tags.length === 0 && (
+                {filteredTags.length === 0 && (
                   <div className="w-full flex flex-col items-center justify-center py-8 bg-muted/30 rounded-lg">
                     <Tag className="h-12 w-12 text-muted-foreground mb-4" />
                     <h3 className="text-lg font-medium mb-2">Nenhuma tag cadastrada</h3>
