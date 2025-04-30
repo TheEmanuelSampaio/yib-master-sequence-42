@@ -22,8 +22,6 @@ import {
   StageProgressStatus,
   AppSetup
 } from '@/types';
-import { Database } from '@/integrations/supabase/types';
-import { useUser } from '@supabase/auth-helpers-react';
 
 interface AppContextType {
   user: any;
@@ -34,6 +32,7 @@ interface AppContextType {
   scheduledMessages: ScheduledMessage[];
   contactSequences: ContactSequence[];
   dailyStats: DailyStats[];
+  stats: DailyStats[]; // Adding the missing stats property
   stageProgressStatus: StageProgressStatus[];
   timeRestrictions: TimeRestriction[];
   tags: string[];
@@ -68,7 +67,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 // Na função addSequence, verifique se há algum filtro hardcoded ou valor uuid inválido
 export const AppProvider = ({ children }: { children: React.ReactNode }) => {
-  const user = useUser();
+  const [user, setUser] = useState<any>(null);
   const [clients, setClients] = useState<Client[]>([]);
   const [instances, setInstances] = useState<Instance[]>([]);
   const [sequences, setSequences] = useState<Sequence[]>([]);
@@ -84,15 +83,37 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const [currentInstance, setCurrentInstance] = useState<Instance | null>(null);
   const [isDataInitialized, setIsDataInitialized] = useState(false);
 
+  // Initialize user
+  useEffect(() => {
+    const getUserSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      setUser(data.session?.user || null);
+    };
+    
+    getUserSession();
+    
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user || null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+  
   const addClient = async (clientData: Omit<Client, "id" | "createdAt" | "updatedAt">) => {
     try {
+      // Convert frontend model to database model
+      const dbClient = {
+        account_id: clientData.accountId,
+        account_name: clientData.accountName,
+        created_by: user?.id || clientData.createdBy,
+        creator_account_name: user?.user_metadata?.account_name || "",
+      };
+
       const { data, error } = await supabase
         .from('clients')
-        .insert({
-          ...clientData,
-          created_by: user?.id,
-          creator_account_name: user?.user_metadata.account_name
-        })
+        .insert(dbClient)
         .select()
         .single();
 
@@ -101,8 +122,20 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         throw error;
       }
 
-      setClients(prevClients => [...prevClients, data]);
-      return data;
+      // Convert database model to frontend model
+      const newClient: Client = {
+        id: data.id,
+        accountId: data.account_id,
+        accountName: data.account_name,
+        createdBy: data.created_by,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at,
+        creator: data.creator,
+        creator_account_name: data.creator_account_name
+      };
+
+      setClients(prevClients => [...prevClients, newClient]);
+      return newClient;
     } catch (error) {
       console.error("Error adding client:", error);
       throw error;
@@ -111,9 +144,15 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
   const updateClient = async (id: string, clientData: Omit<Client, "id" | "createdAt" | "updatedAt">) => {
     try {
+      // Convert frontend model to database model
+      const dbClient = {
+        account_id: clientData.accountId,
+        account_name: clientData.accountName,
+      };
+      
       const { data, error } = await supabase
         .from('clients')
-        .update(clientData)
+        .update(dbClient)
         .eq('id', id)
         .select()
         .single();
@@ -123,10 +162,22 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         throw error;
       }
 
+      // Convert database model to frontend model
+      const updatedClient: Client = {
+        id: data.id,
+        accountId: data.account_id,
+        accountName: data.account_name,
+        createdBy: data.created_by,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at,
+        creator: data.creator,
+        creator_account_name: data.creator_account_name
+      };
+
       setClients(prevClients =>
-        prevClients.map(client => (client.id === id ? data : client))
+        prevClients.map(client => (client.id === id ? updatedClient : client))
       );
-      return data;
+      return updatedClient;
     } catch (error) {
       console.error("Error updating client:", error);
       throw error;
@@ -154,12 +205,19 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
   const addInstance = async (instanceData: Omit<Instance, "id" | "createdAt" | "updatedAt">) => {
     try {
+      // Convert frontend model to database model
+      const dbInstance = {
+        name: instanceData.name,
+        evolution_api_url: instanceData.evolutionApiUrl,
+        api_key: instanceData.apiKey,
+        client_id: instanceData.clientId,
+        active: instanceData.active !== undefined ? instanceData.active : true,
+        created_by: user?.id || instanceData.createdBy,
+      };
+      
       const { data, error } = await supabase
         .from('instances')
-        .insert({
-          ...instanceData,
-          created_by: user?.id
-        })
+        .insert(dbInstance)
         .select()
         .single();
 
@@ -168,8 +226,22 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         throw error;
       }
 
-      setInstances(prevInstances => [...prevInstances, data]);
-      return data;
+      // Convert database model to frontend model
+      const newInstance: Instance = {
+        id: data.id,
+        name: data.name,
+        evolutionApiUrl: data.evolution_api_url,
+        apiKey: data.api_key,
+        active: data.active,
+        clientId: data.client_id,
+        createdBy: data.created_by,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at,
+        client: instanceData.client
+      };
+
+      setInstances(prevInstances => [...prevInstances, newInstance]);
+      return newInstance;
     } catch (error) {
       console.error("Error adding instance:", error);
       throw error;
@@ -178,9 +250,18 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
   const updateInstance = async (id: string, instanceData: Omit<Instance, "id" | "createdAt" | "updatedAt">) => {
     try {
+      // Convert frontend model to database model
+      const dbInstance = {
+        name: instanceData.name,
+        evolution_api_url: instanceData.evolutionApiUrl,
+        api_key: instanceData.apiKey,
+        client_id: instanceData.clientId,
+        active: instanceData.active,
+      };
+      
       const { data, error } = await supabase
         .from('instances')
-        .update(instanceData)
+        .update(dbInstance)
         .eq('id', id)
         .select()
         .single();
@@ -190,10 +271,24 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         throw error;
       }
 
+      // Convert database model to frontend model
+      const updatedInstance: Instance = {
+        id: data.id,
+        name: data.name,
+        evolutionApiUrl: data.evolution_api_url,
+        apiKey: data.api_key,
+        active: data.active,
+        clientId: data.client_id,
+        createdBy: data.created_by,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at,
+        client: instanceData.client
+      };
+
       setInstances(prevInstances =>
-        prevInstances.map(instance => (instance.id === id ? data : instance))
+        prevInstances.map(instance => (instance.id === id ? updatedInstance : instance))
       );
-      return data;
+      return updatedInstance;
     } catch (error) {
       console.error("Error updating instance:", error);
       throw error;
@@ -223,19 +318,21 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       console.log("Adding sequence:", sequenceData);
       
-      // Verificar se todos os UUIDs estão corretos
+      // Convert frontend model to database model
+      const dbSequence = {
+        name: sequenceData.name,
+        instance_id: sequenceData.instanceId,
+        start_condition_type: sequenceData.startCondition.type,
+        start_condition_tags: sequenceData.startCondition.tags,
+        stop_condition_type: sequenceData.stopCondition.type,
+        stop_condition_tags: sequenceData.stopCondition.tags,
+        status: sequenceData.status,
+        created_by: user?.id || "",
+      };
+      
       const { data, error } = await supabase
         .from('sequences')
-        .insert({
-          name: sequenceData.name,
-          instance_id: sequenceData.instanceId,
-          start_condition_type: sequenceData.startCondition.type,
-          start_condition_tags: sequenceData.startCondition.tags,
-          stop_condition_type: sequenceData.stopCondition.type,
-          stop_condition_tags: sequenceData.stopCondition.tags,
-          status: sequenceData.status,
-          created_by: user?.id,
-        })
+        .insert(dbSequence)
         .select();
       
       if (error) {
@@ -288,25 +385,33 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         }
       }
       
-      // Atualizar estado local
-      setSequences(prev => [...prev, {
+      // Convert database model to frontend model and update state
+      const newSequence: Sequence = {
         id: data[0].id,
-        instanceId: sequenceData.instanceId,
-        name: sequenceData.name,
-        startCondition: sequenceData.startCondition,
-        stopCondition: sequenceData.stopCondition,
+        instanceId: data[0].instance_id,
+        name: data[0].name,
+        startCondition: {
+          type: data[0].start_condition_type,
+          tags: data[0].start_condition_tags
+        },
+        stopCondition: {
+          type: data[0].stop_condition_type,
+          tags: data[0].stop_condition_tags
+        },
         stages: sequenceData.stages.map((stage, index) => ({
           ...stage,
           id: stage.id || `temp-${index}`,
           orderIndex: stage.orderIndex !== undefined ? stage.orderIndex : index
         })),
         timeRestrictions: sequenceData.timeRestrictions || [],
-        status: sequenceData.status,
+        status: data[0].status,
         createdAt: data[0].created_at,
         updatedAt: data[0].updated_at
-      }]);
+      };
       
-      return data[0];
+      setSequences(prev => [...prev, newSequence]);
+      
+      return newSequence;
     } catch (error) {
       console.error("Error adding sequence:", error);
       throw error;
@@ -564,54 +669,51 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       setIsDataInitialized(false);
 
-      // Fetch clients
+      // Fetch all data
       const { data: clientsData, error: clientsError } = await supabase
         .from('clients')
         .select('*');
       if (clientsError) throw clientsError;
       setClients(clientsData || []);
 
-      // Fetch instances
       const { data: instancesData, error: instancesError } = await supabase
         .from('instances')
         .select('*');
       if (instancesError) throw instancesError;
       setInstances(instancesData || []);
 
-      // Fetch sequences
       const { data: sequencesData, error: sequencesError } = await supabase
         .from('sequences')
         .select('*');
       if (sequencesError) throw sequencesError;
       setSequences(sequencesData || []);
 
-      // Fetch contacts
       const { data: contactsData, error: contactsError } = await supabase
         .from('contacts')
         .select('*');
       if (contactsError) throw contactsError;
       setContacts(contactsData || []);
 
-      // Fetch scheduled messages
       const { data: scheduledMessagesData, error: scheduledMessagesError } = await supabase
         .from('scheduled_messages')
         .select('*');
       if (scheduledMessagesError) throw scheduledMessagesError;
       setScheduledMessages(scheduledMessagesData || []);
 
-      // Fetch contact sequences
       const { data: contactSequencesData, error: contactSequencesError } = await supabase
         .from('contact_sequences')
         .select('*');
       if (contactSequencesError) throw contactSequencesError;
       setContactSequences(contactSequencesData || []);
 
-      // Fetch daily stats
+      // Fetch daily stats and set it to both dailyStats and stats
       const { data: dailyStatsData, error: dailyStatsError } = await supabase
         .from('daily_stats')
         .select('*');
       if (dailyStatsError) throw dailyStatsError;
       setDailyStats(dailyStatsData || []);
+      // Also set the stats property
+      setStats(dailyStatsData || []);
 
       // Fetch stage progress status
       const { data: stageProgressStatusData, error: stageProgressStatusError } = await supabase
@@ -685,6 +787,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       scheduledMessages,
       contactSequences,
       dailyStats,
+      stats: dailyStats, // Add the stats property
       stageProgressStatus,
       timeRestrictions,
       tags,
