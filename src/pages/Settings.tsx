@@ -52,13 +52,13 @@ export default function Settings() {
       // Filtra clientes criados pelo usuário
       setFilteredClients(clients.filter(client => client.createdBy === currentUser.id));
       
-      // Filtra tags - tags é um array de strings, então precisamos acessar o createdBy de outra forma
-      // Como os tipos indicam que tags é um array de strings, vamos manter apenas os que o usuário atual tem acesso
-      // Isso precisaria ser ajustado na implementação real para ter acesso aos metadados das tags
-      setFilteredTags([]); // Por enquanto, vamos deixar vazio para usuários não super
+      // Como tags é um array de strings na definição de tipos atual,
+      // mas na realidade deveria ter metadados como createdBy,
+      // vamos deixar vazio para não-super admins por enquanto
+      setFilteredTags([]);
       
-      // Filtra restrições de horário criadas pelo usuário
-      // O tipo TimeRestriction não parece ter createdBy, então precisamos ajustar isso
+      // Como TimeRestriction não tem createdBy no tipo,
+      // vamos deixar vazio para não-super admins por enquanto
       setFilteredTimeRestrictions([]);
     }
   }, [clients, tags, timeRestrictions, currentUser, isSuper]);
@@ -310,7 +310,7 @@ export default function Settings() {
       
       <Tabs defaultValue={isSuper ? "users" : "clients"}>
         <TabsList>
-          {/* Modificação 3: Mostrar a aba Usuários apenas para super admins e renomeá-la */}
+          {/* Mostrar a aba Usuários apenas para super admins */}
           {isSuper && <TabsTrigger value="users">Usuários</TabsTrigger>}
           <TabsTrigger value="clients">Clientes</TabsTrigger>
           <TabsTrigger value="time-restrictions">Restrições de Horário</TabsTrigger>
@@ -318,7 +318,7 @@ export default function Settings() {
           <TabsTrigger value="general">Configurações Gerais</TabsTrigger>
         </TabsList>
         
-        {/* Renomeado de "accounts" para "users" e visível apenas para super admin */}
+        {/* Visível apenas para super admin */}
         {isSuper && (
           <TabsContent value="users">
             <Card className="mt-6">
@@ -577,7 +577,6 @@ export default function Settings() {
                   <TableRow>
                     <TableHead>Nome</TableHead>
                     <TableHead>ID da Conta</TableHead>
-                    {/* Modificação 1: Adicionar coluna para o criador do cliente */}
                     <TableHead>Criado por</TableHead>
                     <TableHead className="w-[100px]">Ações</TableHead>
                   </TableRow>
@@ -587,8 +586,11 @@ export default function Settings() {
                     <TableRow key={client.id}>
                       <TableCell className="font-medium">{client.accountName}</TableCell>
                       <TableCell>{client.accountId}</TableCell>
-                      {/* Exibindo o nome do criador do cliente */}
-                      <TableCell>{client.creator ? client.creator.account_name : client.creator_account_name}</TableCell>
+                      <TableCell>
+                        {client.creator ? client.creator.account_name : (
+                          client.creator_account_name || "—"
+                        )}
+                      </TableCell>
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
