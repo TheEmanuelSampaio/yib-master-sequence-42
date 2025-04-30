@@ -52,10 +52,8 @@ export default function Settings() {
       // Filtra clientes criados pelo usuário
       setFilteredClients(clients.filter(client => client.createdBy === currentUser.id));
       
-      // Como tags é um array de strings na definição de tipos atual,
-      // mas na realidade deveria ter metadados como createdBy,
-      // vamos deixar vazio para não-super admins por enquanto
-      setFilteredTags([]);
+      // Agora exibimos todas as tags, pois a filtragem é feita pelo RLS no banco de dados
+      setFilteredTags(tags);
       
       // Como TimeRestriction não tem createdBy no tipo,
       // vamos deixar vazio para não-super admins por enquanto
