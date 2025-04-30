@@ -12,3 +12,91 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     autoRefreshToken: true,
   }
 });
+
+// Função para buscar clientes com informações adicionais do criador usando JOIN
+export const fetchClientsWithCreatorInfo = async () => {
+  const { data, error } = await supabase
+    .from('clients')
+    .select(`
+      *,
+      creator:profiles!clients_created_by_fkey(id, account_name)
+    `);
+  
+  if (error) {
+    console.error('Erro ao buscar clientes:', error);
+    throw error;
+  }
+  
+  return data || [];
+};
+
+// Função para buscar instâncias com informações do cliente
+export const fetchInstancesWithClientInfo = async () => {
+  const { data, error } = await supabase
+    .from('instances')
+    .select(`
+      *,
+      client:clients(id, account_name, account_id)
+    `);
+  
+  if (error) {
+    console.error('Erro ao buscar instâncias:', error);
+    throw error;
+  }
+  
+  return data || [];
+};
+
+// Função para buscar sequências com informações da instância
+export const fetchSequencesWithInstanceInfo = async () => {
+  const { data, error } = await supabase
+    .from('sequences')
+    .select(`
+      *,
+      instance:instances(id, name)
+    `);
+  
+  if (error) {
+    console.error('Erro ao buscar sequências:', error);
+    throw error;
+  }
+  
+  return data || [];
+};
+
+// Função para buscar contatos com informações do cliente e tags
+export const fetchContactsWithInfo = async () => {
+  const { data: contacts, error: contactsError } = await supabase
+    .from('contacts')
+    .select(`
+      *,
+      client:clients(id, account_name)
+    `);
+  
+  if (contactsError) {
+    console.error('Erro ao buscar contatos:', contactsError);
+    throw contactsError;
+  }
+  
+  // Para cada contato, buscar suas tags
+  if (contacts && contacts.length > 0) {
+    const contactsWithTags = await Promise.all(contacts.map(async (contact) => {
+      const { data: tagData, error: tagError } = await supabase
+        .from('contact_tags')
+        .select('tag_name')
+        .eq('contact_id', contact.id);
+      
+      if (tagError) {
+        console.error(`Erro ao buscar tags para contato ${contact.id}:`, tagError);
+        return { ...contact, tags: [] };
+      }
+      
+      const tags = tagData ? tagData.map(t => t.tag_name) : [];
+      return { ...contact, tags };
+    }));
+    
+    return contactsWithTags;
+  }
+  
+  return contacts || [];
+};

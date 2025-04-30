@@ -36,6 +36,7 @@ export type Database = {
           account_name: string
           created_at: string | null
           created_by: string
+          creator_account_name: string
           id: string
           updated_at: string | null
         }
@@ -44,6 +45,7 @@ export type Database = {
           account_name: string
           created_at?: string | null
           created_by: string
+          creator_account_name: string
           id?: string
           updated_at?: string | null
         }
@@ -52,6 +54,7 @@ export type Database = {
           account_name?: string
           created_at?: string | null
           created_by?: string
+          creator_account_name?: string
           id?: string
           updated_at?: string | null
         }
