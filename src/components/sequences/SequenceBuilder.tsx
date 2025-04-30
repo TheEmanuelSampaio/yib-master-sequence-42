@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { PlusCircle, Clock, Trash2, ChevronDown, ChevronUp, MessageCircle, FileCode, Bot, X, Edit, Save, Lock } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,7 +23,7 @@ import { toast } from "sonner";
 
 interface SequenceBuilderProps {
   sequence?: Sequence;
-  onSave: (sequence: Omit<Sequence, "id" | "createdAt" | "updatedAt">) => void;
+  onSave: (sequence: Omit<Sequence, "id" | "createdAt" | "updatedAt" | "createdBy">) => void;
   onCancel: () => void;
   onChangesMade?: () => void;
 }
@@ -276,7 +275,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
       return;
     }
     
-    const newSequence: Omit<Sequence, "id" | "createdAt" | "updatedAt"> = {
+    const newSequence: Omit<Sequence, "id" | "createdAt" | "updatedAt" | "createdBy"> = {
       name,
       instanceId: currentInstance?.id || "",
       startCondition,
@@ -691,9 +690,9 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
                           <Label htmlFor="stage-type">Tipo do Conteúdo</Label>
                           <Select
                             value={newStage.type}
-                            onValueChange={(value) => setNewStage({ 
+                            onValueChange={(value: "message" | "pattern" | "typebot") => setNewStage({ 
                               ...newStage, 
-                              type: value as "message" | "pattern" | "typebot" 
+                              type: value
                             })}
                           >
                             <SelectTrigger id="stage-type">
@@ -776,9 +775,9 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
                           <Label htmlFor="stage-delay-unit">Unidade</Label>
                           <Select
                             value={newStage.delayUnit}
-                            onValueChange={(value) => setNewStage({ 
+                            onValueChange={(value: "minutes" | "hours" | "days") => setNewStage({ 
                               ...newStage, 
-                              delayUnit: value as "minutes" | "hours" | "days" 
+                              delayUnit: value
                             })}
                           >
                             <SelectTrigger id="stage-delay-unit">
@@ -915,140 +914,4 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
                             <span className="flex items-center">:</span>
                             <Select
                               value={newRestriction.startMinute.toString()}
-                              onValueChange={(value) => 
-                                setNewRestriction({
-                                  ...newRestriction,
-                                  startMinute: parseInt(value),
-                                })
-                              }
-                            >
-                              <SelectTrigger className="w-full">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {[0, 15, 30, 45].map((minute) => (
-                                  <SelectItem key={`start-min-${minute}`} value={minute.toString()}>
-                                    {minute.toString().padStart(2, "0")}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                        <div>
-                          <Label>Horário de Fim</Label>
-                          <div className="flex mt-2 space-x-2">
-                            <Select
-                              value={newRestriction.endHour.toString()}
-                              onValueChange={(value) => 
-                                setNewRestriction({
-                                  ...newRestriction,
-                                  endHour: parseInt(value),
-                                })
-                              }
-                            >
-                              <SelectTrigger className="w-full">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {Array.from({ length: 24 }, (_, i) => (
-                                  <SelectItem key={`end-hour-${i}`} value={i.toString()}>
-                                    {i.toString().padStart(2, "0")}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <span className="flex items-center">:</span>
-                            <Select
-                              value={newRestriction.endMinute.toString()}
-                              onValueChange={(value) => 
-                                setNewRestriction({
-                                  ...newRestriction,
-                                  endMinute: parseInt(value),
-                                })
-                              }
-                            >
-                              <SelectTrigger className="w-full">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {[0, 15, 30, 45].map((minute) => (
-                                  <SelectItem key={`end-min-${minute}`} value={minute.toString()}>
-                                    {minute.toString().padStart(2, "0")}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setShowAddRestrictionDialog(false)}>Cancelar</Button>
-                      <Button onClick={addLocalRestriction}>Adicionar</Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {/* Restrições locais e globais selecionadas */}
-                  {timeRestrictions.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground border rounded-md">
-                      Nenhuma restrição configurada
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {timeRestrictions.map(restriction => (
-                        <RestrictionItem
-                          key={restriction.id}
-                          restriction={restriction}
-                          onRemove={removeTimeRestriction}
-                          onUpdate={!restriction.isGlobal ? updateLocalRestriction : undefined}
-                          selected={restriction.isGlobal}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-            
-            {/* Restrições Globais */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center">
-                  <Lock className="h-4 w-4 mr-2 text-blue-500" />
-                  <CardTitle>Restrições Globais</CardTitle>
-                </div>
-                <CardDescription>
-                  Restrições de horário disponíveis para todas as sequências
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {availableGlobalRestrictions.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground border rounded-md">
-                      Não há restrições globais disponíveis
-                    </div>
-                  ) : (
-                    availableGlobalRestrictions.map(restriction => (
-                      <RestrictionItem
-                        key={restriction.id}
-                        restriction={restriction}
-                        onRemove={() => {}}
-                        selected={isGlobalRestrictionSelected(restriction.id)}
-                        onSelect={() => addGlobalRestriction(restriction)}
-                      />
-                    ))
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
-}
+                              onValueChange={(value) =>
