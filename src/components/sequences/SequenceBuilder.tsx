@@ -1,5 +1,6 @@
+
 import { useState } from "react";
-import { PlusCircle, Clock, Trash2, ChevronDown, ChevronUp, MessageCircle, FileCode, Bot, X, Edit, Save } from "lucide-react";
+import { PlusCircle, Clock, Trash2, ChevronDown, ChevronUp, MessageCircle, FileCode, Bot, X, Edit, Save, Lock, Unlock } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,10 +65,17 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
     startMinute: 0,
     endHour: 8,
     endMinute: 0,
+    isGlobal: false, // Por padrão, novas restrições são locais
   });
 
+  const [showGlobalRestrictionsDialog, setShowGlobalRestrictionsDialog] = useState(false);
   const [editingStageId, setEditingStageId] = useState<string | null>(null);
   const [stageToEdit, setStageToEdit] = useState<SequenceStage | null>(null);
+  
+  // Filtra restrições globais disponíveis (que não estão já adicionadas à sequência)
+  const availableGlobalRestrictions = globalTimeRestrictions.filter(
+    gr => !timeRestrictions.some(tr => tr.id === gr.id && tr.isGlobal)
+  );
   
   const addTag = (target: "start" | "stop", tag: string) => {
     if (!tag) return;
@@ -175,11 +183,11 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
     setStages(newStages);
   };
   
-  const addTimeRestriction = () => {
+  const addLocalRestriction = () => {
     const restriction: TimeRestriction = {
       ...newRestriction,
       id: crypto.randomUUID(),
-      isGlobal: false, // Marca como uma restrição local
+      isGlobal: false, // Sempre marca como restrição local
     };
     
     setTimeRestrictions([...timeRestrictions, restriction]);
@@ -193,15 +201,24 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
       startMinute: 0,
       endHour: 8,
       endMinute: 0,
+      isGlobal: false,
     });
+  };
+
+  const addGlobalRestriction = (restriction: TimeRestriction) => {
+    // Verifica se já não existe na lista
+    if (timeRestrictions.some(r => r.id === restriction.id)) return;
+    
+    setTimeRestrictions([...timeRestrictions, { ...restriction, isGlobal: true }]);
+    setShowGlobalRestrictionsDialog(false);
   };
   
   const removeTimeRestriction = (id: string) => {
     setTimeRestrictions(timeRestrictions.filter(r => r.id !== id));
   };
 
-  const updateTimeRestriction = (updatedRestriction: TimeRestriction) => {
-    // Não permitir atualizar restrições globais
+  const updateLocalRestriction = (updatedRestriction: TimeRestriction) => {
+    // Apenas permite atualizar restrições locais
     if (updatedRestriction.isGlobal) return;
     
     setTimeRestrictions(timeRestrictions.map(r => 
@@ -250,6 +267,10 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
   const getActiveRestrictionCount = () => {
     return timeRestrictions.filter(r => r.active).length;
   };
+
+  // Separar restrições globais e locais
+  const globalRestrictions = timeRestrictions.filter(r => r.isGlobal);
+  const localRestrictions = timeRestrictions.filter(r => !r.isGlobal);
 
   return (
     <div className="space-y-6">
@@ -678,261 +699,309 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
                   <CardTitle>Restrições de Horário</CardTitle>
                   <CardDescription>Define quando as mensagens não serão enviadas</CardDescription>
                 </div>
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button size="sm">
-                      <PlusCircle className="h-4 w-4 mr-2" />
-                      Nova Restrição
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Adicionar Restrição de Horário</DialogTitle>
-                      <DialogDescription>
-                        Mensagens não serão enviadas nos dias e horários selecionados.
-                      </DialogDescription>
-                    </DialogHeader>
-                    
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="restriction-name">Nome da Restrição</Label>
-                        <Input 
-                          id="restriction-name" 
-                          value={newRestriction.name} 
-                          onChange={(e) => setNewRestriction({ ...newRestriction, name: e.target.value })}
-                          placeholder="Ex: Horário comercial"
-                        />
-                      </div>
-                    
-                      <div className="flex items-center space-x-2">
-                        <Label htmlFor="restriction-active">Ativa</Label>
-                        <Switch
-                          id="restriction-active"
-                          checked={newRestriction.active}
-                          onCheckedChange={(checked) => setNewRestriction({
-                            ...newRestriction,
-                            active: checked
-                          })}
-                        />
-                      </div>
+                <div className="flex space-x-2">
+                  <Dialog open={showGlobalRestrictionsDialog} onOpenChange={setShowGlobalRestrictionsDialog}>
+                    <DialogTrigger asChild>
+                      <Button size="sm" variant="outline" className="space-x-1">
+                        <Lock className="h-4 w-4 mr-1" />
+                        <span>Adicionar Global</span>
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Adicionar Restrição Global</DialogTitle>
+                        <DialogDescription>
+                          Selecione uma restrição global para adicionar à sequência
+                        </DialogDescription>
+                      </DialogHeader>
                       
-                      <div className="space-y-2">
-                        <Label>Dias da Semana</Label>
-                        <ToggleGroup 
-                          type="multiple" 
-                          variant="outline"
-                          className="justify-start"
-                          value={newRestriction.days.map(d => d.toString())}
-                          onValueChange={(value) => {
-                            if (value.length > 0) {
-                              setNewRestriction({
-                                ...newRestriction,
-                                days: value.map(v => parseInt(v))
-                              });
-                            }
-                          }}
+                      {availableGlobalRestrictions.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-6">
+                          <Lock className="h-8 w-8 text-muted-foreground mb-2" />
+                          <p className="text-muted-foreground">
+                            Não há restrições globais disponíveis
+                          </p>
+                        </div>
+                      ) : (
+                        <ScrollArea className="h-72">
+                          <div className="space-y-2">
+                            {availableGlobalRestrictions.map(restriction => (
+                              <div 
+                                key={restriction.id} 
+                                className="flex items-center justify-between p-3 border rounded-md hover:bg-accent"
+                              >
+                                <div>
+                                  <p className="font-medium">{restriction.name}</p>
+                                  <div className="text-sm text-muted-foreground">
+                                    <p>Dias: {restriction.days.map(d => getDayName(d)[0]).join(", ")}</p>
+                                    <p>
+                                      {formatTime(restriction.startHour, restriction.startMinute)} - 
+                                      {formatTime(restriction.endHour, restriction.endMinute)}
+                                    </p>
+                                  </div>
+                                </div>
+                                <Button 
+                                  variant="outline"
+                                  onClick={() => addGlobalRestriction(restriction)}
+                                >
+                                  Adicionar
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        </ScrollArea>
+                      )}
+                      
+                      <DialogFooter>
+                        <Button 
+                          variant="outline" 
+                          onClick={() => setShowGlobalRestrictionsDialog(false)}
                         >
-                          {[
-                            { value: "0", label: "D" },
-                            { value: "1", label: "S" },
-                            { value: "2", label: "T" },
-                            { value: "3", label: "Q" },
-                            { value: "4", label: "Q" },
-                            { value: "5", label: "S" },
-                            { value: "6", label: "S" }
-                          ].map(day => (
-                            <ToggleGroupItem 
-                              key={day.value} 
-                              value={day.value} 
-                              aria-label={getDayName(parseInt(day.value))}
-                              title={getDayName(parseInt(day.value))}
-                              className="w-9 h-9 rounded-full data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
-                            >
-                              {day.label}
-                            </ToggleGroupItem>
-                          ))}
-                        </ToggleGroup>
+                          Fechar
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                  
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button size="sm">
+                        <Unlock className="h-4 w-4 mr-1" />
+                        <span>Nova Local</span>
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Adicionar Restrição Local</DialogTitle>
+                        <DialogDescription>
+                          Restrições locais são específicas desta sequência
+                        </DialogDescription>
+                      </DialogHeader>
+                      
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="restriction-name">Nome da Restrição</Label>
+                          <Input 
+                            id="restriction-name" 
+                            value={newRestriction.name} 
+                            onChange={(e) => setNewRestriction({ ...newRestriction, name: e.target.value })}
+                            placeholder="Ex: Horário comercial"
+                          />
+                        </div>
+                      
+                        <div className="flex items-center space-x-2">
+                          <Label htmlFor="restriction-active">Ativa</Label>
+                          <Switch
+                            id="restriction-active"
+                            checked={newRestriction.active}
+                            onCheckedChange={(checked) => setNewRestriction({
+                              ...newRestriction,
+                              active: checked
+                            })}
+                          />
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label>Dias da Semana</Label>
+                          <ToggleGroup 
+                            type="multiple" 
+                            variant="outline"
+                            className="justify-start"
+                            value={newRestriction.days.map(d => d.toString())}
+                            onValueChange={(value) => {
+                              if (value.length > 0) {
+                                setNewRestriction({
+                                  ...newRestriction,
+                                  days: value.map(v => parseInt(v))
+                                });
+                              }
+                            }}
+                          >
+                            {[
+                              { value: "0", label: "D" },
+                              { value: "1", label: "S" },
+                              { value: "2", label: "T" },
+                              { value: "3", label: "Q" },
+                              { value: "4", label: "Q" },
+                              { value: "5", label: "S" },
+                              { value: "6", label: "S" }
+                            ].map(day => (
+                              <ToggleGroupItem 
+                                key={day.value} 
+                                value={day.value} 
+                                aria-label={getDayName(parseInt(day.value))}
+                                title={getDayName(parseInt(day.value))}
+                                className="w-9 h-9 rounded-full data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+                              >
+                                {day.label}
+                              </ToggleGroupItem>
+                            ))}
+                          </ToggleGroup>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label>Horário de Início</Label>
+                            <div className="flex mt-2 space-x-2">
+                              <Select
+                                value={newRestriction.startHour.toString()}
+                                onValueChange={(value) => 
+                                  setNewRestriction({
+                                    ...newRestriction,
+                                    startHour: parseInt(value),
+                                  })
+                                }
+                              >
+                                <SelectTrigger className="w-full">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {Array.from({ length: 24 }, (_, i) => (
+                                    <SelectItem key={`start-hour-${i}`} value={i.toString()}>
+                                      {i.toString().padStart(2, "0")}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <span className="flex items-center">:</span>
+                              <Select
+                                value={newRestriction.startMinute.toString()}
+                                onValueChange={(value) => 
+                                  setNewRestriction({
+                                    ...newRestriction,
+                                    startMinute: parseInt(value),
+                                  })
+                                }
+                              >
+                                <SelectTrigger className="w-full">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {[0, 15, 30, 45].map((minute) => (
+                                    <SelectItem key={`start-min-${minute}`} value={minute.toString()}>
+                                      {minute.toString().padStart(2, "0")}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                          <div>
+                            <Label>Horário de Fim</Label>
+                            <div className="flex mt-2 space-x-2">
+                              <Select
+                                value={newRestriction.endHour.toString()}
+                                onValueChange={(value) => 
+                                  setNewRestriction({
+                                    ...newRestriction,
+                                    endHour: parseInt(value),
+                                  })
+                                }
+                              >
+                                <SelectTrigger className="w-full">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {Array.from({ length: 24 }, (_, i) => (
+                                    <SelectItem key={`end-hour-${i}`} value={i.toString()}>
+                                      {i.toString().padStart(2, "0")}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <span className="flex items-center">:</span>
+                              <Select
+                                value={newRestriction.endMinute.toString()}
+                                onValueChange={(value) => 
+                                  setNewRestriction({
+                                    ...newRestriction,
+                                    endMinute: parseInt(value),
+                                  })
+                                }
+                              >
+                                <SelectTrigger className="w-full">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {[0, 15, 30, 45].map((minute) => (
+                                    <SelectItem key={`end-min-${minute}`} value={minute.toString()}>
+                                      {minute.toString().padStart(2, "0")}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                       
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <Label>Horário de Início</Label>
-                          <div className="flex mt-2 space-x-2">
-                            <Select
-                              value={newRestriction.startHour.toString()}
-                              onValueChange={(value) => 
-                                setNewRestriction({
-                                  ...newRestriction,
-                                  startHour: parseInt(value),
-                                })
-                              }
-                            >
-                              <SelectTrigger className="w-full">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {Array.from({ length: 24 }, (_, i) => (
-                                  <SelectItem key={`start-hour-${i}`} value={i.toString()}>
-                                    {i.toString().padStart(2, "0")}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <span className="flex items-center">:</span>
-                            <Select
-                              value={newRestriction.startMinute.toString()}
-                              onValueChange={(value) => 
-                                setNewRestriction({
-                                  ...newRestriction,
-                                  startMinute: parseInt(value),
-                                })
-                              }
-                            >
-                              <SelectTrigger className="w-full">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {[0, 15, 30, 45].map((minute) => (
-                                  <SelectItem key={`start-min-${minute}`} value={minute.toString()}>
-                                    {minute.toString().padStart(2, "0")}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                        <div>
-                          <Label>Horário de Término</Label>
-                          <div className="flex mt-2 space-x-2">
-                            <Select
-                              value={newRestriction.endHour.toString()}
-                              onValueChange={(value) => 
-                                setNewRestriction({
-                                  ...newRestriction,
-                                  endHour: parseInt(value),
-                                })
-                              }
-                            >
-                              <SelectTrigger className="w-full">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {Array.from({ length: 24 }, (_, i) => (
-                                  <SelectItem key={`end-hour-${i}`} value={i.toString()}>
-                                    {i.toString().padStart(2, "0")}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <span className="flex items-center">:</span>
-                            <Select
-                              value={newRestriction.endMinute.toString()}
-                              onValueChange={(value) => 
-                                setNewRestriction({
-                                  ...newRestriction,
-                                  endMinute: parseInt(value),
-                                })
-                              }
-                            >
-                              <SelectTrigger className="w-full">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {[0, 15, 30, 45].map((minute) => (
-                                  <SelectItem key={`end-min-${minute}`} value={minute.toString()}>
-                                    {minute.toString().padStart(2, "0")}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <DialogFooter>
-                      <Button onClick={addTimeRestriction}>Adicionar</Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
+                      <DialogFooter>
+                        <Button onClick={addLocalRestriction}>Adicionar Restrição</Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
               {timeRestrictions.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-32 text-center">
+                <div className="flex flex-col items-center justify-center py-6 text-center">
                   <Clock className="h-8 w-8 text-muted-foreground mb-2" />
                   <p className="text-muted-foreground">
-                    Sem restrições de horário definidas
+                    Nenhuma restrição de horário definida
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    As mensagens serão enviadas em qualquer horário
+                    Adicione restrições para evitar envio de mensagens em horários indesejados
                   </p>
                 </div>
               ) : (
-                <ScrollArea className="h-[400px]">
-                  <div className="space-y-2">
-                    {timeRestrictions.map((restriction) => (
-                      <RestrictionItem
-                        key={restriction.id}
-                        restriction={restriction}
-                        onUpdate={updateTimeRestriction}
-                        onRemove={removeTimeRestriction}
-                      />
-                    ))}
-                  </div>
-                </ScrollArea>
+                <>
+                  {globalRestrictions.length > 0 && (
+                    <div className="mb-4">
+                      <h3 className="text-sm font-medium flex items-center mb-2">
+                        <Lock className="h-4 w-4 mr-1.5 text-blue-500" /> 
+                        Restrições Globais
+                      </h3>
+                      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                        {globalRestrictions.map(restriction => (
+                          <RestrictionItem
+                            key={restriction.id}
+                            restriction={restriction}
+                            onRemove={removeTimeRestriction}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {localRestrictions.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-medium flex items-center mb-2">
+                        <Unlock className="h-4 w-4 mr-1.5" /> 
+                        Restrições Locais
+                      </h3>
+                      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                        {localRestrictions.map(restriction => (
+                          <RestrictionItem
+                            key={restriction.id}
+                            restriction={restriction}
+                            onRemove={removeTimeRestriction}
+                            onUpdate={updateLocalRestriction}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>
-          
-          {globalTimeRestrictions.length > 0 && (
-            <Card className="mt-6">
-              <CardHeader>
-                <CardTitle>Restrições Globais</CardTitle>
-                <CardDescription>Restrições de horário disponíveis para todas as sequências</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ScrollArea className="h-[200px]">
-                  <div className="space-y-2">
-                    {globalTimeRestrictions.map((restriction) => {
-                      // Verificar se a restrição já foi adicionada à sequência
-                      const isAdded = timeRestrictions.some(r => r.id === restriction.id);
-                      
-                      return (
-                        <RestrictionItem
-                          key={restriction.id}
-                          restriction={restriction}
-                          readonly
-                          isSelected={isAdded}
-                          onSelect={() => {
-                            if (!isAdded) {
-                              // Adicionar a restrição global com a flag isGlobal
-                              setTimeRestrictions([...timeRestrictions, { ...restriction, isGlobal: true }]);
-                            } else {
-                              // Remover a restrição global
-                              setTimeRestrictions(
-                                timeRestrictions.filter(r => r.id !== restriction.id)
-                              );
-                            }
-                          }}
-                        />
-                      );
-                    })}
-                  </div>
-                </ScrollArea>
-              </CardContent>
-            </Card>
-          )}
         </TabsContent>
       </Tabs>
       
-      <div className="flex justify-end space-x-4 mt-6">
-        <Button variant="outline" onClick={onCancel}>
-          Cancelar
-        </Button>
-        <Button onClick={handleSubmit}>
-          {sequence ? "Atualizar Sequência" : "Criar Sequência"}
-        </Button>
+      <div className="flex justify-end space-x-2">
+        <Button variant="outline" onClick={onCancel}>Cancelar</Button>
+        <Button onClick={handleSubmit}>Salvar</Button>
       </div>
     </div>
   );

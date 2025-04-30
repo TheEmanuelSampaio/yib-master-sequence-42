@@ -361,6 +361,56 @@ export type Database = {
           },
         ]
       }
+      sequence_local_restrictions: {
+        Row: {
+          active: boolean
+          created_at: string | null
+          created_by: string
+          days: number[]
+          end_hour: number
+          end_minute: number
+          id: string
+          name: string
+          sequence_id: string
+          start_hour: number
+          start_minute: number
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string | null
+          created_by: string
+          days: number[]
+          end_hour: number
+          end_minute: number
+          id?: string
+          name: string
+          sequence_id: string
+          start_hour: number
+          start_minute: number
+        }
+        Update: {
+          active?: boolean
+          created_at?: string | null
+          created_by?: string
+          days?: number[]
+          end_hour?: number
+          end_minute?: number
+          id?: string
+          name?: string
+          sequence_id?: string
+          start_hour?: number
+          start_minute?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sequence_local_restrictions_sequence_id_fkey"
+            columns: ["sequence_id"]
+            isOneToOne: false
+            referencedRelation: "sequences"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sequence_stages: {
         Row: {
           content: string
@@ -595,6 +645,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_sequence_time_restrictions: {
+        Args: { seq_id: string }
+        Returns: {
+          id: string
+          name: string
+          active: boolean
+          days: number[]
+          start_hour: number
+          start_minute: number
+          end_hour: number
+          end_minute: number
+          is_global: boolean
+        }[]
+      }
       is_super_admin: {
         Args: Record<PropertyKey, never>
         Returns: boolean

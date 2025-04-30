@@ -67,7 +67,7 @@ export interface TimeRestriction {
   startMinute: number;
   endHour: number;
   endMinute: number;
-  isGlobal?: boolean;
+  isGlobal: boolean; // Indica se é uma restrição global ou local
 }
 
 export interface Contact {

@@ -192,7 +192,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         startMinute: restriction.start_minute,
         endHour: restriction.end_hour,
         endMinute: restriction.end_minute,
-        isGlobal: true // Marcando todas as restrições vindas do banco como globais
+        isGlobal: true // Todas as restrições desta tabela são globais
       }));
       
       setTimeRestrictions(typedRestrictions);
@@ -212,7 +212,39 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       
       if (sequencesError) throw sequencesError;
       
-      // Reduced logging verbosity
+      // Buscar também as restrições locais para cada sequência
+      // Adicionar essas informações aos objetos de sequência
+      for (const sequence of sequencesData) {
+        const { data: localRestrictions, error: localRestError } = await supabase
+          .from('sequence_local_restrictions')
+          .select('*')
+          .eq('sequence_id', sequence.id);
+          
+        if (localRestError) {
+          console.error("Erro ao carregar restrições locais:", localRestError);
+          continue;
+        }
+        
+        if (localRestrictions && localRestrictions.length > 0) {
+          const typedLocalRestrictions = localRestrictions.map(lr => ({
+            id: lr.id,
+            name: lr.name,
+            active: lr.active,
+            days: lr.days,
+            startHour: lr.start_hour,
+            startMinute: lr.start_minute,
+            endHour: lr.end_hour,
+            endMinute: lr.end_minute,
+            isGlobal: false // Marca explicitamente como restrição local
+          }));
+          
+          sequence.timeRestrictions = [
+            ...sequence.timeRestrictions,
+            ...typedLocalRestrictions
+          ];
+        }
+      }
+      
       console.log(`Sequences fetched: ${sequencesData.length}`);
       
       const typedSequences: Sequence[] = sequencesData.map(sequence => {
@@ -229,7 +261,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             delayUnit: stage.delay_unit
           }));
           
-        // Transformar as restrições de tempo
+        // Transformar as restrições de tempo - agora buscamos da função que retorna tanto globais quanto locais
         const timeRestrictions = sequence.sequence_time_restrictions
           .map((str: any) => str.time_restrictions)
           .filter(Boolean)
@@ -241,7 +273,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             startHour: tr.start_hour,
             startMinute: tr.start_minute,
             endHour: tr.end_hour,
-            endMinute: tr.end_minute
+            endMinute: tr.end_minute,
+            isGlobal: true // Todas as restrições desta junção são globais
           }));
         
         // Ensure startCondition.type and stopCondition.type are "AND" or "OR"
@@ -435,9 +468,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       
       console.log("Adding sequence:", sequenceData);
       
-      // Ensure start and stop condition types are valid
-      const startType = sequenceData.startCondition.type;
-      const stopType = sequenceData.stopCondition.type;
+      // Separar as restrições em globais e locais
+      const globalRestrictions = sequenceData.timeRestrictions.filter(r => r.isGlobal);
+      const localRestrictions = sequenceData.timeRestrictions.filter(r => !r.isGlobal);
       
       // First create the sequence
       const { data: seqData, error: seqError } = await supabase
@@ -445,9 +478,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         .insert({
           instance_id: sequenceData.instanceId,
           name: sequenceData.name,
-          start_condition_type: startType,
+          start_condition_type: sequenceData.startCondition.type,
           start_condition_tags: sequenceData.startCondition.tags,
-          stop_condition_type: stopType,
+          stop_condition_type: sequenceData.stopCondition.type,
           stop_condition_tags: sequenceData.stopCondition.tags,
           status: sequenceData.status,
           created_by: user.id
@@ -481,36 +514,53 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         console.log("Stage created:", stageData);
       }
       
-      // Add time restrictions - handle both global and local restrictions
-      if (sequenceData.timeRestrictions && sequenceData.timeRestrictions.length > 0) {
-        for (const restriction of sequenceData.timeRestrictions) {
-          // Se a restrição tem isGlobal e um UUID válido, é uma restrição global
-          if (restriction.isGlobal && restriction.id && 
-              /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(restriction.id)) {
-            
-            // Verificar se a restrição global existe antes de tentar adicionar
-            const { data: checkRestriction } = await supabase
-              .from('time_restrictions')
-              .select('id')
-              .eq('id', restriction.id)
-              .single();
+      // Add time restrictions - handle global restrictions
+      if (globalRestrictions.length > 0) {
+        for (const restriction of globalRestrictions) {
+          // Verificar se a restrição global existe antes de tentar adicionar
+          const { data: checkRestriction } = await supabase
+            .from('time_restrictions')
+            .select('id')
+            .eq('id', restriction.id)
+            .single();
               
-            if (!checkRestriction) {
-              console.error(`Restrição global com ID ${restriction.id} não encontrada`);
-              continue; // Pula para a próxima restrição
-            }
-            
-            const { data: restrictionData, error: restrictionError } = await supabase
-              .from('sequence_time_restrictions')
-              .insert({
-                sequence_id: seqData.id,
-                time_restriction_id: restriction.id
-              })
-              .select();
-            
-            if (restrictionError) throw restrictionError;
-            console.log("Global restriction added:", restrictionData);
+          if (!checkRestriction) {
+            console.error(`Restrição global com ID ${restriction.id} não encontrada`);
+            continue;
           }
+          
+          const { data: restrictionData, error: restrictionError } = await supabase
+            .from('sequence_time_restrictions')
+            .insert({
+              sequence_id: seqData.id,
+              time_restriction_id: restriction.id
+            })
+            .select();
+          
+          if (restrictionError) throw restrictionError;
+          console.log("Global restriction added:", restrictionData);
+        }
+      }
+      
+      // Adicionar restrições locais à tabela sequence_local_restrictions
+      if (localRestrictions.length > 0) {
+        for (const restriction of localRestrictions) {
+          const { error: localRestError } = await supabase
+            .from('sequence_local_restrictions')
+            .insert({
+              sequence_id: seqData.id,
+              name: restriction.name,
+              active: restriction.active,
+              days: restriction.days,
+              start_hour: restriction.startHour,
+              start_minute: restriction.startMinute,
+              end_hour: restriction.endHour,
+              end_minute: restriction.endMinute,
+              created_by: user.id
+            });
+            
+          if (localRestError) throw localRestError;
+          console.log("Local restriction added for sequence");
         }
       }
       
@@ -587,15 +637,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       
       // Update time restrictions if provided
       if (sequenceData.timeRestrictions) {
-        // Filtrar apenas restrições globais (com UUIDs válidos)
-        const globalRestrictions = sequenceData.timeRestrictions
-          .filter(r => r.isGlobal && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(r.id));
-          
-        // Se temos restrições globais, validamos se elas existem no banco de dados
+        // Separar as restrições em globais e locais
+        const globalRestrictions = sequenceData.timeRestrictions.filter(r => r.isGlobal);
+        const localRestrictions = sequenceData.timeRestrictions.filter(r => !r.isGlobal);
+        
+        // Validar restrições globais
         if (globalRestrictions.length > 0) {
           const globalRestrictionIds = globalRestrictions.map(r => r.id);
           
-          // Verificar se todos os IDs de restrições existem
+          // Verificar se todos os IDs de restrições globais existem
           const { data: existingRestrictions, error: checkError } = await supabase
             .from('time_restrictions')
             .select('id')
@@ -614,13 +664,21 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           }
         }
         
-        // Delete all existing restrictions for this sequence
+        // Delete all existing global restrictions for this sequence
         const { error: deleteRestError } = await supabase
           .from('sequence_time_restrictions')
           .delete()
           .eq('sequence_id', id);
         
         if (deleteRestError) throw deleteRestError;
+        
+        // Delete all existing local restrictions for this sequence
+        const { error: deleteLocalRestError } = await supabase
+          .from('sequence_local_restrictions')
+          .delete()
+          .eq('sequence_id', id);
+          
+        if (deleteLocalRestError) throw deleteLocalRestError;
         
         // Add global restrictions
         for (const restriction of globalRestrictions) {
@@ -632,6 +690,27 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             });
           
           if (restrictionError) throw restrictionError;
+        }
+        
+        // Add local restrictions
+        if (localRestrictions.length > 0 && user) {
+          for (const restriction of localRestrictions) {
+            const { error: localRestError } = await supabase
+              .from('sequence_local_restrictions')
+              .insert({
+                sequence_id: id,
+                name: restriction.name,
+                active: restriction.active,
+                days: restriction.days,
+                start_hour: restriction.startHour,
+                start_minute: restriction.startMinute,
+                end_hour: restriction.endHour,
+                end_minute: restriction.endMinute,
+                created_by: user.id
+              });
+              
+            if (localRestError) throw localRestError;
+          }
         }
       }
       
