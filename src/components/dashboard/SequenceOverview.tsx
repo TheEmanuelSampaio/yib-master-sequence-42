@@ -1,13 +1,11 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useApp } from '@/context/AppContext';
-import { Check, Clock, Activity, Ban, AlertCircle } from 'lucide-react';
+import { Check, Clock, Activity, Ban } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
 
 export function SequenceOverview() {
   const { sequences, currentInstance, refreshData, isDataInitialized } = useApp();
@@ -25,60 +23,6 @@ export function SequenceOverview() {
     [];
 
   const activeSequences = instanceSequences.filter(seq => seq.status === 'active');
-  
-  const testSequence = async (sequenceId: string) => {
-    try {
-      toast.info("Testando sequência...");
-      
-      // Formato correto do payload com chatwootData dentro de data
-      const testData = {
-        data: {
-          accountData: {
-            accountId: 1,
-            accountName: "Teste Master Sequence"
-          },
-          contactData: {
-            id: `test-${Date.now()}`,
-            name: `Contato de Teste ${new Date().toLocaleTimeString()}`,
-            phoneNumber: "+5511987654321"
-          },
-          conversationData: {
-            inboxId: 1,
-            conversationId: Date.now(),
-            displayId: Date.now(),
-            labels: sequences.find(s => s.id === sequenceId)?.startCondition.tags.join(', ')
-          }
-        }
-      };
-      
-      // URL completa da função Edge
-      const url = "https://mlwcupyfhtxdxcybwbmg.supabase.co/functions/v1/tag-change";
-      
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
-        },
-        body: JSON.stringify(testData)
-      });
-      
-      const result = await response.json();
-      
-      if (result.success) {
-        toast.success(`Teste concluído! Contato adicionado a ${result.details.addedToSequences} sequência(s).`);
-        
-        if (result.details.tagsAddedFail > 0) {
-          toast.warning(`Atenção: ${result.details.tagsAddedFail} tags não puderam ser criadas.`);
-        }
-      } else {
-        toast.error(`Erro no teste: ${result.error || "Erro desconhecido"}`);
-      }
-    } catch (error) {
-      console.error("Erro ao testar sequência:", error);
-      toast.error("Erro ao testar sequência. Veja o console para mais detalhes.");
-    }
-  };
   
   return (
     <Card className="col-span-full">
@@ -124,25 +68,14 @@ export function SequenceOverview() {
                       />
                       <h3 className="font-medium">{sequence.name}</h3>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="h-8"
-                        onClick={() => testSequence(sequence.id)}
-                      >
-                        <AlertCircle className="h-3.5 w-3.5 mr-1" />
-                        Testar
-                      </Button>
-                      <Badge variant={sequence.status === 'active' ? 'default' : 'outline'}>
-                        {sequence.status === 'active' ? (
-                          <Activity className="h-3 w-3 mr-1" />
-                        ) : (
-                          <Ban className="h-3 w-3 mr-1" />
-                        )}
-                        {sequence.status === 'active' ? 'Ativa' : 'Inativa'}
-                      </Badge>
-                    </div>
+                    <Badge variant={sequence.status === 'active' ? 'default' : 'outline'}>
+                      {sequence.status === 'active' ? (
+                        <Activity className="h-3 w-3 mr-1" />
+                      ) : (
+                        <Ban className="h-3 w-3 mr-1" />
+                      )}
+                      {sequence.status === 'active' ? 'Ativa' : 'Inativa'}
+                    </Badge>
                   </div>
                   
                   <div className="grid grid-cols-2 gap-4 mt-2">

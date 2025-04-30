@@ -1,14 +1,9 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
-import { ChatwootData, TagChangeResponse } from '../_shared/types.ts';
-import { getSupabaseClient, getSupabaseServiceClient, createResponse, createErrorResponse } from '../_shared/db-helpers.ts';
-import { findOrCreateClient } from './clients.ts';
-import { findOrCreateContact } from './contacts.ts';
-import { processContactTags } from './tags.ts';
-import { processEligibleSequences } from './sequences.ts';
 
-console.log("[INIT] Inicializando função tag-change");
+const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
+const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
 
 Deno.serve(async (req) => {
   // Handle CORS
@@ -17,153 +12,305 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Initialize both normal and service role Supabase clients
-    const supabase = getSupabaseClient();
-    const supabaseAdmin = getSupabaseServiceClient();
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
     
-    // Verificar se conseguiu o cliente service role
-    if (!supabaseAdmin) {
-      console.error('[CRÍTICO] Não foi possível inicializar o cliente Supabase com service role');
-      return createErrorResponse('Erro na configuração do servidor', null, 500);
-    }
-    
-    // Usar supabase normal para operações iniciais
-
-    // Verify if it's a POST request and parse request body
-    if (req.method !== 'POST') {
-      return createErrorResponse('Método não permitido', null, 405);
-    }
-
-    // [1. BODY RECEIVED] - Parse the body
+    // Parse the request body
     const body = await req.text();
-    console.log(`[1. BODY] Body recebido: ${body}`);
     
+    // Tentando converter body para JSON
     let jsonData;
     try {
       jsonData = JSON.parse(body);
-      console.log(`[1. BODY] JSON parseado com sucesso`);
-    } catch (parseError: any) {
-      console.error(`[1. BODY] Erro ao parsear JSON: ${parseError.message}`);
-      return createErrorResponse('Payload JSON inválido', { details: parseError.message }, 400);
+    } catch (parseError) {
+      return new Response(
+        JSON.stringify({ error: 'Payload JSON inválido', details: parseError.message }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
-
-    // Extract relevant data - support multiple formats (backward compatibility)
-    let chatwootData = extractChatwootData(jsonData);
     
-    if (!chatwootData) {
-      console.error(`[1. BODY] Dados do Chatwoot ausentes`, JSON.stringify(jsonData));
-      return createErrorResponse('Dados do Chatwoot ausentes', {
-        formatoEsperado: {
-          "opção 1": { "body": { "chatwootData": { "accountData": {}, "contactData": {}, "conversationData": {} } } },
-          "opção 2": { "chatwootData": { "accountData": {}, "contactData": {}, "conversationData": {} } },
-          "opção 3": { "data": { "accountData": {}, "contactData": {}, "conversationData": {} } }
-        },
-        recebido: jsonData
-      }, 400);
+    // Extrair dados da estrutura correta
+    const { data } = jsonData;
+    
+    if (!data || !data.accountId || !data.accountName || !data.contact || !data.conversation) {
+      return new Response(
+        JSON.stringify({ 
+          error: 'Dados obrigatórios ausentes',
+          esperado: {
+            data: {
+              accountId: 'número ou string',
+              accountName: 'string',
+              contact: { 
+                id: 'number ou string', 
+                name: 'string', 
+                phoneNumber: 'string' 
+              },
+              conversation: {
+                inboxId: 'number',
+                conversationId: 'number',
+                displayId: 'number',
+                labels: 'string'
+              }
+            }
+          },
+          recebido: data
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
-
-    const { accountData, contactData, conversationData } = chatwootData;
     
-    if (!accountData || !contactData || !conversationData) {
-      console.error(`[1. BODY] Dados incompletos no payload:`, JSON.stringify({
-        temAccountData: !!accountData,
-        temContactData: !!contactData,
-        temConversationData: !!conversationData
-      }));
-      return createErrorResponse('Dados incompletos', {
-        detalhes: {
-          temAccountData: !!accountData,
-          temContactData: !!contactData,
-          temConversationData: !!conversationData
-        },
-        recebido: chatwootData
-      }, 400);
+    const { accountId, accountName } = data;
+    const { id: contactId, name: contactName, phoneNumber } = data.contact;
+    const { inboxId, conversationId, displayId, labels } = data.conversation;
+    
+    // Buscar cliente com account_id
+    
+    // Tentar como número primeiro
+    const { data: clientData, error: clientError } = await supabase
+      .from('clients')
+      .select('*')
+      .eq('account_id', Number(accountId))
+      .limit(1);
+    
+    if (clientError) {
+      return new Response(
+        JSON.stringify({ 
+          error: 'Erro ao buscar cliente', 
+          details: clientError.message 
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
-
-    // Extract contact data
-    const { id: contactId, name, phoneNumber } = contactData;
-    const { inboxId, conversationId, displayId, labels: labelsString } = conversationData;
-    const { accountId, accountName } = accountData;
-
-    console.log(`[1. BODY] Processando dados: contactId=${contactId}, name=${name}, phoneNumber=${phoneNumber}, accountId=${accountId}, accountName=${accountName}, tags=${labelsString}`);
-
-    // [2. CLIENT VERIFICATION] - Find or create client for Chatwoot account
-    const existingClient = await findOrCreateClient(supabaseAdmin, accountId, accountName);
-
-    // [3. CONTACT VERIFICATION] - Find or create contact
-    await findOrCreateContact(
-      supabaseAdmin,
-      contactId,
-      name,
-      phoneNumber,
-      inboxId,
-      conversationId,
-      displayId,
-      existingClient.id
-    );
-
-    // [4. TAG PROCESSING] - Process tags (labels)
-    const tags = labelsString ? labelsString.split(',').map(tag => tag.trim()) : [];
-    const tagResults = await processContactTags(supabaseAdmin, contactId.toString(), labelsString, existingClient.created_by);
-
-    // [5. SEQUENCE VERIFICATION] - Check and process eligible sequences
-    const sequenceResults = await processEligibleSequences(supabaseAdmin, existingClient.id, contactId.toString(), tags);
-
-    // [6. RESPONSE] - Respond with success and statistics
-    console.log(`[6. RESPOSTA] Processamento concluído. Contato: ${contactId}, Cliente: ${existingClient.id} (${existingClient.account_name})`);
-    console.log(`[6. RESPOSTA] Tags adicionadas: ${tagResults.tagsAddedSuccess} sucesso, ${tagResults.tagsAddedFail} falhas`);
-    console.log(`[6. RESPOSTA] Sequências: ${sequenceResults.eligibleSequences} elegíveis, ${sequenceResults.addedSequences} adicionadas, ${sequenceResults.removedSequences} removidas`);
     
-    const response: TagChangeResponse = {
-      success: true,
-      message: 'Contato e tags processados com sucesso',
-      details: {
-        contactId: contactId.toString(),
-        clientId: existingClient.id,
-        clientName: existingClient.account_name,
-        accountId: accountId,
-        tagsAdded: tagResults.tagsAdded,
-        tagsRemoved: tagResults.tagsRemoved,
-        tagsAddedSuccess: tagResults.tagsAddedSuccess,
-        tagsAddedFail: tagResults.tagsAddedFail,
-        tagErrors: tagResults.tagErrors,
-        eligibleSequences: sequenceResults.eligibleSequences,
-        addedToSequences: sequenceResults.addedSequences,
-        removedFromSequences: sequenceResults.removedSequences
+    let client = null;
+    
+    // Se não encontrou como número, tentar como string
+    if (!clientData || clientData.length === 0) {
+      const { data: clientDataStr, error: clientErrorStr } = await supabase
+        .from('clients')
+        .select('*')
+        .eq('account_id', String(accountId))
+        .limit(1);
+      
+      if (clientErrorStr) {
+        return new Response(
+          JSON.stringify({ 
+            error: 'Erro ao buscar cliente como string', 
+            details: clientErrorStr.message 
+          }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } else if (clientDataStr && clientDataStr.length > 0) {
+        client = clientDataStr[0];
       }
-    };
+    } else {
+      client = clientData[0];
+    }
     
-    return createResponse(response);
-  } catch (error: any) {
-    console.error(`[CRITICAL] Erro não tratado: ${error.message}`);
-    console.error(error.stack);
-    return createErrorResponse(
-      'Erro interno do servidor', 
-      { details: error.message, stack: error.stack },
-      500
+    // Se ainda não encontrou o cliente, criar um novo
+    if (!client) {
+      const { data: newClient, error: createError } = await supabase
+        .from('clients')
+        .insert([
+          { 
+            account_id: accountId, 
+            account_name: accountName, 
+            created_by: 'system', 
+            creator_account_name: 'Sistema (Auto)'
+          }
+        ])
+        .select();
+      
+      if (createError) {
+        return new Response(
+          JSON.stringify({ 
+            error: 'Erro ao criar cliente', 
+            details: createError.message 
+          }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      client = newClient[0];
+    }
+    
+    // Parse labels to tags array
+    const tags = labels ? labels.split(',').map((tag: string) => tag.trim()).filter(Boolean) : [];
+    
+    // Verificar se já existe um contato para esse número e account_id
+    const { data: existingContacts, error: contactQueryError } = await supabase
+      .from('contacts')
+      .select('*')
+      .eq('phone_number', phoneNumber)
+      .eq('client_id', client.id);
+    
+    if (contactQueryError) {
+      return new Response(
+        JSON.stringify({ 
+          error: 'Erro ao buscar contato', 
+          details: contactQueryError.message 
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    let contact = null;
+    
+    // Criar ou atualizar contato
+    if (!existingContacts || existingContacts.length === 0) {
+      const { data: newContact, error: createContactError } = await supabase
+        .from('contacts')
+        .insert([
+          {
+            id: `${client.id}:${String(contactId)}`, // ID único combinando cliente e ID do contato
+            client_id: client.id,
+            name: contactName,
+            phone_number: phoneNumber,
+            conversation_id: conversationId,
+            display_id: displayId,
+            inbox_id: inboxId
+          }
+        ])
+        .select();
+      
+      if (createContactError) {
+        return new Response(
+          JSON.stringify({ 
+            error: 'Erro ao criar contato', 
+            details: createContactError.message 
+          }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      contact = newContact[0];
+    } else {
+      contact = existingContacts[0];
+      
+      // Atualizar informações do contato se necessário
+      const { error: updateContactError } = await supabase
+        .from('contacts')
+        .update({
+          name: contactName,
+          conversation_id: conversationId,
+          display_id: displayId,
+          inbox_id: inboxId
+        })
+        .eq('id', contact.id);
+      
+      if (updateContactError) {
+        return new Response(
+          JSON.stringify({ 
+            error: 'Erro ao atualizar contato', 
+            details: updateContactError.message 
+          }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+    
+    // Estatísticas para o payload de resposta
+    let tagsAdded = 0;
+    let existingTags = 0;
+    let tagErrors = 0;
+    
+    // 1. Verificar se as tags existem e criar as que não existem
+    if (tags.length > 0) {
+      for (const tagName of tags) {
+        // Verificar se a tag já existe para este created_by
+        const { data: existingTag, error: tagQueryError } = await supabase
+          .from('tags')
+          .select('*')
+          .eq('name', tagName)
+          .eq('created_by', client.created_by);
+        
+        if (tagQueryError) {
+          tagErrors++;
+          continue;
+        }
+        
+        // Se a tag não existe, criá-la
+        if (!existingTag || existingTag.length === 0) {
+          try {
+            // Inserir tag usando a função RPC com os parâmetros na ordem correta
+            const { error: upsertError } = await supabase.rpc('insert_tag_if_not_exists_for_user', {
+              p_name: tagName,
+              p_created_by: client.created_by
+            });
+            
+            if (upsertError) {
+              tagErrors++;
+              continue;
+            } else {
+              tagsAdded++;
+            }
+          } catch (err) {
+            tagErrors++;
+            continue;
+          }
+        } else {
+          existingTags++;
+        }
+      }
+    }
+    
+    // Atualizar tags do contato
+    if (tags.length > 0) {
+      // Primeiro remover tags existentes
+      const { error: deleteTagsError } = await supabase
+        .from('contact_tags')
+        .delete()
+        .eq('contact_id', contact.id);
+      
+      if (deleteTagsError) {
+        tagErrors++;
+      }
+      
+      // Inserir novas tags
+      const tagInserts = tags.map(tag => ({
+        contact_id: contact.id,
+        tag_name: tag
+      }));
+      
+      if (tagInserts.length > 0) {
+        const { error: insertTagsError } = await supabase
+          .from('contact_tags')
+          .insert(tagInserts);
+        
+        if (insertTagsError) {
+          tagErrors++;
+        }
+      }
+    }
+    
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        message: 'Contato processado com sucesso',
+        client: {
+          id: client.id,
+          accountName: client.account_name,
+          accountId: client.account_id
+        },
+        contact: {
+          id: contact.id,
+          name: contact.name,
+          tags
+        },
+        stats: {
+          tagsAdded,
+          existingTags,
+          tagErrors
+        }
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  } catch (error) {
+    return new Response(
+      JSON.stringify({ 
+        error: 'Erro interno do servidor', 
+        details: error.message
+      }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
-
-// Helper function to extract Chatwoot data from different payload formats
-function extractChatwootData(jsonData: any): ChatwootData | null {
-  let chatwootData = null;
-  
-  // Format 1: { body: { chatwootData: {...} } }
-  if (jsonData.body && jsonData.body.chatwootData) {
-    chatwootData = jsonData.body.chatwootData;
-    console.log(`[1. BODY] Formato utilizado: body.chatwootData`);
-  } 
-  // Format 2: { chatwootData: {...} } 
-  else if (jsonData.chatwootData) {
-    chatwootData = jsonData.chatwootData;
-    console.log(`[1. BODY] Formato utilizado: chatwootData direto`);
-  } 
-  // Format 3: { data: {...} } where data contains direct data
-  else if (jsonData.data) {
-    chatwootData = jsonData.data;
-    console.log(`[1. BODY] Formato utilizado: data direto`);
-  }
-  
-  return chatwootData;
-}
