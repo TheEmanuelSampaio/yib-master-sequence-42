@@ -132,8 +132,7 @@ export function RestrictionItem({
           <Check className="h-5 w-5 text-blue-500" />
         )}
         
-        {/* Remove button shows for added global restrictions and local restrictions */}
-        {onRemove && editable && (
+        {onRemove && !restriction.isGlobal && editable && (
           <Button 
             variant="ghost" 
             size="sm"
