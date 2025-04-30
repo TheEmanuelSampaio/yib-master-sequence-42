@@ -669,6 +669,10 @@ export type Database = {
           email: string
         }[]
       }
+      insert_tag_if_not_exists_for_user: {
+        Args: { p_name: string; p_created_by: string }
+        Returns: undefined
+      }
       is_super_admin: {
         Args: Record<PropertyKey, never>
         Returns: boolean

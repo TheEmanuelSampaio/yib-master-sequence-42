@@ -301,8 +301,8 @@ Deno.serve(async (req) => {
                 tagsAdded++;
               }
             } else {
-              // Se a tag já existe no sistema para outro usuário, tentamos inserir com ON CONFLICT DO NOTHING
-              // Isso é feito diretamente via SQL usando RPC
+              // Se a tag já existe no sistema para outro usuário, tentamos inserir com a função RPC
+              // IMPORTANTE: Agora passando os parâmetros na ordem correta
               const { error: upsertError } = await supabase.rpc('insert_tag_if_not_exists_for_user', {
                 p_name: tagName,
                 p_created_by: client.created_by
