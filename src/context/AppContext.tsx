@@ -1,6 +1,5 @@
-
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, UserWithEmail } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import {
   Instance,
@@ -459,7 +458,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         // Get user emails from auth.users through Supabase function or RPC
         // This is necessary because we cannot query auth.users directly from the client
         const { data: authUsersData, error: authUsersError } = await supabase
-          .rpc('get_users_with_emails');
+          .rpc<UserWithEmail>('get_users_with_emails');
           
         if (authUsersError) {
           console.error("Error fetching user emails:", authUsersError);
