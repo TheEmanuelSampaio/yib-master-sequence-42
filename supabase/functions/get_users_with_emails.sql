@@ -1,29 +1,23 @@
 
--- Função para buscar usuários com emails (apenas para super_admin)
+-- Function to get user IDs and emails from auth.users
+-- This function should be executed with service_role credentials
 CREATE OR REPLACE FUNCTION public.get_users_with_emails()
-RETURNS TABLE (
-  id uuid,
-  email text
-) 
+RETURNS TABLE (id uuid, email text)
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
-  -- Verificar se o usuário atual é super_admin
-  IF (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'super_admin' THEN
-    RETURN QUERY
-      SELECT u.id, u.email
-      FROM auth.users u;
-  ELSE
-    -- Retornar apenas o usuário atual se não for super_admin
-    RETURN QUERY
-      SELECT u.id, u.email
-      FROM auth.users u
-      WHERE u.id = auth.uid();
+  -- Only allow super_admins to access this data
+  IF NOT (SELECT is_super_admin()) THEN
+    RAISE EXCEPTION 'Unauthorized access. Only super admins can query user emails.';
   END IF;
+
+  RETURN QUERY
+  SELECT au.id, au.email::text
+  FROM auth.users au;
 END;
 $$;
 
--- Garantir que apenas usuários autenticados possam chamar esta função
-REVOKE EXECUTE ON FUNCTION public.get_users_with_emails() FROM PUBLIC;
+-- Grant execute permission to authenticated users
 GRANT EXECUTE ON FUNCTION public.get_users_with_emails() TO authenticated;

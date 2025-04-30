@@ -26,8 +26,8 @@ interface HeaderProps {
 }
 
 export function Header({ sidebarCollapsed }: HeaderProps) {
-  const { instances, currentInstance, setCurrentInstance, refreshData, isDataInitialized } = useApp();
   const { user, logout } = useAuth();
+  const { instances, currentInstance, setCurrentInstance, refreshData, isDataInitialized } = useApp();
 
   // Carregar dados apenas se ainda não foram inicializados e temos um usuário
   useEffect(() => {

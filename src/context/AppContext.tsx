@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, UserWithEmail } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import {
   Instance,
@@ -70,7 +70,44 @@ interface ExtendedSequence {
   localTimeRestrictions?: TimeRestriction[]; // Add this property to the interface
 }
 
-export const AppContext = createContext<AppContextType | undefined>(undefined);
+// Create a default context value to prevent "undefined" errors
+const defaultContextValue: AppContextType = {
+  clients: [],
+  instances: [],
+  currentInstance: null,
+  sequences: [],
+  contacts: [],
+  scheduledMessages: [],
+  contactSequences: [],
+  tags: [],
+  timeRestrictions: [],
+  users: [],
+  stats: [],
+  setCurrentInstance: () => {},
+  addInstance: () => {},
+  updateInstance: () => {},
+  deleteInstance: () => {},
+  addSequence: () => {},
+  updateSequence: () => {},
+  deleteSequence: () => {},
+  addTimeRestriction: () => {},
+  updateTimeRestriction: () => {},
+  deleteTimeRestriction: () => {},
+  addContact: () => {},
+  getContactSequences: () => [],
+  addClient: () => {},
+  updateClient: () => {},
+  deleteClient: () => {},
+  addUser: async () => {},
+  updateUser: async () => {},
+  deleteUser: async () => {},
+  addTag: async () => {},
+  deleteTag: async () => {},
+  refreshData: async () => {},
+  isDataInitialized: false,
+};
+
+export const AppContext = createContext<AppContextType>(defaultContextValue);
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth();
@@ -446,64 +483,51 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       const typedContactSeqs = (await Promise.all(contactSeqPromises)).filter(Boolean) as ContactSequence[];
       setContactSequences(typedContactSeqs);
       
-      // Fetch user profiles first
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('*');
-      
-      if (profilesError) throw profilesError;
-      
       // Fetch users (only for super_admin)
       if (user.role === 'super_admin') {
-        try {
-          // Usar a função RPC corretamente
-          const { data: authUsers, error: authUsersError } = await supabase
-            .rpc('get_users_with_emails', {});
-            
-          if (authUsersError) {
-            console.error("Erro ao buscar emails de usuários:", authUsersError);
-          }
+        // Get profiles data
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('*');
+        
+        if (profilesError) throw profilesError;
+        
+        // Get user emails from auth.users through Supabase function or RPC
+        // This is necessary because we cannot query auth.users directly from the client
+        const { data: authUsersData, error: authUsersError } = await supabase
+          .rpc('get_users_with_emails');
           
-          // Mapear os usuários com seus emails reais se disponíveis
-          const usersWithEmails = profilesData.map(profile => {
-            // Tentar encontrar o email correspondente nos dados de auth.users
-            const authUser = authUsers?.find(au => au.id === profile.id);
-            const email = authUser?.email || 
-                        (profile.id === user.id ? user.email : `user-${profile.id.substring(0, 4)}@example.com`);
-            
-            return {
-              id: profile.id,
-              accountName: profile.account_name,
-              email: email,
-              role: profile.role,
-              avatar: ""
-            };
+        if (authUsersError) {
+          console.error("Error fetching user emails:", authUsersError);
+          // Continue with what we have, but log the error
+        }
+        
+        // Create a map of user IDs to emails for quick lookup
+        const emailMap = new Map();
+        if (authUsersData && Array.isArray(authUsersData)) {
+          authUsersData.forEach(userData => {
+            if (userData.id && userData.email) {
+              emailMap.set(userData.id, userData.email);
+            }
           });
+        }
+        
+        // Now map profiles to users with emails from the emailMap
+        const usersWithEmails = profilesData.map(profile => {
+          // Try to get email from the map, fall back to current user email or a placeholder
+          const email = emailMap.get(profile.id) || 
+                        (profile.id === user.id ? user.email : `user-${profile.id.substring(0, 4)}@example.com`);
           
-          setUsers(usersWithEmails);
-        } catch (error) {
-          console.error("Erro ao buscar dados de usuários:", error);
-          
-          // Fallback para caso de erro - usar apenas os perfis sem os emails reais
-          const usersWithoutEmails = profilesData.map(profile => ({
+          return {
             id: profile.id,
             accountName: profile.account_name,
-            email: profile.id === user.id ? user.email : `user-${profile.id.substring(0, 4)}@example.com`,
+            email,
             role: profile.role,
             avatar: ""
-          }));
-          
-          setUsers(usersWithoutEmails);
-        }
-      } else {
-        // Para usuários não-admin, apenas usar os dados de perfis
-        setUsers(profilesData.map(profile => ({
-          id: profile.id,
-          accountName: profile.account_name,
-          email: profile.id === user.id ? user.email : `user-${profile.id.substring(0, 4)}@example.com`,
-          role: profile.role,
-          avatar: ""
-        })));
+          };
+        });
+        
+        setUsers(usersWithEmails);
       }
       
       // Fetch daily stats
@@ -1341,7 +1365,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
 export const useApp = (): AppContextType => {
   const context = useContext(AppContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error("useApp must be used within an AppProvider");
   }
   return context;
