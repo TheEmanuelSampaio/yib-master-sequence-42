@@ -225,6 +225,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           continue;
         }
         
+        // Inicializar o array de restrições de tempo se não existir
+        sequence.timeRestrictions = [];
+        
+        // Adicionar restrições locais se existirem
         if (localRestrictions && localRestrictions.length > 0) {
           const typedLocalRestrictions = localRestrictions.map(lr => ({
             id: lr.id,
@@ -261,8 +265,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             delayUnit: stage.delay_unit
           }));
           
-        // Transformar as restrições de tempo - agora buscamos da função que retorna tanto globais quanto locais
-        const timeRestrictions = sequence.sequence_time_restrictions
+        // Transformar as restrições de tempo globais
+        const globalTimeRestrictions = sequence.sequence_time_restrictions
           .map((str: any) => str.time_restrictions)
           .filter(Boolean)
           .map((tr: any) => ({
@@ -276,6 +280,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             endMinute: tr.end_minute,
             isGlobal: true // Todas as restrições desta junção são globais
           }));
+        
+        // Combinar restrições globais e locais, se sequence.timeRestrictions existir
+        const allTimeRestrictions = [
+          ...globalTimeRestrictions,
+          ...(sequence.timeRestrictions || [])
+        ];
         
         // Ensure startCondition.type and stopCondition.type are "AND" or "OR"
         const startType = sequence.start_condition_type === "AND" ? "AND" : "OR";
@@ -298,7 +308,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           },
           status: status as "active" | "inactive",
           stages,
-          timeRestrictions,
+          timeRestrictions: allTimeRestrictions,
           createdAt: sequence.created_at,
           updatedAt: sequence.updated_at
         };
@@ -773,7 +783,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         startHour: data.start_hour,
         startMinute: data.start_minute,
         endHour: data.end_hour,
-        endMinute: data.end_minute
+        endMinute: data.end_minute,
+        isGlobal: true // Marcando como restrição global
       };
       
       setTimeRestrictions(prev => [...prev, newRestriction]);

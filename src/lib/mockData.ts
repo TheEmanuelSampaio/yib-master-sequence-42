@@ -1,4 +1,3 @@
-
 import { Instance, Sequence, User, Contact, DailyStats, TimeRestriction, TagCondition } from '@/types';
 
 // User mock data
@@ -90,7 +89,8 @@ export const sequences: Sequence[] = [
         startHour: 8,
         startMinute: 0,
         endHour: 18,
-        endMinute: 0
+        endMinute: 0,
+        isGlobal: false
       } as TimeRestriction
     ],
     status: "active",
@@ -145,7 +145,8 @@ export const sequences: Sequence[] = [
         startHour: 9,
         startMinute: 0,
         endHour: 17,
-        endMinute: 0
+        endMinute: 0,
+        isGlobal: false
       } as TimeRestriction
     ],
     status: "inactive",
@@ -164,7 +165,8 @@ export const globalTimeRestrictions: TimeRestriction[] = [
     startHour: 8,
     startMinute: 0,
     endHour: 18,
-    endMinute: 0
+    endMinute: 0,
+    isGlobal: true
   },
   {
     id: "global-2",
@@ -174,7 +176,8 @@ export const globalTimeRestrictions: TimeRestriction[] = [
     startHour: 9,
     startMinute: 0,
     endHour: 13,
-    endMinute: 0
+    endMinute: 0,
+    isGlobal: true
   }
 ];
 

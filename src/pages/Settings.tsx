@@ -1,4 +1,3 @@
-
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -200,15 +199,21 @@ export default function Settings() {
     }
   };
 
-  const handleAddTimeRestriction = async () => {
-    try {
-      await addTimeRestriction(newTimeRestriction);
-      setOpenAddTimeRestriction(false);
-      toast.success("Restrição de horário adicionada com sucesso");
-    } catch (error) {
-      console.error(error);
-      toast.error("Erro ao adicionar restrição de horário");
-    }
+  const handleAddTimeRestriction = () => {
+    const daysOfWeek = [1, 2, 3, 4, 5]; // Segunda a sexta por padrão
+    
+    addTimeRestriction({
+      name: `Restrição ${timeRestrictions.length + 1}`,
+      days: daysOfWeek,
+      startHour: 8,
+      startMinute: 0,
+      endHour: 18,
+      endMinute: 0,
+      active: true,
+      isGlobal: true // Adicionando a propriedade isGlobal
+    });
+    
+    toast.success("Restrição adicionada. Você pode editá-la na lista.");
   };
 
   const handleEditTimeRestriction = async () => {
