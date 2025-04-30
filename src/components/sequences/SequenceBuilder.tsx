@@ -18,6 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RestrictionItem } from "./RestrictionItem";
 import { StageItem } from "./StageItem";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Separator } from "@/components/ui/separator";
 
 interface SequenceBuilderProps {
   sequence?: Sequence;
@@ -269,12 +270,12 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
     return timeRestrictions.filter(r => r.active).length;
   };
 
-  // Verifica se uma restrição global está selecionada
+  // Verify if a global restriction is selected
   const isGlobalRestrictionSelected = (id: string) => {
     return timeRestrictions.some(r => r.id === id && r.isGlobal);
   };
 
-  // Separar restrições globais e locais
+  // Separate global and local restrictions
   const globalRestrictions = timeRestrictions.filter(r => r.isGlobal);
   const localRestrictions = timeRestrictions.filter(r => !r.isGlobal);
 
@@ -700,17 +701,17 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
         <TabsContent value="restrictions" className="pt-6">
           <div className="space-y-8">
             {/* Restrições Locais */}
-            <div>
-              <div className="flex justify-between items-center mb-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <div>
-                  <h2 className="text-xl font-semibold">Restrições de Horário</h2>
-                  <p className="text-sm text-muted-foreground">
+                  <CardTitle>Restrições de Horário</CardTitle>
+                  <CardDescription>
                     Define quando as mensagens não serão enviadas
-                  </p>
+                  </CardDescription>
                 </div>
                 <Dialog>
                   <DialogTrigger asChild>
-                    <Button className="bg-primary hover:bg-primary/90">
+                    <Button>
                       <PlusCircle className="h-4 w-4 mr-2" />
                       Nova Restrição
                     </Button>
@@ -885,56 +886,61 @@ export function SequenceBuilder({ sequence, onSave, onCancel }: SequenceBuilderP
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>
-              </div>
-              
-              <div className="space-y-2">
-                {/* Restrições locais e globais selecionadas */}
-                {timeRestrictions.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground border rounded-md">
-                    Nenhuma restrição configurada
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {timeRestrictions.map(restriction => (
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {/* Restrições locais e globais selecionadas */}
+                  {timeRestrictions.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground border rounded-md">
+                      Nenhuma restrição configurada
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {timeRestrictions.map(restriction => (
+                        <RestrictionItem
+                          key={restriction.id}
+                          restriction={restriction}
+                          onRemove={removeTimeRestriction}
+                          onUpdate={!restriction.isGlobal ? updateLocalRestriction : undefined}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+            
+            {/* Restrições Globais */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center">
+                  <Lock className="h-4 w-4 mr-2 text-blue-500" />
+                  <CardTitle>Restrições Globais</CardTitle>
+                </div>
+                <CardDescription>
+                  Restrições de horário disponíveis para todas as sequências
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {availableGlobalRestrictions.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground border rounded-md">
+                      Não há restrições globais disponíveis
+                    </div>
+                  ) : (
+                    availableGlobalRestrictions.map(restriction => (
                       <RestrictionItem
                         key={restriction.id}
                         restriction={restriction}
-                        onRemove={removeTimeRestriction}
-                        onUpdate={!restriction.isGlobal ? updateLocalRestriction : undefined}
+                        onRemove={() => {}}
+                        selected={isGlobalRestrictionSelected(restriction.id)}
+                        onSelect={() => addGlobalRestriction(restriction)}
                       />
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            {/* Restrições Globais */}
-            <div>
-              <div className="mb-4">
-                <h2 className="text-xl font-semibold">Restrições Globais</h2>
-                <p className="text-sm text-muted-foreground">
-                  Restrições de horário disponíveis para todas as sequências
-                </p>
-              </div>
-              
-              <div className="space-y-2">
-                {availableGlobalRestrictions.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground border rounded-md">
-                    Não há restrições globais disponíveis
-                  </div>
-                ) : (
-                  availableGlobalRestrictions.map(restriction => (
-                    <RestrictionItem
-                      key={restriction.id}
-                      restriction={restriction}
-                      onRemove={() => {}}
-                      selected={isGlobalRestrictionSelected(restriction.id)}
-                      onSelect={() => addGlobalRestriction(restriction)}
-                    />
-                  ))
-                )}
-              </div>
-            </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
       </Tabs>

@@ -6,6 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { TimeRestriction } from "@/types";
 import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 interface RestrictionItemProps {
   restriction: TimeRestriction;
@@ -38,6 +42,172 @@ export function RestrictionItem({ restriction, onRemove, onUpdate, selected, onS
   };
 
   const activeDays = restriction.days.map(dayIndex => dayNames[dayIndex]);
+  
+  if (isEditing) {
+    return (
+      <div className="border rounded-md p-4 mb-2 bg-card">
+        <div className="space-y-4">
+          <div className="flex justify-between">
+            <h4 className="font-medium">Editar Restrição</h4>
+            <div className="flex space-x-2">
+              <Button size="sm" variant="outline" onClick={handleCancelEdit}>Cancelar</Button>
+              <Button size="sm" onClick={handleSaveChanges}>Salvar</Button>
+            </div>
+          </div>
+          
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label>Nome</Label>
+              <Input 
+                value={editedRestriction.name}
+                onChange={(e) => setEditedRestriction({...editedRestriction, name: e.target.value})}
+              />
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <Label>Ativa</Label>
+              <Switch 
+                checked={editedRestriction.active}
+                onCheckedChange={(checked) => setEditedRestriction({...editedRestriction, active: checked})}
+              />
+            </div>
+            
+            <div className="space-y-1">
+              <Label>Dias da Semana</Label>
+              <ToggleGroup 
+                type="multiple" 
+                variant="outline"
+                className="justify-start"
+                value={editedRestriction.days.map(d => d.toString())}
+                onValueChange={(value) => {
+                  if (value.length > 0) {
+                    setEditedRestriction({
+                      ...editedRestriction,
+                      days: value.map(v => parseInt(v))
+                    });
+                  }
+                }}
+              >
+                {[
+                  { value: "0", label: "Dom" },
+                  { value: "1", label: "Seg" },
+                  { value: "2", label: "Ter" },
+                  { value: "3", label: "Qua" },
+                  { value: "4", label: "Qui" },
+                  { value: "5", label: "Sex" },
+                  { value: "6", label: "Sáb" }
+                ].map(day => (
+                  <ToggleGroupItem 
+                    key={day.value} 
+                    value={day.value} 
+                    aria-label={dayNames[parseInt(day.value)]}
+                    className="px-3"
+                  >
+                    {day.label}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Horário de Início</Label>
+                <div className="flex mt-2 space-x-2">
+                  <Select
+                    value={editedRestriction.startHour.toString()}
+                    onValueChange={(value) => 
+                      setEditedRestriction({
+                        ...editedRestriction,
+                        startHour: parseInt(value),
+                      })
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 24 }, (_, i) => (
+                        <SelectItem key={`start-hour-${i}`} value={i.toString()}>
+                          {i.toString().padStart(2, "0")}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <span className="flex items-center">:</span>
+                  <Select
+                    value={editedRestriction.startMinute.toString()}
+                    onValueChange={(value) => 
+                      setEditedRestriction({
+                        ...editedRestriction,
+                        startMinute: parseInt(value),
+                      })
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[0, 15, 30, 45].map((minute) => (
+                        <SelectItem key={`start-min-${minute}`} value={minute.toString()}>
+                          {minute.toString().padStart(2, "0")}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <Label>Horário de Fim</Label>
+                <div className="flex mt-2 space-x-2">
+                  <Select
+                    value={editedRestriction.endHour.toString()}
+                    onValueChange={(value) => 
+                      setEditedRestriction({
+                        ...editedRestriction,
+                        endHour: parseInt(value),
+                      })
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 24 }, (_, i) => (
+                        <SelectItem key={`end-hour-${i}`} value={i.toString()}>
+                          {i.toString().padStart(2, "0")}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <span className="flex items-center">:</span>
+                  <Select
+                    value={editedRestriction.endMinute.toString()}
+                    onValueChange={(value) => 
+                      setEditedRestriction({
+                        ...editedRestriction,
+                        endMinute: parseInt(value),
+                      })
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[0, 15, 30, 45].map((minute) => (
+                        <SelectItem key={`end-min-${minute}`} value={minute.toString()}>
+                          {minute.toString().padStart(2, "0")}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
   
   return (
     <div className={cn(
