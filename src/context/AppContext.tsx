@@ -191,7 +191,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         startHour: restriction.start_hour,
         startMinute: restriction.start_minute,
         endHour: restriction.end_hour,
-        endMinute: restriction.end_minute
+        endMinute: restriction.end_minute,
+        isGlobal: true // Marcando todas as restrições vindas do banco como globais
       }));
       
       setTimeRestrictions(typedRestrictions);
@@ -483,8 +484,22 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       // Add time restrictions - handle both global and local restrictions
       if (sequenceData.timeRestrictions && sequenceData.timeRestrictions.length > 0) {
         for (const restriction of sequenceData.timeRestrictions) {
-          // If the restriction has a valid UUID, it's a global restriction
-          if (restriction.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(restriction.id)) {
+          // Se a restrição tem isGlobal e um UUID válido, é uma restrição global
+          if (restriction.isGlobal && restriction.id && 
+              /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(restriction.id)) {
+            
+            // Verificar se a restrição global existe antes de tentar adicionar
+            const { data: checkRestriction } = await supabase
+              .from('time_restrictions')
+              .select('id')
+              .eq('id', restriction.id)
+              .single();
+              
+            if (!checkRestriction) {
+              console.error(`Restrição global com ID ${restriction.id} não encontrada`);
+              continue; // Pula para a próxima restrição
+            }
+            
             const { data: restrictionData, error: restrictionError } = await supabase
               .from('sequence_time_restrictions')
               .insert({
@@ -572,13 +587,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       
       // Update time restrictions if provided
       if (sequenceData.timeRestrictions) {
-        // Only validate global restrictions (with valid UUIDs)
-        const globalRestrictionIds = sequenceData.timeRestrictions
-          .filter(r => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(r.id))
-          .map(r => r.id);
-        
-        if (globalRestrictionIds.length > 0) {
-          // Check if all restriction IDs exist
+        // Filtrar apenas restrições globais (com UUIDs válidos)
+        const globalRestrictions = sequenceData.timeRestrictions
+          .filter(r => r.isGlobal && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(r.id));
+          
+        // Se temos restrições globais, validamos se elas existem no banco de dados
+        if (globalRestrictions.length > 0) {
+          const globalRestrictionIds = globalRestrictions.map(r => r.id);
+          
+          // Verificar se todos os IDs de restrições existem
           const { data: existingRestrictions, error: checkError } = await supabase
             .from('time_restrictions')
             .select('id')
@@ -586,11 +603,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           
           if (checkError) throw checkError;
           
+          // Verificar se todas as restrições foram encontradas
           if (!existingRestrictions || existingRestrictions.length !== globalRestrictionIds.length) {
-            // Some restrictions don't exist, identify which ones
+            // Algumas restrições não existem, identificar quais
             const existingIds = existingRestrictions?.map(r => r.id) || [];
             const missingIds = globalRestrictionIds.filter(id => !existingIds.includes(id));
             
+            console.error(`Restrições não encontradas: ${missingIds.join(', ')}`);
             throw new Error(`Algumas restrições de horário não existem no banco de dados: ${missingIds.join(', ')}`);
           }
         }
@@ -603,18 +622,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         
         if (deleteRestError) throw deleteRestError;
         
-        // Then add the global restrictions again
-        for (const restriction of sequenceData.timeRestrictions) {
-          if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(restriction.id)) {
-            const { error: restrictionError } = await supabase
-              .from('sequence_time_restrictions')
-              .insert({
-                sequence_id: id,
-                time_restriction_id: restriction.id
-              });
-            
-            if (restrictionError) throw restrictionError;
-          }
+        // Add global restrictions
+        for (const restriction of globalRestrictions) {
+          const { error: restrictionError } = await supabase
+            .from('sequence_time_restrictions')
+            .insert({
+              sequence_id: id,
+              time_restriction_id: restriction.id
+            });
+          
+          if (restrictionError) throw restrictionError;
         }
       }
       
