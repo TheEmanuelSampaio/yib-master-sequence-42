@@ -1,4 +1,3 @@
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 
@@ -21,7 +20,7 @@ Deno.serve(async (req) => {
     
     if (!data || !data.accountId || !data.accountName || !data.contact || !data.conversation) {
       return new Response(
-        JSON.stringify({ error: 'Missing required data' }),
+        JSON.stringify({ error: 'Dados obrigatórios ausentes' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -31,78 +30,54 @@ Deno.serve(async (req) => {
     const { inboxId, conversationId, displayId, labels } = data.conversation;
     
     console.log(`[DEBUG] Processando contato ${contactName} com labels: ${labels}`);
-    console.log(`[DEBUG] Account ID: ${accountId}, Account Name: ${accountName}`);
     
-    // TESTE: Listar TODAS as tabelas do banco para verificar se temos acesso
-    const { data: tables, error: tablesError } = await supabase
-      .from('pg_catalog.pg_tables')
-      .select('tablename')
-      .eq('schemaname', 'public')
-      .limit(20);
-      
-    if (tablesError) {
-      console.log(`[ERROR] Erro ao listar tabelas: ${tablesError.message}`);
-    } else {
-      console.log(`[DEBUG] Tabelas disponíveis: ${JSON.stringify(tables)}`);
-    }
-    
-    // DIAGNÓSTICO: Listar todos os clientes no banco para diagnóstico
-    console.log(`[DEBUG] Tentando listar todos os clientes...`);
-    const { data: allClients, error: listError } = await supabase
-      .from('clients')
-      .select('*');
-    
-    if (listError) {
-      console.error(`[ERROR] Erro ao listar clientes: ${listError.message}`);
-      console.error(`[ERROR] Código do erro: ${listError.code}`);
-      console.error(`[ERROR] Detalhes: ${JSON.stringify(listError.details)}`);
-    } else {
-      console.log(`[DEBUG] Total de clientes encontrados: ${allClients ? allClients.length : 0}`);
-      console.log(`[DEBUG] Primeiros clientes: ${JSON.stringify(allClients && allClients.length > 0 ? allClients.slice(0, 3) : [])}`);
-    }
-    
-    // TENTATIVA DIRETA COM O ID COMO STRING
-    console.log(`[DEBUG] Tentando buscar cliente com account_id = ${accountId} como string`);
-    const { data: clientsByAccountIdStr, error: accountIdErrorStr } = await supabase
-      .from('clients')
-      .select('*')
-      .eq('account_id', String(accountId))
-      .limit(1);
-      
-    console.log(`[DEBUG] Resultado com account_id como string: ${clientsByAccountIdStr && clientsByAccountIdStr.length > 0 ? JSON.stringify(clientsByAccountIdStr) : "nenhum resultado"}`);
-    
-    // TENTATIVA DIRETA COM O ID COMO NÚMERO
+    // Buscar cliente diretamente usando accountId - primeiro como número
     console.log(`[DEBUG] Tentando buscar cliente com account_id = ${accountId} como número`);
     const { data: clientsByAccountIdNum, error: accountIdErrorNum } = await supabase
       .from('clients')
       .select('*')
       .eq('account_id', Number(accountId))
       .limit(1);
-      
-    console.log(`[DEBUG] Resultado com account_id como número: ${clientsByAccountIdNum && clientsByAccountIdNum.length > 0 ? JSON.stringify(clientsByAccountIdNum) : "nenhum resultado"}`);
     
-    // ABORDAGEM ALTERNATIVA: Buscar qualquer cliente disponível para teste
-    console.log(`[DEBUG] SOLUÇÃO ALTERNATIVA: Buscando qualquer cliente disponível`);
-    const { data: anyClient, error: anyClientError } = await supabase
-      .from('clients')
-      .select('*')
-      .limit(1);
-      
+    // Verificar se encontrou cliente
     let client = null;
-    
-    if (anyClient && anyClient.length > 0) {
-      client = anyClient[0];
-      console.log(`[DEBUG] Cliente alternativo encontrado: ${JSON.stringify(client)}`);
+    if (clientsByAccountIdNum && clientsByAccountIdNum.length > 0) {
+      client = clientsByAccountIdNum[0];
+      console.log(`[DEBUG] Cliente encontrado por account_id como número: ${JSON.stringify(client)}`);
     } else {
-      console.error(`[ERROR] Não foi possível encontrar nenhum cliente: ${anyClientError ? anyClientError.message : "motivo desconhecido"}`);
-      
+      // Tentar como string
+      console.log(`[DEBUG] Tentando buscar cliente com account_id = ${accountId} como string`);
+      const { data: clientsByAccountIdStr, error: accountIdErrorStr } = await supabase
+        .from('clients')
+        .select('*')
+        .eq('account_id', String(accountId))
+        .limit(1);
+        
+      if (clientsByAccountIdStr && clientsByAccountIdStr.length > 0) {
+        client = clientsByAccountIdStr[0];
+        console.log(`[DEBUG] Cliente encontrado por account_id como string: ${JSON.stringify(client)}`);
+      } else {
+        // Se ainda não encontrou, buscar qualquer cliente como fallback
+        console.log(`[DEBUG] Nenhum cliente encontrado com account_id ${accountId}, buscando qualquer cliente disponível`);
+        const { data: anyClient } = await supabase
+          .from('clients')
+          .select('*')
+          .limit(1);
+          
+        if (anyClient && anyClient.length > 0) {
+          client = anyClient[0];
+          console.log(`[DEBUG] Cliente alternativo encontrado: ${JSON.stringify(client)}`);
+        }
+      }
+    }
+    
+    if (!client) {
+      console.error(`[ERROR] Nenhum cliente encontrado no banco de dados`);
       return new Response(
         JSON.stringify({ 
           error: 'Nenhum cliente encontrado no banco de dados',
           debug: {
-            accountIdBuscado: accountId,
-            todasTabelasDisponiveis: tables,
-            todosClientesDisponiveis: allClients || []
+            accountIdBuscado: accountId
           }
         }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -111,18 +86,16 @@ Deno.serve(async (req) => {
     
     // Buscar o perfil do criador do cliente
     let creatorProfile = null;
-    if (client && client.created_by) {
-      const { data: profile, error: profileError } = await supabase
+    if (client.created_by) {
+      const { data: profile } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', client.created_by)
         .maybeSingle();
       
-      if (!profileError && profile) {
+      if (profile) {
         creatorProfile = profile;
         console.log(`[DEBUG] Perfil do criador encontrado: ${JSON.stringify(profile)}`);
-      } else if (profileError) {
-        console.log(`[ERROR] Erro ao buscar perfil do criador: ${profileError.message}`);
       }
     }
     
@@ -146,7 +119,7 @@ Deno.serve(async (req) => {
     console.log(`[DEBUG] Tags processadas: ${JSON.stringify(tags)}`);
     
     // Insert or update contact
-    if (existingContacts.length === 0) {
+    if (!existingContacts || existingContacts.length === 0) {
       // Insert new contact
       console.log(`[DEBUG] Inserindo novo contato: ${contactName}`);
       const { error: insertError } = await supabase
@@ -216,27 +189,23 @@ Deno.serve(async (req) => {
       console.log(`[DEBUG] Criador não encontrado, buscando alternativa...`);
       
       // 1. Tentar buscar um admin
-      const { data: adminUsers, error: adminError } = await supabase
+      const { data: adminUsers } = await supabase
         .from('profiles')
         .select('id, account_name, role')
         .eq('role', 'admin')
         .limit(1);
       
-      console.log(`[DEBUG] Busca por admin: ${JSON.stringify(adminUsers)}`);
-      
-      if (!adminError && adminUsers && adminUsers.length > 0) {
+      if (adminUsers && adminUsers.length > 0) {
         creatorId = adminUsers[0].id;
         console.log(`[DEBUG] Usando admin como criador: ${creatorId}`);
       } else {
         // 2. Buscar qualquer usuário válido
-        const { data: anyUser, error: anyUserError } = await supabase
+        const { data: anyUser } = await supabase
           .from('profiles')
           .select('id, account_name, role')
           .limit(1);
         
-        console.log(`[DEBUG] Busca por qualquer usuário: ${JSON.stringify(anyUser)}`);
-        
-        if (!anyUserError && anyUser && anyUser.length > 0) {
+        if (anyUser && anyUser.length > 0) {
           creatorId = anyUser[0].id;
           console.log(`[DEBUG] Usando usuário alternativo: ${creatorId}`);
         }
@@ -284,16 +253,11 @@ Deno.serve(async (req) => {
         }
         
         // 2. Verificar se a tag existe na tabela global de tags
-        const { data: existingTag, error: checkTagError } = await supabase
+        const { data: existingTag } = await supabase
           .from('tags')
           .select('name')
           .eq('name', tag)
           .maybeSingle();
-        
-        if (checkTagError) {
-          console.error(`[ERROR] Erro ao verificar tag ${tag}: ${checkTagError.message}`);
-          tagErrors++;
-        }
         
         // 3. Se a tag não existir, adicioná-la à tabela global usando o criador do cliente
         if (!existingTag) {
@@ -348,11 +312,6 @@ Deno.serve(async (req) => {
           id: contactId.toString(),
           name: contactName,
           tags
-        },
-        debug: {
-          clientFoundMethod: "ALTERNATIVO",
-          originalAccountId: accountId,
-          usedAccountId: client.account_id
         }
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
