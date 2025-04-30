@@ -14,7 +14,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/context/AppContext";
-import { Sequence, SequenceStage, TagCondition, TimeRestriction } from "@/types";
+import { Sequence, SequenceStage, Condition, TimeRestriction } from "@/types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RestrictionItem } from "./RestrictionItem";
 import { StageItem } from "./StageItem";
@@ -26,7 +26,7 @@ import { isValidUUID } from "@/integrations/supabase/client";
 
 interface SequenceBuilderProps {
   sequence?: Sequence;
-  onSave: (sequence: Omit<Sequence, "id" | "createdAt" | "updatedAt">) => void;
+  onSave: (sequence: Omit<Sequence, "id" | "created_at" | "updated_at">) => void;
   onCancel: () => void;
   onChangesMade?: () => void;
 }
@@ -35,10 +35,10 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
   const { tags, currentInstance, timeRestrictions: globalTimeRestrictions, addTag } = useApp();
   
   const [name, setName] = useState(sequence?.name || "");
-  const [startCondition, setStartCondition] = useState<TagCondition>(
+  const [startCondition, setStartCondition] = useState<Condition>(
     sequence?.startCondition || { type: "AND", tags: [] }
   );
-  const [stopCondition, setStopCondition] = useState<TagCondition>(
+  const [stopCondition, setStopCondition] = useState<Condition>(
     sequence?.stopCondition || { type: "OR", tags: [] }
   );
   const [stages, setStages] = useState<SequenceStage[]>(
@@ -386,14 +386,19 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         return;
       }
       
-      const newSequence: Omit<Sequence, "id" | "createdAt" | "updatedAt"> = {
+      const newSequence: Omit<Sequence, "id" | "created_at" | "updated_at"> = {
         name,
         instance_id: currentInstance.id,
         startCondition,
         stopCondition,
+        start_condition_type: startCondition.type,
+        start_condition_tags: startCondition.tags,
+        stop_condition_type: stopCondition.type,
+        stop_condition_tags: stopCondition.tags,
         stages,
         timeRestrictions,
         status,
+        created_by: '',  // Will be filled by backend
       };
       
       console.log("Dados da sequência sendo enviados:", JSON.stringify(newSequence, null, 2));
@@ -840,10 +845,10 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
                             <div className="space-y-2">
                               <Label htmlFor="typebot-stage">Estágio do Typebot</Label>
                               <Select
-                                value={newStage.typebotStage || "stg1"}
+                                value={newStage.typebot_stage || "stg1"}
                                 onValueChange={(value) => setNewStage({
                                   ...newStage,
-                                  typebotStage: value
+                                  typebot_stage: value
                                 })}
                               >
                                 <SelectTrigger id="typebot-stage">
@@ -891,10 +896,10 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
                         <div className="space-y-2">
                           <Label htmlFor="stage-delay-unit">Unidade</Label>
                           <Select
-                            value={newStage.delayUnit}
+                            value={newStage.delay_unit}
                             onValueChange={(value) => setNewStage({ 
                               ...newStage, 
-                              delayUnit: value as "minutes" | "hours" | "days" 
+                              delay_unit: value as "minutes" | "hours" | "days" 
                             })}
                           >
                             <SelectTrigger id="stage-delay-unit">

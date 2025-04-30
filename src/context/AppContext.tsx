@@ -3,44 +3,8 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { Database } from '@/integrations/supabase/types';
-import { Instance, Sequence, Contact, ContactSequence, TimeRestriction } from '@/types';
+import { AppContextType, Instance, Sequence, Contact, ContactSequence, TimeRestriction, Condition } from '@/types';
 import { toast } from 'sonner';
-
-interface AppContextType {
-  session: Session | null;
-  user: Database['public']['Tables']['profiles']['Row'] | null;
-  loading: boolean;
-  instances: Instance[];
-  sequences: Sequence[];
-  contacts: Contact[];
-  contactSequences: ContactSequence[];
-  currentInstance: Instance | null;
-  isSuperAdmin: boolean;
-  isDataInitialized: boolean;
-  stats: any[];
-  tags: string[];
-  timeRestrictions: TimeRestriction[];
-  
-  setSession: (session: Session | null) => void;
-  setUser: (user: Database['public']['Tables']['profiles']['Row'] | null) => void;
-  setInstances: (instances: Instance[]) => void;
-  setSequences: (sequences: Sequence[]) => void;
-  setContacts: (contacts: Contact[]) => void;
-  setContactSequences: (contactSequences: ContactSequence[]) => void;
-  setCurrentInstance: (instance: Instance | null) => void;
-  setIsSuperAdmin: (isSuperAdmin: boolean) => void;
-  
-  refreshData: () => Promise<void>;
-  addInstance: (instance: Omit<Instance, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
-  updateInstance: (id: string, updates: Partial<Instance>) => Promise<void>;
-  deleteInstance: (id: string) => Promise<void>;
-  addSequence: (sequence: Omit<Sequence, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
-  updateSequence: (id: string, data: Partial<Sequence>) => Promise<Promise<{ success: boolean; }>>;
-  deleteSequence: (id: string) => Promise<void>;
-  deleteContact: (contactId: string) => Promise<void>;
-  updateContact: (contactId: string, data: Partial<Omit<Contact, "id">>) => Promise<void>;
-  addTag: (tag: string) => void;
-}
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
@@ -229,19 +193,19 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     const mockStats = [
       {
         date: new Date().toISOString().split('T')[0],
-        messagesSent: 45,
-        messagesScheduled: 12,
-        messagesFailed: 3,
-        newContacts: 8,
-        completedSequences: 2
+        messages_sent: 45,
+        messages_scheduled: 12,
+        messages_failed: 3,
+        new_contacts: 8,
+        completed_sequences: 2
       },
       {
         date: new Date(Date.now() - 86400000).toISOString().split('T')[0], // Yesterday
-        messagesSent: 38,
-        messagesScheduled: 10,
-        messagesFailed: 2,
-        newContacts: 5,
-        completedSequences: 1
+        messages_sent: 38,
+        messages_scheduled: 10,
+        messages_failed: 2,
+        new_contacts: 5,
+        completed_sequences: 1
       }
     ];
     
@@ -259,8 +223,29 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     if (error) {
       console.error("Erro ao buscar sequências:", error);
       toast.error(`Erro ao buscar sequências: ${error.message}`);
-    } else {
-      setSequences(data || []);
+    } else if (data) {
+      // Transform the data format to match our type
+      const transformedSequences: Sequence[] = data.map(seq => {
+        // Create startCondition and stopCondition from the database fields
+        const startCondition: Condition = {
+          type: seq.start_condition_type as 'AND' | 'OR',
+          tags: seq.start_condition_tags || []
+        };
+        
+        const stopCondition: Condition = {
+          type: seq.stop_condition_type as 'AND' | 'OR',
+          tags: seq.stop_condition_tags || []
+        };
+        
+        return {
+          ...seq,
+          startCondition,
+          stopCondition,
+          timeRestrictions: [] // Initialize empty time restrictions
+        };
+      });
+      
+      setSequences(transformedSequences);
     }
   }, []);
   
@@ -275,8 +260,14 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     if (error) {
       console.error("Erro ao buscar contatos:", error);
       toast.error(`Erro ao buscar contatos: ${error.message}`);
-    } else {
-      setContacts(data || []);
+    } else if (data) {
+      // Add tags to contacts (in a real app, fetch from contact_tags table)
+      const contactsWithTags: Contact[] = data.map(contact => ({
+        ...contact,
+        tags: ['lead'] // Mock tags for now
+      }));
+      
+      setContacts(contactsWithTags);
     }
   }, []);
   
@@ -317,7 +308,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   }, [currentInstance, fetchSequences, fetchContacts, fetchContactSequences, fetchStats]);
   
   // Function to add a new instance
-  const addInstance = async (instance: Omit<Instance, 'id' | 'createdAt' | 'updatedAt'>) => {
+  const addInstance = async (instance: Omit<Instance, 'id' | 'created_at' | 'updated_at'>) => {
     try {
       setLoading(true);
       
@@ -419,7 +410,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   };
   
   // Function to add a new sequence
-  const addSequence = async (sequence: Omit<Sequence, 'id' | 'createdAt' | 'updatedAt'>) => {
+  const addSequence = async (sequence: Omit<Sequence, 'id' | 'created_at' | 'updated_at'>) => {
     try {
       setLoading(true);
       
@@ -428,6 +419,11 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         id: Math.random().toString(36).substring(2, 15), // Generates a random ID
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
+        created_by: session?.user?.id || '',
+        start_condition_type: sequence.startCondition.type,
+        start_condition_tags: sequence.startCondition.tags,
+        stop_condition_type: sequence.stopCondition.type,
+        stop_condition_tags: sequence.stopCondition.tags,
         ...sequence,
         stages: sequence.stages.map(stage => ({
           ...stage,
@@ -476,7 +472,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
           // Check if any contact is using the stages being removed as current_stage_id
           // In a real integration with the backend, this would be done on the server
           const contactsUsingRemovedStages = contactSequences.filter(
-            cs => cs.currentStageId && removedStageIds.includes(cs.currentStageId)
+            cs => cs.current_stage_id && removedStageIds.includes(cs.current_stage_id)
           );
           
           if (contactsUsingRemovedStages.length > 0) {
@@ -491,7 +487,19 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       // Update the sequence in local state
       setSequences(prev => prev.map(seq =>
         seq.id === id
-          ? { ...seq, ...data, updated_at: new Date().toISOString() }
+          ? { 
+              ...seq,
+              ...data,
+              ...(data.startCondition ? {
+                start_condition_type: data.startCondition.type,
+                start_condition_tags: data.startCondition.tags
+              } : {}),
+              ...(data.stopCondition ? {
+                stop_condition_type: data.stopCondition.type,
+                stop_condition_tags: data.stopCondition.tags
+              } : {}),
+              updated_at: new Date().toISOString()
+            }
           : seq
       ));
       
@@ -516,7 +524,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     } catch (error) {
       setLoading(false);
       console.error("Erro ao atualizar sequência:", error);
-      throw new Error(`Erro ao atualizar sequéncia: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`Erro ao atualizar sequência: ${error instanceof Error ? error.message : String(error)}`);
     }
   };
   
@@ -598,6 +606,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       value={{
         session,
         user,
+        profile: user,
         loading,
         instances,
         sequences,
@@ -609,6 +618,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         stats,
         tags,
         timeRestrictions,
+        setLoading,
         setSession,
         setUser,
         setInstances,
@@ -632,4 +642,4 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       {children}
     </AppContext.Provider>
   );
-}
+};

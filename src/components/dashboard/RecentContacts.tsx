@@ -11,7 +11,7 @@ export function RecentContacts() {
 
   // Helper function to get contact sequences
   const getContactSequences = (contactId: string) => {
-    return contactSequences.filter(seq => seq.contactId === contactId);
+    return contactSequences.filter(seq => seq.contact_id === contactId);
   };
 
   // Get contacts with recent activity
@@ -23,9 +23,9 @@ export function RecentContacts() {
       // Find the most recent activity
       const mostRecentActivity = sequences.reduce((latest, seq) => {
         const dates = [
-          seq.startedAt,
-          seq.completedAt,
-          seq.removedAt
+          seq.started_at,
+          seq.completed_at,
+          seq.removed_at
         ].filter(Boolean) as string[];
         
         const mostRecent = dates.sort((a, b) => 
@@ -73,7 +73,7 @@ export function RecentContacts() {
                 <div key={contact.id} className="flex items-start justify-between border-b pb-3">
                   <div className="space-y-1">
                     <p className="font-medium">{contact.name}</p>
-                    <p className="text-sm text-muted-foreground">{contact.phoneNumber}</p>
+                    <p className="text-sm text-muted-foreground">{contact.phone_number}</p>
                     <div className="flex flex-wrap gap-1.5 pt-1">
                       {contact.tags.slice(0, 3).map(tag => (
                         <Badge key={tag} variant="outline" className="text-xs py-0 font-normal">
