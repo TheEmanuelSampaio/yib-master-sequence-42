@@ -1,3 +1,4 @@
+
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
@@ -448,27 +449,47 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       
       // Fetch users (only for super_admin)
       if (user.role === 'super_admin') {
+        // Get profiles data
         const { data: profilesData, error: profilesError } = await supabase
           .from('profiles')
           .select('*');
         
         if (profilesError) throw profilesError;
         
-        // Get user emails from auth.users (requires admin rights)
-        const usersWithEmails = await Promise.all(
-          profilesData.map(async (profile) => {
-            // For now, using email from user object if it's the current user
-            const email = profile.id === user.id ? user.email : `user-${profile.id.substring(0, 4)}@example.com`;
-            
-            return {
-              id: profile.id,
-              accountName: profile.account_name,
-              email,
-              role: profile.role,
-              avatar: ""
-            };
-          })
-        );
+        // Get user emails from auth.users through Supabase function or RPC
+        // This is necessary because we cannot query auth.users directly from the client
+        const { data: authUsersData, error: authUsersError } = await supabase
+          .rpc('get_users_with_emails');
+          
+        if (authUsersError) {
+          console.error("Error fetching user emails:", authUsersError);
+          // Continue with what we have, but log the error
+        }
+        
+        // Create a map of user IDs to emails for quick lookup
+        const emailMap = new Map();
+        if (authUsersData && Array.isArray(authUsersData)) {
+          authUsersData.forEach(userData => {
+            if (userData.id && userData.email) {
+              emailMap.set(userData.id, userData.email);
+            }
+          });
+        }
+        
+        // Now map profiles to users with emails from the emailMap
+        const usersWithEmails = profilesData.map(profile => {
+          // Try to get email from the map, fall back to current user email or a placeholder
+          const email = emailMap.get(profile.id) || 
+                        (profile.id === user.id ? user.email : `user-${profile.id.substring(0, 4)}@example.com`);
+          
+          return {
+            id: profile.id,
+            accountName: profile.account_name,
+            email,
+            role: profile.role,
+            avatar: ""
+          };
+        });
         
         setUsers(usersWithEmails);
       }
