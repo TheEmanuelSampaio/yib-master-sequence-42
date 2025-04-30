@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 import { v4 as uuidv4 } from 'uuid';
@@ -27,19 +28,48 @@ export const generateUUID = (): string => {
 // Função para buscar clientes
 export const fetchClientsWithCreatorInfo = async () => {
   try {
-    const { data, error } = await supabase
+    // Primeiro, vamos buscar todos os clientes com suas informações básicas
+    const { data: clients, error: clientsError } = await supabase
       .from('clients')
-      .select(`
-        *,
-        creator:profiles!clients_created_by_fkey(id, account_name)
-      `);
+      .select('*');
     
-    if (error) {
-      console.error('Erro ao buscar clientes:', error);
-      throw error;
+    if (clientsError) {
+      console.error('Erro ao buscar clientes:', clientsError);
+      throw clientsError;
     }
     
-    return data || [];
+    if (!clients || clients.length === 0) {
+      return [];
+    }
+    
+    // Agora, vamos buscar os dados dos criadores para cada cliente
+    const clientsWithCreatorInfo = await Promise.all(clients.map(async (client) => {
+      // Se não tiver created_by, retornamos o cliente como está
+      if (!client.created_by || !isValidUUID(client.created_by)) {
+        return client;
+      }
+      
+      // Buscamos o perfil do criador
+      const { data: creatorData, error: creatorError } = await supabase
+        .from('profiles')
+        .select('id, account_name')
+        .eq('id', client.created_by)
+        .single();
+      
+      if (creatorError) {
+        console.error(`Erro ao buscar criador para cliente ${client.id}:`, creatorError);
+        // Retornamos o cliente sem dados do criador, mas logamos o erro
+        return client;
+      }
+      
+      // Retornamos o cliente com os dados do criador
+      return {
+        ...client,
+        creator: creatorData
+      };
+    }));
+    
+    return clientsWithCreatorInfo;
   } catch (error) {
     console.error('Erro ao processar fetch de clientes:', error);
     throw error;
