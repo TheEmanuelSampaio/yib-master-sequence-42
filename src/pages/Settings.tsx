@@ -1,4 +1,3 @@
-
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -51,13 +50,13 @@ export default function Settings() {
       setFilteredTimeRestrictions(timeRestrictions);
     } else if (currentUser) {
       // Filtra clientes criados pelo usuário
-      setFilteredClients(clients.filter(client => client.created_by === currentUser.id));
+      setFilteredClients(clients.filter(client => client.createdBy === currentUser.id));
       
       // Filtra tags criadas pelo usuário
-      setFilteredTags(tags.filter(tag => tag.created_by === currentUser.id));
+      setFilteredTags(tags.filter(tag => tag.createdBy === currentUser.id));
       
       // Filtra restrições de horário criadas pelo usuário
-      setFilteredTimeRestrictions(timeRestrictions.filter(restriction => restriction.created_by === currentUser.id));
+      setFilteredTimeRestrictions(timeRestrictions.filter(restriction => restriction.createdBy === currentUser.id));
     }
   }, [clients, tags, timeRestrictions, currentUser, isSuper]);
 
