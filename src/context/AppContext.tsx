@@ -446,6 +446,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       const typedContactSeqs = (await Promise.all(contactSeqPromises)).filter(Boolean) as ContactSequence[];
       setContactSequences(typedContactSeqs);
       
+      // Fetch user profiles first
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('*');
+      
+      if (profilesError) throw profilesError;
+      
       // Fetch users (only for super_admin)
       if (user.role === 'super_admin') {
         try {
