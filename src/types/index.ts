@@ -14,6 +14,11 @@ export interface Client {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+  creator?: {
+    id: string;
+    account_name: string;
+  };
+  creator_account_name?: string;
 }
 
 export interface Instance {

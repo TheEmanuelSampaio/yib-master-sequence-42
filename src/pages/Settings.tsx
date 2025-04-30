@@ -563,9 +563,8 @@ export default function Settings() {
                       <TableCell className="font-medium">{client.accountName}</TableCell>
                       <TableCell>{client.accountId}</TableCell>
                       <TableCell>
-                        {client.creator ? client.creator.account_name : (
-                          client.creator_account_name || "—"
-                        )}
+                        {client.creator ? client.creator.account_name : 
+                         (client.creator_account_name || "—")}
                       </TableCell>
                       <TableCell>
                         <DropdownMenu>
