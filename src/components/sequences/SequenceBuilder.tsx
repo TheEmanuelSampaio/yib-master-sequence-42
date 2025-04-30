@@ -24,7 +24,7 @@ import { toast } from "sonner";
 
 interface SequenceBuilderProps {
   sequence?: Sequence;
-  onSave: (sequence: Omit<Sequence, "id" | "createdAt" | "updatedAt" | "createdBy">) => void;
+  onSave: (sequence: Omit<Sequence, "id" | "createdAt" | "updatedAt">) => void;
   onCancel: () => void;
   onChangesMade?: () => void;
 }
@@ -276,7 +276,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
       return;
     }
     
-    const newSequence: Omit<Sequence, "id" | "createdAt" | "updatedAt" | "createdBy"> = {
+    const newSequence: Omit<Sequence, "id" | "createdAt" | "updatedAt"> = {
       name,
       instanceId: currentInstance?.id || "",
       startCondition,
@@ -691,9 +691,9 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
                           <Label htmlFor="stage-type">Tipo do Conteúdo</Label>
                           <Select
                             value={newStage.type}
-                            onValueChange={(value: "message" | "pattern" | "typebot") => setNewStage({ 
+                            onValueChange={(value) => setNewStage({ 
                               ...newStage, 
-                              type: value
+                              type: value as "message" | "pattern" | "typebot" 
                             })}
                           >
                             <SelectTrigger id="stage-type">
@@ -776,9 +776,9 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
                           <Label htmlFor="stage-delay-unit">Unidade</Label>
                           <Select
                             value={newStage.delayUnit}
-                            onValueChange={(value: "minutes" | "hours" | "days") => setNewStage({ 
+                            onValueChange={(value) => setNewStage({ 
                               ...newStage, 
-                              delayUnit: value
+                              delayUnit: value as "minutes" | "hours" | "days" 
                             })}
                           >
                             <SelectTrigger id="stage-delay-unit">
@@ -926,8 +926,8 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                {[0, 15, 30, 45].map(minute => (
-                                  <SelectItem key={`start-minute-${minute}`} value={minute.toString()}>
+                                {[0, 15, 30, 45].map((minute) => (
+                                  <SelectItem key={`start-min-${minute}`} value={minute.toString()}>
                                     {minute.toString().padStart(2, "0")}
                                   </SelectItem>
                                 ))}
@@ -935,9 +935,8 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
                             </Select>
                           </div>
                         </div>
-                        
                         <div>
-                          <Label>Horário de Término</Label>
+                          <Label>Horário de Fim</Label>
                           <div className="flex mt-2 space-x-2">
                             <Select
                               value={newRestriction.endHour.toString()}
@@ -973,8 +972,8 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                {[0, 15, 30, 45].map(minute => (
-                                  <SelectItem key={`end-minute-${minute}`} value={minute.toString()}>
+                                {[0, 15, 30, 45].map((minute) => (
+                                  <SelectItem key={`end-min-${minute}`} value={minute.toString()}>
                                     {minute.toString().padStart(2, "0")}
                                   </SelectItem>
                                 ))}
@@ -986,128 +985,63 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
                     </div>
                     
                     <DialogFooter>
-                      <Button
-                        variant="outline"
-                        onClick={() => setShowAddRestrictionDialog(false)}
-                      >
-                        Cancelar
-                      </Button>
-                      <Button onClick={addLocalRestriction}>
-                        Adicionar
-                      </Button>
+                      <Button variant="outline" onClick={() => setShowAddRestrictionDialog(false)}>Cancelar</Button>
+                      <Button onClick={addLocalRestriction}>Adicionar</Button>
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>
               </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Local Restrictions */}
+              <CardContent>
                 <div className="space-y-2">
-                  <h4 className="text-sm font-medium">Restrições Locais</h4>
-                  {localRestrictions.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                      Nenhuma restrição local configurada
-                    </p>
+                  {/* Restrições locais e globais selecionadas */}
+                  {timeRestrictions.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground border rounded-md">
+                      Nenhuma restrição configurada
+                    </div>
                   ) : (
                     <div className="space-y-2">
-                      {localRestrictions.map(restriction => (
+                      {timeRestrictions.map(restriction => (
                         <RestrictionItem
                           key={restriction.id}
                           restriction={restriction}
-                          onUpdate={updateLocalRestriction}
                           onRemove={removeTimeRestriction}
-                          isGlobal={false}
+                          onUpdate={!restriction.isGlobal ? updateLocalRestriction : undefined}
+                          selected={restriction.isGlobal}
                         />
                       ))}
                     </div>
                   )}
                 </div>
-                
-                {/* Global Restrictions */}
-                <div className="space-y-2 pt-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-medium">Restrições Globais</h4>
-                    <Dialog open={showGlobalRestrictionsDialog} onOpenChange={setShowGlobalRestrictionsDialog}>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" size="sm">
-                          <PlusCircle className="h-3.5 w-3.5 mr-1" />
-                          Adicionar Global
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>Restrições Globais</DialogTitle>
-                          <DialogDescription>
-                            Adicione restrições globais à sequência
-                          </DialogDescription>
-                        </DialogHeader>
-                        
-                        <div className="space-y-4">
-                          {availableGlobalRestrictions.length === 0 ? (
-                            <div className="text-center py-4">
-                              <p className="text-sm text-muted-foreground">
-                                Todas as restrições globais já foram adicionadas
-                              </p>
-                            </div>
-                          ) : (
-                            <ScrollArea className="h-[300px]">
-                              <div className="space-y-2 pr-4">
-                                {availableGlobalRestrictions.map(restriction => (
-                                  <div
-                                    key={restriction.id}
-                                    className="border rounded-md p-3 flex items-center justify-between"
-                                  >
-                                    <div>
-                                      <p className="font-medium">{restriction.name}</p>
-                                      <p className="text-xs text-muted-foreground">
-                                        {restriction.days.map(d => getDayName(d).slice(0, 3)).join(', ')} • 
-                                        {formatTime(restriction.startHour, restriction.startMinute)} - 
-                                        {formatTime(restriction.endHour, restriction.endMinute)}
-                                      </p>
-                                    </div>
-                                    <Button
-                                      size="sm"
-                                      onClick={() => {
-                                        addGlobalRestriction(restriction);
-                                        setShowGlobalRestrictionsDialog(false);
-                                      }}
-                                    >
-                                      Adicionar
-                                    </Button>
-                                  </div>
-                                ))}
-                              </div>
-                            </ScrollArea>
-                          )}
-                        </div>
-                        
-                        <DialogFooter>
-                          <Button
-                            variant="outline"
-                            onClick={() => setShowGlobalRestrictionsDialog(false)}
-                          >
-                            Fechar
-                          </Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
-                  
-                  {globalRestrictions.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                      Nenhuma restrição global adicionada
-                    </p>
-                  ) : (
-                    <div className="space-y-2">
-                      {globalRestrictions.map(restriction => (
-                        <RestrictionItem
-                          key={restriction.id}
-                          restriction={restriction}
-                          onUpdate={() => {}} // Não permitimos editar restrições globais aqui
-                          onRemove={removeTimeRestriction}
-                          isGlobal={true}
-                        />
-                      ))}
+              </CardContent>
+            </Card>
+            
+            {/* Restrições Globais */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center">
+                  <Lock className="h-4 w-4 mr-2 text-blue-500" />
+                  <CardTitle>Restrições Globais</CardTitle>
+                </div>
+                <CardDescription>
+                  Restrições de horário disponíveis para todas as sequências
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {availableGlobalRestrictions.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground border rounded-md">
+                      Não há restrições globais disponíveis
                     </div>
+                  ) : (
+                    availableGlobalRestrictions.map(restriction => (
+                      <RestrictionItem
+                        key={restriction.id}
+                        restriction={restriction}
+                        onRemove={() => {}}
+                        selected={isGlobalRestrictionSelected(restriction.id)}
+                        onSelect={() => addGlobalRestriction(restriction)}
+                      />
+                    ))
                   )}
                 </div>
               </CardContent>
