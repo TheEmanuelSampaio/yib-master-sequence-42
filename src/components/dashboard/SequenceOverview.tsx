@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useApp } from '@/context/AppContext';
 import { Check, Clock, Activity, Ban, AlertCircle } from 'lucide-react';
@@ -30,24 +29,23 @@ export function SequenceOverview() {
     try {
       toast.info("Testando sequência...");
       
+      // Formato correto do payload com chatwootData
       const testData = {
-        body: {
-          chatwootData: {
-            accountData: {
-              accountId: 1,
-              accountName: "Teste Master Sequence"
-            },
-            contactData: {
-              id: `test-${Date.now()}`,
-              name: `Contato de Teste ${new Date().toLocaleTimeString()}`,
-              phoneNumber: "+5511987654321"
-            },
-            conversationData: {
-              inboxId: 1,
-              conversationId: Date.now(),
-              displayId: Date.now(),
-              labels: sequences.find(s => s.id === sequenceId)?.startCondition.tags.join(', ')
-            }
+        chatwootData: {
+          accountData: {
+            accountId: 1,
+            accountName: "Teste Master Sequence"
+          },
+          contactData: {
+            id: `test-${Date.now()}`,
+            name: `Contato de Teste ${new Date().toLocaleTimeString()}`,
+            phoneNumber: "+5511987654321"
+          },
+          conversationData: {
+            inboxId: 1,
+            conversationId: Date.now(),
+            displayId: Date.now(),
+            labels: sequences.find(s => s.id === sequenceId)?.startCondition.tags.join(', ')
           }
         }
       };

@@ -1,4 +1,3 @@
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 
@@ -41,13 +40,37 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Extrair dados relevantes
-    const { chatwootData } = jsonData.body || jsonData;
+    // Extrair dados relevantes - suportar ambos os formatos (retrocompatibilidade)
+    let chatwootData = null;
+    
+    // Formato 1: { body: { chatwootData: {...} } }
+    if (jsonData.body && jsonData.body.chatwootData) {
+      chatwootData = jsonData.body.chatwootData;
+      console.log(`[FORMAT] Usando formato body.chatwootData`);
+    } 
+    // Formato 2: { chatwootData: {...} } 
+    else if (jsonData.chatwootData) {
+      chatwootData = jsonData.chatwootData;
+      console.log(`[FORMAT] Usando formato chatwootData direto`);
+    } 
+    // Formato 3: { data: {...} } onde data contém os dados diretos
+    else if (jsonData.data) {
+      chatwootData = jsonData.data;
+      console.log(`[FORMAT] Usando formato data direto`);
+    }
     
     if (!chatwootData) {
-      console.error(`[VALIDATE] Dados do Chatwoot ausentes`);
+      console.error(`[VALIDATE] Dados do Chatwoot ausentes`, JSON.stringify(jsonData));
       return new Response(
-        JSON.stringify({ error: 'Dados do Chatwoot ausentes' }),
+        JSON.stringify({ 
+          error: 'Dados do Chatwoot ausentes', 
+          formatoEsperado: {
+            "opção 1": { "body": { "chatwootData": { "accountData": {}, "contactData": {}, "conversationData": {} } } },
+            "opção 2": { "chatwootData": { "accountData": {}, "contactData": {}, "conversationData": {} } },
+            "opção 3": { "data": { "accountData": {}, "contactData": {}, "conversationData": {} } }
+          },
+          recebido: jsonData
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -61,7 +84,15 @@ Deno.serve(async (req) => {
         temConversationData: !!conversationData
       }));
       return new Response(
-        JSON.stringify({ error: 'Dados incompletos' }),
+        JSON.stringify({ 
+          error: 'Dados incompletos', 
+          detalhes: {
+            temAccountData: !!accountData,
+            temContactData: !!contactData,
+            temConversationData: !!conversationData
+          },
+          recebido: chatwootData
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
