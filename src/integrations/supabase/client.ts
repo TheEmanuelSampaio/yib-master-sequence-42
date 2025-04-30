@@ -1,5 +1,4 @@
 
-
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
@@ -48,7 +47,7 @@ export const fetchInstancesWithClientInfo = async () => {
   return data || [];
 };
 
-// Função para buscar sequências com informações da instância - Removido filtro hardcoded
+// Função para buscar sequências com informações da instância
 export const fetchSequencesWithInstanceInfo = async () => {
   const { data, error } = await supabase
     .from('sequences')

@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useApp } from '@/context/AppContext';
 import {
@@ -58,7 +59,6 @@ export default function Sequences() {
     }
   }, [refreshData, currentInstance, isDataInitialized]);
   
-  // Filtro apenas por instância e busca, não por usuário (deixamos a RLS cuidar disso)
   const instanceSequences = sequences
     .filter(seq => seq.instanceId === currentInstance?.id)
     .filter(seq => 
@@ -70,23 +70,17 @@ export default function Sequences() {
   const inactiveSequences = instanceSequences.filter(seq => seq.status === 'inactive');
   
   const handleSaveSequence = async (sequence: Omit<Sequence, "id" | "createdAt" | "updatedAt">) => {
-    try {
-      if (isEditMode && currentSequence) {
-        await updateSequence(currentSequence.id, sequence);
-        setIsEditMode(false);
-        setCurrentSequence(null);
-        toast.success("Sequência atualizada com sucesso");
-        setHasUnsavedChanges(false);
-      } else {
-        console.log("Criando nova sequência:", sequence);
-        await addSequence(sequence);
-        setIsCreateMode(false);
-        toast.success("Sequência criada com sucesso");
-        setHasUnsavedChanges(false);
-      }
-    } catch (error) {
-      console.error("Erro ao salvar sequência:", error);
-      toast.error(`Erro ao ${isEditMode ? 'atualizar' : 'criar'} sequência: ${error.message || error}`);
+    if (isEditMode && currentSequence) {
+      await updateSequence(currentSequence.id, sequence);
+      setIsEditMode(false);
+      setCurrentSequence(null);
+      toast.success("Sequência atualizada com sucesso");
+      setHasUnsavedChanges(false);
+    } else {
+      await addSequence(sequence);
+      setIsCreateMode(false);
+      toast.success("Sequência criada com sucesso");
+      setHasUnsavedChanges(false);
     }
   };
   
