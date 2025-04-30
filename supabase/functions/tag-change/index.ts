@@ -1,9 +1,9 @@
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
 const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
+const supabaseServiceRole = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
 
 Deno.serve(async (req) => {
   // Handle CORS
@@ -12,21 +12,44 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    // Verificar autenticação JWT se não for uma chamada com service role
+    const authHeader = req.headers.get('Authorization');
+    
+    let supabase;
+    if (authHeader?.startsWith('Bearer ')) {
+      // Usar o token JWT fornecido
+      const token = authHeader.split(' ')[1];
+      supabase = createClient(supabaseUrl, supabaseAnonKey, {
+        global: {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      });
+    } else {
+      // Usar service role como fallback (não é recomendado em produção)
+      console.warn('Usando service role para autenticação - NÃO RECOMENDADO PARA PRODUÇÃO');
+      supabase = createClient(supabaseUrl, supabaseServiceRole, {
+        auth: {
+          persistSession: false
+        }
+      });
+    }
     
     // Parse the request body
-    const { data } = await req.json();
+    const requestBody = await req.json();
+    const data = requestBody.data;
     
-    if (!data || !data.accountId || !data.accountName || !data.contact || !data.conversation) {
+    if (!data || !data.accountData || !data.contactData || !data.conversationData) {
       return new Response(
         JSON.stringify({ error: 'Missing required data' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
     
-    const { accountId, accountName } = data;
-    const { id: contactId, name: contactName, phoneNumber } = data.contact;
-    const { inboxId, conversationId, displayId, labels } = data.conversation;
+    const { accountId, accountName } = data.accountData;
+    const { id: contactId, name: contactName, phoneNumber } = data.contactData;
+    const { inboxId, conversationId, displayId, labels } = data.conversationData;
     
     console.log(`Processing contact ${contactName} with labels: ${labels}`);
     

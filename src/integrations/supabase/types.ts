@@ -662,6 +662,13 @@ export type Database = {
           is_global: boolean
         }[]
       }
+      get_users_with_emails: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          id: string
+          email: string
+        }[]
+      }
       is_super_admin: {
         Args: Record<PropertyKey, never>
         Returns: boolean
