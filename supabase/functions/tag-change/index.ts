@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
     // Find the client with the provided account ID
     const { data: clients, error: clientError } = await supabase
       .from('clients')
-      .select('*, profiles:created_by(id, account_name)')
+      .select('*')
       .eq('account_id', accountId)
       .limit(1);
     
@@ -53,11 +53,6 @@ Deno.serve(async (req) => {
     }
     
     const client = clients[0];
-    console.log(`Found client: ${client.account_name}, created by user: ${client.created_by}`);
-    
-    // Usar o ID do criador do cliente
-    const clientCreatorId = client.created_by;
-    console.log(`Using client creator ID ${clientCreatorId} for tag creation`);
     
     // Check if contact exists
     const { data: existingContacts, error: contactError } = await supabase
@@ -135,37 +130,40 @@ Deno.serve(async (req) => {
       // Continue despite error
     }
     
-    if (!clientCreatorId) {
-      console.error('Cliente não tem um criador válido (created_by). Verificando usuários alternativos...');
+    // IMPORTANTE: Obter um criador válido para as tags
+    // Primeiro, tentar obter um usuário admin
+    console.log('Buscando um usuário válido para criar as tags...');
+    let creatorId = null;
+    
+    // 1. Tentar buscar um admin
+    const { data: adminUsers, error: adminError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('role', 'admin')
+      .limit(1);
+    
+    if (!adminError && adminUsers && adminUsers.length > 0) {
+      creatorId = adminUsers[0].id;
+      console.log(`Usando usuário admin como criador, ID: ${creatorId}`);
+    } else {
+      console.log('Nenhum usuário admin encontrado, buscando qualquer usuário válido...');
       
-      // Fallback: procurar por qualquer usuário admin
-      const { data: adminUsers, error: adminError } = await supabase
+      // 2. Se não encontrar admin, buscar qualquer usuário
+      const { data: anyUser, error: anyUserError } = await supabase
         .from('profiles')
         .select('id')
-        .eq('role', 'admin')
         .limit(1);
       
-      if (!adminError && adminUsers && adminUsers.length > 0) {
-        clientCreatorId = adminUsers[0].id;
-        console.log(`Fallback: Usando usuário admin como criador, ID: ${clientCreatorId}`);
+      if (!anyUserError && anyUser && anyUser.length > 0) {
+        creatorId = anyUser[0].id;
+        console.log(`Usando primeiro usuário encontrado como criador, ID: ${creatorId}`);
       } else {
-        console.log('Nenhum usuário admin encontrado, buscando qualquer usuário válido...');
-        
-        // Último recurso: pegar qualquer usuário
-        const { data: anyUser, error: anyUserError } = await supabase
-          .from('profiles')
-          .select('id')
-          .limit(1);
-        
-        if (!anyUserError && anyUser && anyUser.length > 0) {
-          clientCreatorId = anyUser[0].id;
-          console.log(`Último recurso: Usando primeiro usuário encontrado como criador, ID: ${clientCreatorId}`);
-        }
+        console.error('Nenhum usuário válido encontrado para usar como criador de tags!');
       }
     }
     
-    if (!clientCreatorId) {
-      console.error('FALHA CRÍTICA: Não foi possível encontrar um usuário válido para criar as tags.');
+    if (!creatorId) {
+      console.error('Não foi possível encontrar um usuário válido para criar as tags.');
       return new Response(
         JSON.stringify({ 
           error: 'Não foi possível processar as tags, nenhum usuário válido encontrado.',
@@ -207,7 +205,7 @@ Deno.serve(async (req) => {
         console.log(`Verificando se a tag "${tag}" já existe na tabela global`);
         const { data: existingTag, error: checkTagError } = await supabase
           .from('tags')
-          .select('name, created_by')
+          .select('name')
           .eq('name', tag)
           .maybeSingle();
         
@@ -218,13 +216,13 @@ Deno.serve(async (req) => {
         
         // 3. Se a tag não existir, adicioná-la à tabela global
         if (!existingTag) {
-          console.log(`Tag "${tag}" não encontrada na tabela global, adicionando com o usuário criador do cliente (${clientCreatorId})...`);
+          console.log(`Tag "${tag}" não encontrada na tabela global, adicionando...`);
           
           const { data: insertedTag, error: insertGlobalTagError } = await supabase
             .from('tags')
             .insert({
               name: tag,
-              created_by: clientCreatorId
+              created_by: creatorId
             })
             .select()
             .single();
@@ -237,7 +235,7 @@ Deno.serve(async (req) => {
             addedTags++;
           }
         } else {
-          console.log(`Tag "${tag}" já existe na tabela global, criada por: ${existingTag.created_by}`);
+          console.log(`Tag "${tag}" já existe na tabela global`);
           existingTagsCount++;
         }
       } catch (tagError) {
@@ -262,11 +260,6 @@ Deno.serve(async (req) => {
           id: contactId.toString(),
           name: contactName,
           tags
-        },
-        client: {
-          id: client.id,
-          accountName: client.account_name,
-          createdBy: clientCreatorId
         }
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
