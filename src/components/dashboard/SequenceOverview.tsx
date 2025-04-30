@@ -30,7 +30,7 @@ export function SequenceOverview() {
     try {
       toast.info("Testando sequência...");
       
-      // Formato correto do payload com chatwootData
+      // Formato correto do payload com chatwootData dentro de data
       const testData = {
         data: {
           accountData: {
@@ -67,6 +67,10 @@ export function SequenceOverview() {
       
       if (result.success) {
         toast.success(`Teste concluído! Contato adicionado a ${result.details.addedToSequences} sequência(s).`);
+        
+        if (result.details.tagsAddedFail > 0) {
+          toast.warning(`Atenção: ${result.details.tagsAddedFail} tags não puderam ser criadas.`);
+        }
       } else {
         toast.error(`Erro no teste: ${result.error || "Erro desconhecido"}`);
       }

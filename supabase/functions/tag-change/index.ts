@@ -249,7 +249,10 @@ Deno.serve(async (req) => {
     console.log(`[TAGS] Tags a remover: ${JSON.stringify(tagsToRemove)}`);
     
     // Adicionar novas tags
-    const tagInsertPromises = [];
+    let tagsAddedSuccess = 0;
+    let tagsAddedFail = 0;
+    const tagErrors = [];
+    
     for (const tag of tagsToAdd) {
       if (!tag) continue;
       
@@ -276,12 +279,20 @@ Deno.serve(async (req) => {
               
             if (tagInsertError && tagInsertError.code !== '23505') { // Ignorar violação de unicidade
               console.error(`[TAGS] Erro ao inserir tag ${tag}: ${tagInsertError.message}`);
+              tagErrors.push({ tag, error: tagInsertError.message });
+              tagsAddedFail++;
+            } else {
+              tagsAddedSuccess++;
             }
           } else {
             console.error(`[TAGS] Não foi possível criar a tag ${tag}: nenhum usuário encontrado`);
+            tagErrors.push({ tag, error: 'Nenhum usuário encontrado' });
+            tagsAddedFail++;
           }
         } catch (error) {
           console.error(`[TAGS] Erro na criação da tag ${tag}: ${error.message}`);
+          tagErrors.push({ tag, error: error.message });
+          tagsAddedFail++;
           // Continuar mesmo com erro
         }
         
@@ -298,12 +309,15 @@ Deno.serve(async (req) => {
             console.log(`[TAGS] Tag ${tag} já associada ao contato ${contactId}`);
           } else {
             console.error(`[TAGS] Erro ao associar tag ${tag} ao contato: ${tagContactError.message}`);
+            tagErrors.push({ tag, error: tagContactError.message });
           }
         } else {
           console.log(`[TAGS] Tag ${tag} adicionada ao contato ${contactId}`);
         }
       } catch (error) {
         console.error(`[TAGS] Erro geral ao processar tag ${tag}: ${error.message}`);
+        tagErrors.push({ tag, error: error.message });
+        tagsAddedFail++;
       }
     }
     
@@ -326,7 +340,6 @@ Deno.serve(async (req) => {
     console.log(`[SEQUENCES] Verificando sequências elegíveis para o contato ${contactId}`);
     
     // Buscar todas as instâncias ativas do cliente
-    // CORREÇÃO: Aqui está o problema principal - precisamos garantir que estamos buscando corretamente as instâncias
     const { data: activeInstances, error: instanceError } = await supabase
       .from('instances')
       .select('id, name')
@@ -363,7 +376,10 @@ Deno.serve(async (req) => {
           details: {
             contactId,
             tagsAdded: tagsToAdd.length,
-            tagsRemoved: tagsToRemove.length
+            tagsRemoved: tagsToRemove.length,
+            tagsAddedSuccess,
+            tagsAddedFail,
+            tagErrors
           }
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -427,7 +443,7 @@ Deno.serve(async (req) => {
             .select('id, status')
             .eq('contact_id', contactId.toString())
             .eq('sequence_id', sequence.id)
-            .order('created_at', { ascending: false })
+            .order('started_at', { ascending: false })
             .limit(1)
             .maybeSingle();
             
@@ -653,6 +669,9 @@ Deno.serve(async (req) => {
           clientId: existingClient.id,
           tagsAdded: tagsToAdd.length,
           tagsRemoved: tagsToRemove.length,
+          tagsAddedSuccess,
+          tagsAddedFail,
+          tagErrors,
           eligibleSequences: totalEligibleSequences,
           addedToSequences: totalAddedSequences,
           removedFromSequences: totalRemovedSequences
