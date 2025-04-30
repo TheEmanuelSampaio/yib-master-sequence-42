@@ -61,7 +61,7 @@ export default function Settings() {
     endHour: 18,
     endMinute: 0,
     active: true,
-    isGlobal: true // Adicionando a propriedade isGlobal que estava faltando
+    isGlobal: true
   });
 
   const [editTimeRestriction, setEditTimeRestriction] = useState<TimeRestriction | null>(null);
@@ -78,9 +78,19 @@ export default function Settings() {
     accountId: number;
   } | null>(null);
 
-  // Função auxiliar para obter o nome do criador de um cliente
+  // Improved function to get creator name from a client
   const getCreatorName = (client) => {
     console.log('Getting creator name for client:', client);
+    
+    // Find matching user from users array using createdBy ID
+    if (client.createdBy && users && users.length > 0) {
+      const creator = users.find(user => user.id === client.createdBy);
+      if (creator) {
+        return creator.accountName;
+      }
+    }
+    
+    // Fallbacks for backward compatibility
     if (client.creator && client.creator.account_name) {
       return client.creator.account_name;
     }
