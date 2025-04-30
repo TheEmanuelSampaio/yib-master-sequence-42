@@ -311,6 +311,20 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
   const globalRestrictions = timeRestrictions.filter(r => r.isGlobal);
   const localRestrictions = timeRestrictions.filter(r => !r.isGlobal);
   
+  // Check if form has been modified from initial values
+  const hasBeenModified = () => {
+    if (!sequence) return name !== '' || startCondition.tags.length > 0 || stages.length > 0;
+    
+    return (
+      name !== sequence.name ||
+      JSON.stringify(startCondition) !== JSON.stringify(sequence.startCondition) ||
+      JSON.stringify(stopCondition) !== JSON.stringify(sequence.stopCondition) ||
+      JSON.stringify(stages) !== JSON.stringify(sequence.stages) ||
+      JSON.stringify(timeRestrictions) !== JSON.stringify(sequence.timeRestrictions) ||
+      status !== sequence.status
+    );
+  };
+  
   // Close the dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -325,8 +339,45 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
     };
   }, [showTagSelector]);
 
+  const handleCancel = () => {
+    if (hasBeenModified()) {
+      toast.warning("Atenção! Você tem alterações não salvas. Deseja mesmo sair?", {
+        action: {
+          label: "Sim, sair",
+          onClick: () => onCancel()
+        },
+        cancel: {
+          label: "Não, continuar editando",
+          onClick: () => {}
+        }
+      });
+    } else {
+      onCancel();
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {/* Header with buttons - moved to the top */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-semibold">Configuração da Sequência</h2>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleCancel}>
+            <X className="h-4 w-4 mr-1" />
+            Cancelar
+          </Button>
+          <Button 
+            variant="default" 
+            onClick={handleSubmit}
+            disabled={!hasBeenModified()}
+            className={!hasBeenModified() ? "opacity-50" : ""}
+          >
+            <Save className="h-4 w-4 mr-1" />
+            Salvar
+          </Button>
+        </div>
+      </div>
+
       <Tabs defaultValue="basic">
         <TabsList className="w-full">
           <TabsTrigger value="basic" className="flex-1">Informações Básicas</TabsTrigger>
@@ -364,7 +415,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
                 
                 <div className="space-y-2">
                   <Label htmlFor="status">Status</Label>
-                  <div className="flex items-center space-x-2 mt-1">
+                  <div className="mt-2">
                     <Switch
                       id="status"
                       checked={status === "active"}
@@ -372,8 +423,9 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
                         setStatus(checked ? "active" : "inactive");
                         notifyChanges();
                       }}
+                      className="data-[state=checked]:bg-primary"
                     />
-                    <span className="text-sm">
+                    <span className="ml-2 text-sm">
                       {status === "active" ? "Sequência ativa" : "Sequência inativa"}
                     </span>
                   </div>
@@ -997,17 +1049,6 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
           </div>
         </TabsContent>
       </Tabs>
-      
-      <div className="flex justify-end space-x-2">
-        <Button variant="outline" onClick={onCancel}>
-          <X className="h-4 w-4 mr-1" />
-          Cancelar
-        </Button>
-        <Button variant="success" onClick={handleSubmit}>
-          <Save className="h-4 w-4 mr-1" />
-          Salvar
-        </Button>
-      </div>
     </div>
   );
 }

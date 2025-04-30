@@ -132,7 +132,7 @@ export function RestrictionItem({
           <Check className="h-5 w-5 text-blue-500" />
         )}
         
-        {onRemove && !restriction.isGlobal && editable && (
+        {onRemove && editable && (
           <Button 
             variant="ghost" 
             size="sm"
