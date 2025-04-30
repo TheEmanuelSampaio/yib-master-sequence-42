@@ -39,11 +39,13 @@ export const ApiTester = () => {
   
   const [response, setResponse] = useState("");
   const [loading, setLoading] = useState(false);
+  const [logs, setLogs] = useState([]);
 
   const invokeFunction = async (functionName: string, payload: string) => {
     try {
       setLoading(true);
       setResponse("");
+      setLogs([]);
       
       let parsedPayload;
       try {
@@ -52,6 +54,8 @@ export const ApiTester = () => {
         toast.error("Payload inválido. Verifique o formato JSON.");
         return;
       }
+
+      console.log(`Chamando função ${functionName} com payload:`, parsedPayload);
 
       const { data, error } = await supabase.functions.invoke(functionName, {
         body: parsedPayload,
@@ -66,6 +70,12 @@ export const ApiTester = () => {
 
       console.log(`Resposta de ${functionName}:`, data);
       setResponse(JSON.stringify(data, null, 2));
+      
+      // Extrair logs da resposta, se disponíveis
+      if (data && data.logs) {
+        setLogs(data.logs);
+      }
+      
       toast.success(`Chamada para ${functionName} concluída com sucesso!`);
     } catch (err) {
       console.error(`Erro ao invocar ${functionName}:`, err);
@@ -146,6 +156,21 @@ export const ApiTester = () => {
             </pre>
           </div>
         </div>
+        
+        {logs.length > 0 && (
+          <div className="mt-6">
+            <h3 className="text-lg font-medium mb-2">Logs:</h3>
+            <div className="bg-secondary/50 p-4 rounded-md overflow-auto max-h-96">
+              <pre className="whitespace-pre-wrap font-mono text-sm">
+                {logs.map((log, index) => (
+                  <div key={index} className={`${log.level === 'error' ? 'text-red-500' : ''}`}>
+                    {log.message}
+                  </div>
+                ))}
+              </pre>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
