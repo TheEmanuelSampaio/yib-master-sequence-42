@@ -19,7 +19,7 @@ import { v4 as uuidv4 } from "uuid";
 import { supabase } from "@/integrations/supabase/client";
 
 export function GlobalRestrictionsSection() {
-  const { timeRestrictions, refreshTimeRestrictions } = useApp();
+  const { timeRestrictions, refreshData } = useApp();
   const { user } = useAuth();
   
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -75,7 +75,7 @@ export function GlobalRestrictionsSection() {
       });
       
       // Atualizar a lista de restrições
-      refreshTimeRestrictions();
+      refreshData();
     } catch (error) {
       console.error('Erro ao adicionar restrição global:', error);
       toast.error(`Erro ao adicionar restrição: ${error.message}`);
@@ -96,7 +96,7 @@ export function GlobalRestrictionsSection() {
       toast.success('Restrição global removida com sucesso!');
       
       // Atualizar a lista de restrições
-      refreshTimeRestrictions();
+      refreshData();
     } catch (error) {
       console.error('Erro ao remover restrição global:', error);
       toast.error(`Erro ao remover restrição: ${error.message}`);
@@ -123,7 +123,7 @@ export function GlobalRestrictionsSection() {
       toast.success('Restrição global atualizada com sucesso!');
       
       // Atualizar a lista de restrições
-      refreshTimeRestrictions();
+      refreshData();
     } catch (error) {
       console.error('Erro ao atualizar restrição global:', error);
       toast.error(`Erro ao atualizar restrição: ${error.message}`);
