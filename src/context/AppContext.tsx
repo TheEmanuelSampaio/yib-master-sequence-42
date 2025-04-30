@@ -52,6 +52,24 @@ interface AppContextType {
   isDataInitialized: boolean;
 }
 
+// Interface to extend the sequence data from the database with additional properties
+interface ExtendedSequence {
+  id: string;
+  name: string;
+  instance_id: string;
+  start_condition_type: string;
+  start_condition_tags: string[];
+  stop_condition_type: string;
+  stop_condition_tags: string[];
+  status: string;
+  created_at: string;
+  updated_at: string;
+  created_by: string;
+  sequence_stages: any[];
+  sequence_time_restrictions: any[];
+  localTimeRestrictions?: TimeRestriction[]; // Add this property to the interface
+}
+
 export const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
@@ -214,7 +232,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       
       // Buscar também as restrições locais para cada sequência
       // Adicionar essas informações aos objetos de sequência
-      const processedSequences = [...sequencesData];
+      const processedSequences = sequencesData as ExtendedSequence[];
       
       for (const sequence of processedSequences) {
         // Adicionar uma propriedade para restrições de tempo local
