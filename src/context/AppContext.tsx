@@ -1,3 +1,4 @@
+
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
@@ -333,6 +334,118 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       
       setSequences(typedSequences);
       
+      // Fetch contacts and their tags
+      const { data: contactsData, error: contactsError } = await supabase
+        .from('contacts')
+        .select('*');
+      
+      if (contactsError) throw contactsError;
+      
+      // Iniciar a busca de dados de contato_tag
+      const contactPromises = contactsData.map(async (contact) => {
+        // Buscar tags deste contato
+        const { data: contactTagsData, error: contactTagsError } = await supabase
+          .from('contact_tags')
+          .select('tag_name')
+          .eq('contact_id', contact.id);
+          
+        if (contactTagsError) {
+          console.error(`Erro ao buscar tags do contato ${contact.id}:`, contactTagsError);
+          return null;
+        }
+        
+        const contactTags = contactTagsData.map(ct => ct.tag_name);
+        
+        return {
+          id: contact.id,
+          name: contact.name,
+          phoneNumber: contact.phone_number,
+          clientId: contact.client_id,
+          inboxId: contact.inbox_id,
+          conversationId: contact.conversation_id,
+          displayId: contact.display_id,
+          createdAt: contact.created_at,
+          updatedAt: contact.updated_at,
+          tags: contactTags
+        };
+      });
+      
+      // Resolver todas as promessas
+      const typedContacts = (await Promise.all(contactPromises)).filter(Boolean) as Contact[];
+      setContacts(typedContacts);
+      
+      console.log(`Contacts fetched: ${typedContacts.length}`);
+      
+      // Fetch scheduled messages
+      const { data: scheduledMsgsData, error: scheduledMsgsError } = await supabase
+        .from('scheduled_messages')
+        .select('*')
+        .order('scheduled_time', { ascending: true });
+      
+      if (scheduledMsgsError) throw scheduledMsgsError;
+      
+      const typedScheduledMsgs = scheduledMsgsData.map(msg => ({
+        id: msg.id,
+        contactId: msg.contact_id,
+        sequenceId: msg.sequence_id,
+        stageId: msg.stage_id,
+        status: msg.status,
+        scheduledTime: msg.scheduled_time,
+        rawScheduledTime: msg.raw_scheduled_time,
+        sentAt: msg.sent_at,
+        attempts: msg.attempts,
+        scheduledAt: msg.scheduled_at,
+        createdAt: msg.created_at
+      }));
+      
+      setScheduledMessages(typedScheduledMsgs);
+      
+      // Fetch contact sequences and their progress
+      const { data: contactSeqsData, error: contactSeqsError } = await supabase
+        .from('contact_sequences')
+        .select('*');
+      
+      if (contactSeqsError) throw contactSeqsError;
+      
+      // Iniciar a busca de progresso de estágios para cada sequência de contato
+      const contactSeqPromises = contactSeqsData.map(async (contactSeq) => {
+        // Buscar progresso de estágio para esta sequência de contato
+        const { data: progressData, error: progressError } = await supabase
+          .from('stage_progress')
+          .select('*')
+          .eq('contact_sequence_id', contactSeq.id);
+          
+        if (progressError) {
+          console.error(`Erro ao buscar progresso de estágios para sequência ${contactSeq.id}:`, progressError);
+          return null;
+        }
+        
+        const stageProgress = progressData.map(progress => ({
+          id: progress.id,
+          stageId: progress.stage_id,
+          status: progress.status,
+          completedAt: progress.completed_at
+        }));
+        
+        return {
+          id: contactSeq.id,
+          contactId: contactSeq.contact_id,
+          sequenceId: contactSeq.sequence_id,
+          currentStageId: contactSeq.current_stage_id,
+          currentStageIndex: contactSeq.current_stage_index,
+          status: contactSeq.status,
+          startedAt: contactSeq.started_at,
+          completedAt: contactSeq.completed_at,
+          lastMessageAt: contactSeq.last_message_at,
+          removedAt: contactSeq.removed_at,
+          stageProgress
+        };
+      });
+      
+      // Resolver todas as promessas de sequências de contato
+      const typedContactSeqs = (await Promise.all(contactSeqPromises)).filter(Boolean) as ContactSequence[];
+      setContactSequences(typedContactSeqs);
+      
       // Fetch users (only for super_admin)
       if (user.role === 'super_admin') {
         const { data: profilesData, error: profilesError } = await supabase
@@ -359,6 +472,27 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         
         setUsers(usersWithEmails);
       }
+      
+      // Fetch daily stats
+      const { data: statsData, error: statsError } = await supabase
+        .from('daily_stats')
+        .select('*')
+        .order('date', { ascending: false });
+        
+      if (statsError) throw statsError;
+      
+      const typedStats = statsData.map(stat => ({
+        id: stat.id,
+        instanceId: stat.instance_id,
+        date: stat.date,
+        messagesSent: stat.messages_sent,
+        messagesScheduled: stat.messages_scheduled,
+        messagesFailed: stat.messages_failed,
+        newContacts: stat.new_contacts,
+        completedSequences: stat.completed_sequences
+      }));
+      
+      setStats(typedStats);
       
       // Set initialized state to true after successful data load
       setIsDataInitialized(true);
@@ -880,6 +1014,27 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       // Add tags
       if (contactData.tags && contactData.tags.length > 0) {
         for (const tag of contactData.tags) {
+          // Verificar se a tag existe na tabela de tags
+          const { data: existingTag } = await supabase
+            .from('tags')
+            .select('name')
+            .eq('name', tag)
+            .maybeSingle();
+          
+          // Se a tag não existe, adicioná-la
+          if (!existingTag && user) {
+            await supabase
+              .from('tags')
+              .insert({
+                name: tag,
+                created_by: user.id
+              });
+              
+            // Atualizar o estado local de tags
+            setTags(prev => [...prev, tag]);
+          }
+          
+          // Adicionar a relação de tag para o contato
           const { error: tagError } = await supabase
             .from('contact_tags')
             .insert({
@@ -891,7 +1046,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         }
       }
       
-      refreshData();
+      await refreshData();
       toast.success("Contato adicionado com sucesso");
     } catch (error: any) {
       console.error("Error adding contact:", error);
