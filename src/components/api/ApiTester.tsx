@@ -9,20 +9,18 @@ import { supabase } from "@/integrations/supabase/client";
 
 export const ApiTester = () => {
   const [tagChangePayload, setTagChangePayload] = useState(JSON.stringify({
-    data: {
-      accountId: 1,
-      accountName: "Years In Box",
-      contact: {
-        id: 16087,
-        name: "Emanuel Years In Box",
-        phoneNumber: "+5511937474703"
-      },
-      conversation: {
-        inboxId: 46,
-        conversationId: 23266,
-        displayId: 1608,
-        labels: "lead, google, produto-xpto"
-      }
+    accountId: 1,
+    accountName: "Years In Box",
+    contact: {
+      id: 16087,
+      name: "Emanuel Years In Box",
+      phoneNumber: "+5511937474703"
+    },
+    conversation: {
+      inboxId: 46,
+      conversationId: 23266,
+      displayId: 1608,
+      labels: "lead, google, produto-xpto"
     }
   }, null, 2));
   

@@ -15,9 +15,14 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
     
     // Parse the request body
-    const { data } = await req.json();
+    const requestBody = await req.json();
+    console.log('Received request body:', JSON.stringify(requestBody, null, 2));
+
+    // Check if data is wrapped in a data object or directly in the body
+    const data = requestBody.data || requestBody;
     
     if (!data || !data.accountId || !data.accountName || !data.contact || !data.conversation) {
+      console.error('Missing required data:', JSON.stringify(data, null, 2));
       return new Response(
         JSON.stringify({ error: 'Missing required data' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -29,41 +34,68 @@ Deno.serve(async (req) => {
     const { inboxId, conversationId, displayId, labels } = data.conversation;
     
     console.log(`Processing contact ${contactName} with labels: ${labels}`);
+    console.log(`Looking for client with account_id: ${accountId}`);
     
-    // Modificamos a consulta para não buscar o perfil diretamente, apenas o cliente
-    const { data: clients, error: clientError } = await supabase
+    // First, try to query by account_id
+    const { data: clientsByAccountId, error: accountIdError } = await supabase
       .from('clients')
-      .select('*')
+      .select('*, profiles:created_by(*)')
       .eq('account_id', accountId)
       .limit(1);
     
-    if (clientError) {
-      console.error('Error fetching client:', clientError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to fetch client', details: clientError.message }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    console.log('Query by account_id results:', JSON.stringify(clientsByAccountId || [], null, 2));
+    console.log('Query by account_id error:', accountIdError?.message || 'No error');
+
+    // If not found by account_id, try by id
+    let clients = clientsByAccountId;
+    if (!clients || clients.length === 0) {
+      console.log(`No client found with account_id ${accountId}, trying with id...`);
+      const { data: clientsById, error: idError } = await supabase
+        .from('clients')
+        .select('*, profiles:created_by(*)')
+        .eq('id', accountId)
+        .limit(1);
+      
+      console.log('Query by id results:', JSON.stringify(clientsById || [], null, 2));
+      console.log('Query by id error:', idError?.message || 'No error');
+      
+      clients = clientsById;
     }
-    
-    if (clients.length === 0) {
+
+    // Final check if client was found
+    if (!clients || clients.length === 0) {
+      console.error(`No client found with account_id or id: ${accountId}`);
       return new Response(
-        JSON.stringify({ error: 'Client not found with provided account ID' }),
+        JSON.stringify({ 
+          error: 'Client not found with provided account ID',
+          checked: {
+            account_id: accountId,
+            id_fallback: accountId
+          }
+        }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
     
     const client = clients[0];
+    console.log('Found client:', JSON.stringify(client, null, 2));
     
-    // Buscamos separadamente o perfil do criador do cliente
-    const { data: creatorProfile, error: creatorError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', client.created_by)
-      .maybeSingle();
-    
-    if (creatorError) {
-      console.log('Error fetching creator profile:', creatorError);
-      // Continuamos mesmo com esse erro
+    // Get creator profile, either from joined data or separate query
+    let creatorProfile = client.profiles;
+    if (!creatorProfile) {
+      console.log(`Querying for creator profile with ID: ${client.created_by}`);
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', client.created_by)
+        .maybeSingle();
+      
+      if (profileError) {
+        console.log('Error fetching creator profile:', profileError);
+      } else {
+        creatorProfile = profileData;
+        console.log('Found creator profile:', JSON.stringify(creatorProfile, null, 2));
+      }
     }
     
     // Check if contact exists
@@ -142,16 +174,16 @@ Deno.serve(async (req) => {
       // Continue despite error
     }
     
-    // Usar o ID do criador do cliente como criador das tags
+    // Use the creator of the client as the creator of the tags
     let creatorId = null;
     
     if (creatorProfile && creatorProfile.id) {
       creatorId = creatorProfile.id;
-      console.log(`Usando o criador do cliente como criador das tags, ID: ${creatorId}, Nome: ${creatorProfile.account_name}`);
+      console.log(`Using client creator as tag creator, ID: ${creatorId}, Name: ${creatorProfile.account_name}`);
     } else {
-      console.log('Criador do cliente não encontrado, buscando um usuário válido alternativo...');
+      console.log('Client creator not found, searching for alternative user...');
       
-      // 1. Tentar buscar um admin
+      // Try to find an admin user
       const { data: adminUsers, error: adminError } = await supabase
         .from('profiles')
         .select('id')
@@ -160,11 +192,11 @@ Deno.serve(async (req) => {
       
       if (!adminError && adminUsers && adminUsers.length > 0) {
         creatorId = adminUsers[0].id;
-        console.log(`Usando usuário admin como criador alternativo, ID: ${creatorId}`);
+        console.log(`Using admin user as alternative creator, ID: ${creatorId}`);
       } else {
-        console.log('Nenhum usuário admin encontrado, buscando qualquer usuário válido...');
+        console.log('No admin user found, searching for any valid user...');
         
-        // 2. Se não encontrar admin, buscar qualquer usuário
+        // If no admin, get any user
         const { data: anyUser, error: anyUserError } = await supabase
           .from('profiles')
           .select('id')
@@ -172,18 +204,18 @@ Deno.serve(async (req) => {
         
         if (!anyUserError && anyUser && anyUser.length > 0) {
           creatorId = anyUser[0].id;
-          console.log(`Usando primeiro usuário encontrado como criador, ID: ${creatorId}`);
+          console.log(`Using first available user as creator, ID: ${creatorId}`);
         } else {
-          console.error('Nenhum usuário válido encontrado para usar como criador de tags!');
+          console.error('No valid user found for tag creator!');
         }
       }
     }
     
     if (!creatorId) {
-      console.error('Não foi possível encontrar um usuário válido para criar as tags.');
+      console.error('Could not find a valid user to create tags.');
       return new Response(
         JSON.stringify({ 
-          error: 'Não foi possível processar as tags, nenhum usuário válido encontrado.',
+          error: 'No valid user found for creating tags',
           partial_success: true,
           contact: {
             id: contactId.toString(),
@@ -195,16 +227,16 @@ Deno.serve(async (req) => {
       );
     }
     
-    // Adicionar tags para o contato e garantir que existam na tabela global de tags
+    // Add tags for the contact
     let addedTags = 0;
     let existingTagsCount = 0;
     let tagErrors = 0;
     
     for (const tag of tags) {
-      console.log(`Processando tag: ${tag}`);
+      console.log(`Processing tag: ${tag}`);
       
       try {
-        // 1. Inserir em contact_tags (relação contato-tag)
+        // Add relation between contact and tag
         const { error: insertTagError } = await supabase
           .from('contact_tags')
           .insert({
@@ -213,13 +245,13 @@ Deno.serve(async (req) => {
           });
         
         if (insertTagError && !insertTagError.message.includes('duplicate')) {
-          console.error(`Erro ao inserir tag ${tag} para o contato:`, insertTagError);
+          console.error(`Error adding tag ${tag} to contact:`, insertTagError);
           tagErrors++;
-          // Continue mesmo com erro
+          // Continue despite error
         }
         
-        // 2. Verificar se a tag existe na tabela global de tags
-        console.log(`Verificando se a tag "${tag}" já existe na tabela global`);
+        // Check if tag exists in global tags table
+        console.log(`Checking if tag "${tag}" exists in global tags table`);
         const { data: existingTag, error: checkTagError } = await supabase
           .from('tags')
           .select('name')
@@ -227,13 +259,13 @@ Deno.serve(async (req) => {
           .maybeSingle();
         
         if (checkTagError) {
-          console.error(`Erro ao verificar tag ${tag}:`, checkTagError);
+          console.error(`Error checking tag ${tag}:`, checkTagError);
           tagErrors++;
         }
         
-        // 3. Se a tag não existir, adicioná-la à tabela global usando o criador do cliente
+        // If tag doesn't exist, add it
         if (!existingTag) {
-          console.log(`Tag "${tag}" não encontrada na tabela global, adicionando...`);
+          console.log(`Tag "${tag}" not found in global table, adding...`);
           
           const { data: insertedTag, error: insertGlobalTagError } = await supabase
             .from('tags')
@@ -245,29 +277,29 @@ Deno.serve(async (req) => {
             .single();
           
           if (insertGlobalTagError) {
-            console.error(`Erro ao inserir tag global ${tag}:`, insertGlobalTagError);
+            console.error(`Error adding tag ${tag} to global table:`, insertGlobalTagError);
             tagErrors++;
           } else {
-            console.log(`Tag "${tag}" adicionada com sucesso à tabela global: ${JSON.stringify(insertedTag)}`);
+            console.log(`Tag "${tag}" added successfully to global table:`, JSON.stringify(insertedTag));
             addedTags++;
           }
         } else {
-          console.log(`Tag "${tag}" já existe na tabela global`);
+          console.log(`Tag "${tag}" already exists in global table`);
           existingTagsCount++;
         }
       } catch (tagError) {
-        console.error(`Erro não tratado ao processar a tag ${tag}:`, tagError);
+        console.error(`Unexpected error processing tag ${tag}:`, tagError);
         tagErrors++;
       }
     }
     
-    // Processar sequências que correspondam às tags deste contato
+    // Process matching sequences
     await processMatchingSequences(supabase, contactId.toString(), tags, client.id);
     
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: 'Contato processado com sucesso',
+        message: 'Contact processed successfully',
         stats: {
           tagsAdded: addedTags,
           existingTags: existingTagsCount,
@@ -275,6 +307,7 @@ Deno.serve(async (req) => {
         },
         client: {
           id: client.id,
+          account_id: client.account_id,
           accountName: client.account_name,
           creatorId: creatorId,
           creatorName: creatorProfile?.account_name || 'Desconhecido'
@@ -288,9 +321,9 @@ Deno.serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('Erro inesperado:', error);
+    console.error('Unexpected error:', error);
     return new Response(
-      JSON.stringify({ error: 'Erro interno do servidor', details: error.message }),
+      JSON.stringify({ error: 'Internal server error', details: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

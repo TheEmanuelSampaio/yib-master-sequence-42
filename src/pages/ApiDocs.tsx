@@ -1,3 +1,4 @@
+
 import { ApiTester } from "@/components/api/ApiTester";
 
 const ApiDocs = () => {
@@ -38,20 +39,46 @@ const ApiDocs = () => {
                 <h4 className="text-sm font-medium mb-1">Payload</h4>
                 <pre className="text-sm font-mono whitespace-pre-wrap">
 {`{
-  "data": {
-    "accountId": 1,
+  // Pode ser enviado diretamente ou aninhado em um objeto data
+  "accountId": 1,
+  "accountName": "Nome da Conta",
+  "contact": {
+    "id": 12345,
+    "name": "Nome do Contato",
+    "phoneNumber": "+5511999999999"
+  },
+  "conversation": {
+    "inboxId": 46,
+    "conversationId": 23266,
+    "displayId": 1608,
+    "labels": "tag1, tag2, tag3"
+  }
+}`}
+                </pre>
+              </div>
+              
+              <div className="bg-secondary/50 p-4 rounded-md">
+                <h4 className="text-sm font-medium mb-1">Resposta</h4>
+                <pre className="text-sm font-mono whitespace-pre-wrap">
+{`{
+  "success": true,
+  "message": "Contato processado com sucesso",
+  "stats": {
+    "tagsAdded": 2,
+    "existingTags": 1,
+    "tagErrors": 0
+  },
+  "client": {
+    "id": "uuid-do-cliente",
+    "account_id": 1,
     "accountName": "Nome da Conta",
-    "contact": {
-      "id": 12345,
-      "name": "Nome do Contato",
-      "phoneNumber": "+5511999999999"
-    },
-    "conversation": {
-      "inboxId": 46,
-      "conversationId": 23266,
-      "displayId": 1608,
-      "labels": "tag1, tag2, tag3"
-    }
+    "creatorId": "uuid-do-criador",
+    "creatorName": "Nome do Criador"
+  },
+  "contact": {
+    "id": "12345",
+    "name": "Nome do Contato",
+    "tags": ["tag1", "tag2", "tag3"]
   }
 }`}
                 </pre>
