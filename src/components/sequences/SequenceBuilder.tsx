@@ -14,7 +14,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/context/AppContext";
-import { Sequence, SequenceStage, Condition, TimeRestriction } from "@/types";
+import { Sequence, SequenceStage, TagCondition, TimeRestriction } from "@/types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RestrictionItem } from "./RestrictionItem";
 import { StageItem } from "./StageItem";
@@ -26,7 +26,7 @@ import { isValidUUID } from "@/integrations/supabase/client";
 
 interface SequenceBuilderProps {
   sequence?: Sequence;
-  onSave: (sequence: Omit<Sequence, "id" | "created_at" | "updated_at">) => void;
+  onSave: (sequence: Omit<Sequence, "id" | "createdAt" | "updatedAt">) => void;
   onCancel: () => void;
   onChangesMade?: () => void;
 }
@@ -35,10 +35,10 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
   const { tags, currentInstance, timeRestrictions: globalTimeRestrictions, addTag } = useApp();
   
   const [name, setName] = useState(sequence?.name || "");
-  const [startCondition, setStartCondition] = useState<Condition>(
+  const [startCondition, setStartCondition] = useState<TagCondition>(
     sequence?.startCondition || { type: "AND", tags: [] }
   );
-  const [stopCondition, setStopCondition] = useState<Condition>(
+  const [stopCondition, setStopCondition] = useState<TagCondition>(
     sequence?.stopCondition || { type: "OR", tags: [] }
   );
   const [stages, setStages] = useState<SequenceStage[]>(
@@ -47,7 +47,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
   const [timeRestrictions, setTimeRestrictions] = useState<TimeRestriction[]>(
     sequence?.timeRestrictions || []
   );
-  const [status, setStatus] = useState(
+  const [status, setStatus] = useState<"active" | "inactive">(
     sequence?.status || "active"
   );
   
@@ -59,11 +59,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
     type: "message",
     content: "",
     delay: 60,
-    delay_unit: "minutes",
-    sequence_id: "",
-    order_index: 0,
-    created_at: "",
-    typebot_stage: ""
+    delayUnit: "minutes",
   });
   
   const [newRestriction, setNewRestriction] = useState<Omit<TimeRestriction, "id">>({
@@ -74,7 +70,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
     startMinute: 0,
     endHour: 8,
     endMinute: 0,
-    isGlobal: false, // By default, new restrictions are local
+    isGlobal: false, // Por padrão, novas restrições são locais
   });
 
   const [showTagDialog, setShowTagDialog] = useState(false);
@@ -86,7 +82,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
   // Define dayNames for use throughout the component
   const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
   
-  // Filter available global restrictions (which are not already added to the sequence)
+  // Filtra restrições globais disponíveis (que não estão já adicionadas à sequência)
   const availableGlobalRestrictions = globalTimeRestrictions.filter(
     gr => !timeRestrictions.some(tr => tr.id === gr.id && tr.isGlobal)
   );
@@ -175,11 +171,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         type: "message",
         content: "",
         delay: 60,
-        delay_unit: "minutes",
-        sequence_id: "",
-        order_index: 0,
-        created_at: "",
-        typebot_stage: ""
+        delayUnit: "minutes",
       });
     } catch (error) {
       console.error("Erro ao adicionar estágio:", error);
@@ -277,7 +269,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
       const restriction: TimeRestriction = {
         ...newRestriction,
         id: uuidv4(),
-        isGlobal: false, // Always mark as local restriction
+        isGlobal: false, // Sempre marca como restrição local
       };
       
       setTimeRestrictions([...timeRestrictions, restriction]);
@@ -303,7 +295,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
 
   const addGlobalRestriction = (restriction: TimeRestriction) => {
     try {
-      // Check if already exists in the list
+      // Verifica se já não existe na lista
       if (timeRestrictions.some(r => r.id === restriction.id)) return;
       
       if (!restriction.id || !isValidUUID(restriction.id)) {
@@ -338,7 +330,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
 
   const updateLocalRestriction = (updatedRestriction: TimeRestriction) => {
     try {
-      // Only allows updating local restrictions
+      // Apenas permite atualizar restrições locais
       if (updatedRestriction.isGlobal) return;
       
       if (!updatedRestriction.id || !isValidUUID(updatedRestriction.id)) {
@@ -379,26 +371,21 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         return;
       }
       
-      // Validate instanceId
+      // Validar a instanceId
       if (!isValidUUID(currentInstance.id)) {
         console.error("ID de instância inválido:", currentInstance.id);
         toast.error("ID de instância inválido");
         return;
       }
       
-      const newSequence: Omit<Sequence, "id" | "created_at" | "updated_at"> = {
+      const newSequence: Omit<Sequence, "id" | "createdAt" | "updatedAt"> = {
         name,
-        instance_id: currentInstance.id,
+        instanceId: currentInstance.id,
         startCondition,
         stopCondition,
-        start_condition_type: startCondition.type,
-        start_condition_tags: startCondition.tags,
-        stop_condition_type: stopCondition.type,
-        stop_condition_tags: stopCondition.tags,
         stages,
         timeRestrictions,
         status,
-        created_by: '',  // Will be filled by backend
       };
       
       console.log("Dados da sequência sendo enviados:", JSON.stringify(newSequence, null, 2));
@@ -845,10 +832,10 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
                             <div className="space-y-2">
                               <Label htmlFor="typebot-stage">Estágio do Typebot</Label>
                               <Select
-                                value={newStage.typebot_stage || "stg1"}
+                                value={newStage.typebotStage || "stg1"}
                                 onValueChange={(value) => setNewStage({
                                   ...newStage,
-                                  typebot_stage: value
+                                  typebotStage: value
                                 })}
                               >
                                 <SelectTrigger id="typebot-stage">
@@ -896,10 +883,10 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
                         <div className="space-y-2">
                           <Label htmlFor="stage-delay-unit">Unidade</Label>
                           <Select
-                            value={newStage.delay_unit}
+                            value={newStage.delayUnit}
                             onValueChange={(value) => setNewStage({ 
                               ...newStage, 
-                              delay_unit: value as "minutes" | "hours" | "days" 
+                              delayUnit: value as "minutes" | "hours" | "days" 
                             })}
                           >
                             <SelectTrigger id="stage-delay-unit">

@@ -19,7 +19,7 @@ export function SequenceOverview() {
 
   // Filter sequences for current instance
   const instanceSequences = currentInstance && sequences ? 
-    sequences.filter(seq => seq.instance_id === currentInstance.id) : 
+    sequences.filter(seq => seq.instanceId === currentInstance.id) : 
     [];
 
   const activeSequences = instanceSequences.filter(seq => seq.status === 'active');

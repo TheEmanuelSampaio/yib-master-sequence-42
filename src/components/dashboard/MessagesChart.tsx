@@ -31,9 +31,9 @@ export function MessagesChart() {
     
     return {
       date: formattedDate,
-      agendadas: stat.messages_scheduled,
-      enviadas: stat.messages_sent,
-      falhas: stat.messages_failed,
+      agendadas: stat.messagesScheduled,
+      enviadas: stat.messagesSent,
+      falhas: stat.messagesFailed,
     };
   });
 

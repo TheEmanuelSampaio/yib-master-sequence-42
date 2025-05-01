@@ -116,10 +116,10 @@ export function StageItem({
               <div className="space-y-2">
                 <Label htmlFor="edit-typebot-stage">Estágio do Typebot</Label>
                 <Select
-                  value={localStage.typebot_stage || "stg1"}
+                  value={localStage.typebotStage || "stg1"}
                   onValueChange={(value) => setLocalStage({
                     ...localStage,
-                    typebot_stage: value
+                    typebotStage: value
                   })}
                 >
                   <SelectTrigger id="edit-typebot-stage">
@@ -162,10 +162,10 @@ export function StageItem({
           <div className="space-y-2">
             <Label htmlFor="edit-stage-delay-unit">Unidade</Label>
             <Select
-              value={localStage.delay_unit}
+              value={localStage.delayUnit}
               onValueChange={(value) => setLocalStage({
                 ...localStage,
-                delay_unit: value as "minutes" | "hours" | "days"
+                delayUnit: value as "minutes" | "hours" | "days"
               })}
             >
               <SelectTrigger id="edit-stage-delay-unit">
@@ -204,15 +204,15 @@ export function StageItem({
             >
               {getStageIcon(stage.type)}
               <span className="ml-1 capitalize">{stage.type}</span>
-              {stage.type === "typebot" && stage.typebot_stage && (
-                <span className="ml-1">({stage.typebot_stage})</span>
+              {stage.type === "typebot" && stage.typebotStage && (
+                <span className="ml-1">({stage.typebotStage})</span>
               )}
             </Badge>
           </h3>
           <p className="text-sm text-muted-foreground">
             Enviar após {stage.delay} {
-              stage.delay_unit === "minutes" ? "minutos" :
-              stage.delay_unit === "hours" ? "horas" : "dias"
+              stage.delayUnit === "minutes" ? "minutos" :
+              stage.delayUnit === "hours" ? "horas" : "dias"
             }
           </p>
         </div>

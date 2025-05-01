@@ -4,8 +4,8 @@ import { useAuth } from "@/context/AuthContext";
 import { useEffect } from "react";
 
 /**
- * This component is for debugging purposes only.
- * It displays information about the current state of the context in the console.
+ * Este componente é apenas para fins de depuração.
+ * Ele mostra informações sobre o estado atual do contexto no console.
  */
 export function ContextDebugger() {
   const appContext = useApp();

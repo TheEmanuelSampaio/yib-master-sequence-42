@@ -12,11 +12,11 @@ export default function Dashboard() {
   
   // Calculate key metrics
   const activeSequenceCount = sequences.filter(
-    s => s.status === 'active' && s.instance_id === currentInstance?.id
+    s => s.status === 'active' && s.instanceId === currentInstance?.id
   ).length;
   
   const totalSequenceCount = sequences.filter(
-    s => s.instance_id === currentInstance?.id
+    s => s.instanceId === currentInstance?.id
   ).length;
   
   const contactCount = contacts.length;
@@ -24,16 +24,16 @@ export default function Dashboard() {
   // Get today's stats
   const today = new Date().toISOString().split('T')[0];
   const todayStats = stats.find(s => s.date === today) || {
-    messages_sent: 0,
-    messages_scheduled: 0,
-    messages_failed: 0,
-    new_contacts: 0,
-    completed_sequences: 0,
+    messagesSent: 0,
+    messagesScheduled: 0,
+    messagesFailed: 0,
+    newContacts: 0,
+    completedSequences: 0,
   };
   
   // Calculate message success rate
-  const successRate = todayStats.messages_sent > 0 
-    ? Math.round((todayStats.messages_sent / (todayStats.messages_sent + todayStats.messages_failed)) * 100) 
+  const successRate = todayStats.messagesSent > 0 
+    ? Math.round((todayStats.messagesSent / (todayStats.messagesSent + todayStats.messagesFailed)) * 100) 
     : 0;
 
   return (
@@ -56,7 +56,7 @@ export default function Dashboard() {
           title="Contatos"
           value={contactCount}
           icon={Users}
-          description={`${todayStats.new_contacts} novos hoje`}
+          description={`${todayStats.newContacts} novos hoje`}
           trend={{
             value: 8,
             positive: true
@@ -64,9 +64,9 @@ export default function Dashboard() {
         />
         <StatsCard
           title="Mensagens Hoje"
-          value={todayStats.messages_sent}
+          value={todayStats.messagesSent}
           icon={MessageSquare}
-          description={`${todayStats.messages_scheduled} agendadas`}
+          description={`${todayStats.messagesScheduled} agendadas`}
           trend={{
             value: 12,
             positive: true
@@ -76,7 +76,7 @@ export default function Dashboard() {
           title="Taxa de Sucesso"
           value={`${successRate}%`}
           icon={CheckCheck}
-          description={`${todayStats.messages_failed} falhas hoje`}
+          description={`${todayStats.messagesFailed} falhas hoje`}
           trend={{
             value: 4,
             positive: successRate >= 95

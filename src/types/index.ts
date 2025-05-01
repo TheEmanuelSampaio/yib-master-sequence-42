@@ -1,41 +1,69 @@
-
-import { Database } from "@/integrations/supabase/types";
-
-export type User = Database['public']['Tables']['profiles']['Row'] & {
-  accountName?: string;
-  email?: string;
-};
-
-export type DailyStats = {
-  messages_sent: number;
-  messages_scheduled: number;
-  messages_failed: number;
-  new_contacts: number;
-  completed_sequences: number;
-  date: string;
+// User related types
+export interface User {
   id: string;
-  instance_id?: string;
-  // Camel case aliases for frontend
-  messagesSent?: number;
-  messagesScheduled?: number;
-  messagesFailed?: number;
-  newContacts?: number;
-  completedSequences?: number;
-  instanceId?: string;
-};
+  accountName: string;
+  email: string;
+  role: 'super_admin' | 'admin';
+  avatar?: string;
+}
 
-export type Contact = Database['public']['Tables']['contacts']['Row'] & {
+export interface Client {
+  id: string;
+  accountId: number;
+  accountName: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  creator?: {
+    id: string;
+    account_name: string;
+  };
+  creator_account_name?: string;
+}
+
+export interface Instance {
+  id: string;
+  name: string;
+  evolutionApiUrl: string;
+  apiKey: string;
+  active: boolean;
+  clientId: string;
+  client?: Client;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Sequence {
+  id: string;
+  instanceId: string;
+  name: string;
+  startCondition: TagCondition;
+  stopCondition: TagCondition;
+  stages: SequenceStage[];
+  timeRestrictions: TimeRestriction[];
+  status: "active" | "inactive";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TagCondition {
+  type: "AND" | "OR";
   tags: string[];
-  // Camel case aliases for frontend
-  phoneNumber?: string;
-};
+}
 
-export type Instance = Database['public']['Tables']['instances']['Row'] & {
-  // Camel case aliases for frontend
-  evolutionApiUrl?: string;
-};
+export interface SequenceStage {
+  id: string;
+  name: string;
+  type: "message" | "pattern" | "typebot";
+  content: string;
+  typebotStage?: string;
+  delay: number;
+  delayUnit: "minutes" | "hours" | "days";
+  orderIndex?: number;
+}
 
-export type TimeRestriction = {
+export interface TimeRestriction {
   id: string;
   name: string;
   active: boolean;
@@ -44,126 +72,248 @@ export type TimeRestriction = {
   startMinute: number;
   endHour: number;
   endMinute: number;
-  isGlobal: boolean;
-};
+  isGlobal: boolean; // Indica se é uma restrição global ou local
+}
 
-export type Condition = {
-  type: 'AND' | 'OR';
-  tags: string[];
-};
-
-export type TagCondition = Condition;
-
-export type SequenceStage = {
+export interface Contact {
   id: string;
   name: string;
-  type: 'message' | 'pattern' | 'typebot';
-  content: string;
-  delay: number;
-  delay_unit: string;
-  typebot_stage?: string;
-  sequence_id: string;
-  order_index: number;
-  created_at: string;
-  // Camel case aliases for frontend
-  delayUnit?: string;
-  typebotStage?: string;
-  sequenceId?: string;
-  orderIndex?: number;
-  createdAt?: string;
-};
+  phoneNumber: string;
+  clientId: string;
+  inboxId: number;
+  conversationId: number;
+  displayId: number;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+}
 
-export type Sequence = Database['public']['Tables']['sequences']['Row'] & {
-  stages: SequenceStage[];
-  startCondition: Condition;
-  stopCondition: Condition;
-  timeRestrictions?: TimeRestriction[];
-  // Camel case aliases
-  instanceId?: string;
-  createdAt?: string;
-  updatedAt?: string;
-  createdBy?: string;
-};
+export interface ScheduledMessage {
+  id: string;
+  contactId: string;
+  sequenceId: string;
+  stageId: string;
+  scheduledTime: string;
+  scheduledAt: string;
+  sentAt?: string;
+  status: "pending" | "processing" | "sent" | "failed" | "persistent_error";
+  attempts?: number;
+}
 
-export type StageProgress = Database['public']['Tables']['stage_progress']['Row'] & {
-  // Camel case aliases
-  stageId?: string;
-  contactSequenceId?: string;
-  completedAt?: string;
-};
-
-export type ContactSequence = Database['public']['Tables']['contact_sequences']['Row'] & {
-  sequence?: Sequence;
-  contact?: Contact;
-  stageProgress?: StageProgress[];
-  // Camel case aliases
-  contactId?: string;
-  sequenceId?: string;
+export interface ContactSequence {
+  id: string;
+  contactId: string;
+  sequenceId: string;
+  currentStageIndex: number;
   currentStageId?: string;
-  currentStageIndex?: number;
-  startedAt?: string;
+  status: "active" | "completed" | "paused" | "removed";
+  startedAt: string;
   lastMessageAt?: string;
   completedAt?: string;
   removedAt?: string;
-};
-
-export interface AuthContextType {
-  session: any;
-  user: User | null;
-  signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, userData: any) => Promise<void>;
-  signOut: () => Promise<void>;
-  loading: boolean;
-  error: string | null;
-  clearError: () => void;
-  isSignedIn: boolean;
-  setupCompleted?: boolean | null;
-  logout?: () => Promise<void>;
-  isSuper?: boolean;
+  stageProgress?: StageProgress[];
 }
 
-export type AppContextType = {
-  user: any;
-  session: any;
-  profile: any;
-  loading: boolean;
-  instances: Instance[];
-  sequences: Sequence[];
-  contacts: Contact[];
-  contactSequences: ContactSequence[];
-  currentInstance: Instance | null;
-  isDataInitialized: boolean;
-  isSuperAdmin: boolean;
-  stats: DailyStats[];
-  tags: string[];
-  timeRestrictions: TimeRestriction[];
-  
-  // Actions and setters
-  setLoading: (loading: boolean) => void;
-  refreshData: () => Promise<void>;
-  fetchInstances: () => Promise<void>;
-  addInstance: (instance: Omit<Instance, "id" | "created_at" | "updated_at">) => Promise<void>;
-  updateInstance: (id: string, updates: any) => Promise<void>;
-  deleteInstance: (id: string) => Promise<void>;
-  addSequence: (sequence: Omit<Sequence, "id" | "created_at" | "updated_at">) => Promise<void>;
-  updateSequence: (id: string, data: Partial<Sequence>) => Promise<{success: boolean}>;
-  deleteSequence: (id: string) => Promise<void>;
-  deleteContact: (contactId: string) => Promise<void>;
-  updateContact: (contactId: string, data: Partial<Omit<Contact, "id">>) => Promise<void>;
-  addTag: (tag: string) => void;
-  setCurrentInstance: (instance: Instance) => void;
+export interface StageProgress {
+  stageId: string;
+  status: "pending" | "completed" | "skipped";
+  completedAt?: string;
+}
 
-  // Temporary placeholders for read-only components
-  clients?: any[];
-  addClient?: (client: any) => Promise<void>;
-  updateClient?: (id: string, updates: any) => Promise<void>;
-  deleteClient?: (id: string) => Promise<void>;
-  deleteTag?: (tagId: string) => Promise<void>;
-  addTimeRestriction?: (restriction: any) => Promise<void>;
-  updateTimeRestriction?: (id: string, updates: any) => Promise<void>; 
-  deleteTimeRestriction?: (id: string) => Promise<void>;
-  users?: any[];
-  addUser?: (user: any) => Promise<void>;
-  updateUser?: (id: string, updates: any) => Promise<void>;
-  deleteUser?: (id: string) => Promise<void>;
-};
+export interface DailyStats {
+  date: string;
+  instanceId: string;
+  messagesScheduled: number;
+  messagesSent: number;
+  messagesFailed: number;
+  newContacts: number;
+  completedSequences: number;
+}
+
+export interface StageProgressStatus {
+  id: string;
+  sequenceId: string;
+  stageId: string;
+  contactsReached: number;
+  contactsResponded: number;
+  clicksCount: number;
+}
+
+export interface AppSetup {
+  id: string;
+  setupCompleted: boolean;
+  setupCompletedAt?: string;
+}
+
+// API Payload types
+export interface TagChangePayload {
+  data: {
+    accountId: number;
+    accountName: string;
+    contact: {
+      id: number | string;
+      name: string;
+      phoneNumber: string;
+    };
+    conversation: {
+      inboxId: number;
+      conversationId: number;
+      displayId: number;
+      labels: string;
+    }
+  }
+}
+
+export interface PendingMessagesResponse {
+  id: string;
+  chatwootData: {
+    accountData: {
+      accountId: number;
+      accountName: string;
+    };
+    contactData: {
+      id: number | string;
+      name: string;
+      phoneNumber: string;
+    };
+    conversation: {
+      inboxId: number;
+      conversationId: number;
+      displayId: number;
+      labels: string;
+    };
+  };
+  instanceData: {
+    id: string;
+    name: string;
+    evolutionApiUrl: string;
+    apiKey: string;
+  };
+  sequenceData: {
+    instanceName: string;
+    sequenceName: string;
+    type: "message" | "pattern" | "typebot";
+    stage: {
+      [key: string]: {
+        id: string;
+        content: string;
+        rawScheduledTime: string;
+        scheduledTime: string;
+      }
+    }
+  };
+}
+
+export interface DeliveryStatusPayload {
+  messageId: string;
+  status: "success" | "failed";
+  attempts?: number;
+}
+
+export interface Database {
+  public: {
+    Tables: {
+      profiles: {
+        Row: {
+          id: string;
+          account_name: string;
+          role: "super_admin" | "admin";
+          created_at: string;
+        };
+        Insert: {
+          id: string;
+          account_name: string;
+          role?: "super_admin" | "admin";
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          account_name?: string;
+          role?: "super_admin" | "admin";
+          created_at?: string;
+        };
+      };
+      clients: {
+        Row: {
+          id: string;
+          account_id: number;
+          account_name: string;
+          created_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          account_id: number;
+          account_name: string;
+          created_by: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          account_id?: number;
+          account_name?: string;
+          created_by?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      instances: {
+        Row: {
+          id: string;
+          name: string;
+          evolution_api_url: string;
+          api_key: string;
+          active: boolean;
+          client_id: string;
+          created_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          evolution_api_url: string;
+          api_key: string;
+          active?: boolean;
+          client_id: string;
+          created_by: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          evolution_api_url?: string;
+          api_key?: string;
+          active?: boolean;
+          client_id?: string;
+          created_by?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      app_setup: {
+        Row: {
+          id: string;
+          setup_completed: boolean;
+          setup_completed_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          setup_completed?: boolean;
+          setup_completed_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          setup_completed?: boolean;
+          setup_completed_at?: string | null;
+          created_at?: string;
+        };
+      };
+    };
+  };
+}
