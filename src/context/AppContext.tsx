@@ -40,7 +40,7 @@ const AppContext = createContext<AppContextType>({
   updateContact: async () => ({ success: false }),
   deleteContact: async () => ({ success: false }),
   addTag: async () => ({ success: false }),
-  deleteTag: async () => ({ success: false }), // Added the missing deleteTag function
+  deleteTag: async () => ({ success: false }),
 });
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
@@ -974,3 +974,106 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   
   // Add the deleteTag function implementation
   const deleteTag = async (name: string) => {
+    try {
+      // First, check for any sequences using this tag
+      const { data: startTags, error: startError } = await supabase
+        .from('sequences')
+        .select('id, name, start_condition_tags')
+        .contains('start_condition_tags', [name]);
+        
+      if (startError) throw startError;
+      
+      const { data: stopTags, error: stopError } = await supabase
+        .from('sequences')
+        .select('id, name, stop_condition_tags')
+        .contains('stop_condition_tags', [name]);
+        
+      if (stopError) throw stopError;
+      
+      // If tag is in use by any sequence, warn the user
+      if ((startTags && startTags.length > 0) || (stopTags && stopTags.length > 0)) {
+        const sequenceNames: string[] = [];
+        
+        startTags?.forEach(seq => {
+          if (!sequenceNames.includes(seq.name)) {
+            sequenceNames.push(seq.name);
+          }
+        });
+        
+        stopTags?.forEach(seq => {
+          if (!sequenceNames.includes(seq.name)) {
+            sequenceNames.push(seq.name);
+          }
+        });
+        
+        toast.error(`Tag '${name}' está sendo usada em ${sequenceNames.length} sequências e não pode ser excluída.`);
+        return { success: false, error: 'Tag in use' };
+      }
+      
+      // Delete from contact_tags
+      const { error: contactTagError } = await supabase
+        .from('contact_tags')
+        .delete()
+        .eq('tag_name', name);
+        
+      if (contactTagError) throw contactTagError;
+      
+      // Delete from tags
+      const { error: tagError } = await supabase
+        .from('tags')
+        .delete()
+        .eq('name', name);
+        
+      if (tagError) throw tagError;
+
+      // Update the tags state
+      setTags(tags.filter(t => t.name !== name));
+      
+      return { success: true };
+    } catch (error) {
+      console.error("Error deleting tag:", error);
+      toast.error(`Erro ao excluir tag: ${(error as Error).message}`);
+      return { success: false, error };
+    }
+  };
+  
+  const value = {
+    currentInstance,
+    instances,
+    sequences,
+    contacts,
+    contactSequences,
+    timeRestrictions,
+    scheduledMessages,
+    tags,
+    stats,
+    isDataInitialized,
+    setCurrentInstance,
+    refreshData,
+    addInstance,
+    updateInstance,
+    deleteInstance,
+    addSequence,
+    updateSequence,
+    deleteSequence,
+    addContact,
+    updateContact,
+    deleteContact,
+    addTag,
+    deleteTag,
+  };
+  
+  return (
+    <AppContext.Provider value={value}>
+      {children}
+    </AppContext.Provider>
+  );
+};
+
+export const useApp = () => {
+  const context = useContext(AppContext);
+  if (context === undefined) {
+    throw new Error('useApp must be used within an AppProvider');
+  }
+  return context;
+};
