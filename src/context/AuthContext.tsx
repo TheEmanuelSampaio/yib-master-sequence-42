@@ -2,21 +2,9 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { User } from "@/types";
+import { User, AuthContextType } from "@/types";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-
-interface AuthContextType {
-  session: Session | null;
-  user: User | null;
-  signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, userData: any) => Promise<void>;
-  signOut: () => Promise<void>;
-  loading: boolean;
-  error: string | null;
-  clearError: () => void;
-  isSignedIn: boolean;
-}
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -38,6 +26,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSignedIn, setIsSignedIn] = useState(false);
+  const [setupCompleted, setSetupCompleted] = useState<boolean | null>(null);
+  const [isSuper, setIsSuper] = useState<boolean>(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -56,7 +46,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             .maybeSingle();
 
           if (userError) throw userError;
-          setUser(userData);
+          
+          // Set user with camelCase property conversion
+          if (userData) {
+            setUser({
+              ...userData,
+              accountName: userData.account_name
+            });
+          }
+
+          // Check if user is super admin
+          const { data: isAdmin, error: adminError } = await supabase.rpc('is_super_admin');
+          if (!adminError) {
+            setIsSuper(isAdmin === true);
+          }
+          
+          // Fetch setup status
+          const { data: setupData } = await supabase
+            .from('app_setup')
+            .select('setup_completed')
+            .single();
+            
+          setSetupCompleted(setupData?.setup_completed ?? false);
         }
       } catch (error) {
         console.error("Error fetching session:", error);
@@ -82,8 +93,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (userError) {
           console.error("Error fetching user data:", userError);
           setError(userError.message);
-        } else {
-          setUser(userData);
+        } else if (userData) {
+          setUser({
+            ...userData,
+            accountName: userData.account_name,
+            email: session.user.email
+          });
         }
       } else {
         setUser(null);
@@ -120,7 +135,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           .maybeSingle();
 
         if (userError) throw userError;
-        setUser(userData);
+        
+        if (userData) {
+          setUser({
+            ...userData,
+            accountName: userData.account_name,
+            email: data.user.email
+          });
+        }
       }
       
       toast.success("Login bem-sucedido!");
@@ -188,10 +210,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         signIn,
         signUp,
         signOut,
+        logout: signOut, // Alias for backward compatibility
         loading,
         error,
         clearError,
         isSignedIn,
+        setupCompleted,
+        isSuper
       }}
     >
       {children}

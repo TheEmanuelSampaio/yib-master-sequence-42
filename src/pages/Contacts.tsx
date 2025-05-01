@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useApp } from '@/context/AppContext';
 import { Search, User, Tag, CheckCircle2, Clock, AlertCircle, ChevronDown, MoreVertical, Trash, Pencil } from "lucide-react";
@@ -56,13 +55,13 @@ export default function Contacts() {
   
   // Helper function to get contact sequences
   const getContactSequences = (contactId: string) => {
-    return contactSequences.filter(seq => seq.contactId === contactId);
+    return contactSequences.filter(seq => seq.contact_id === contactId);
   };
   
   // Filter contacts based on search
   const filteredContacts = contacts.filter(contact =>
     contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    contact.phoneNumber.includes(searchQuery) ||
+    contact.phone_number.includes(searchQuery) ||
     contact.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()))
   );
   
@@ -94,7 +93,7 @@ export default function Contacts() {
     setSelectedContact(contact);
     setEditContactData({
       name: contact.name,
-      phoneNumber: contact.phoneNumber
+      phone_number: contact.phone_number
     });
     setShowEditDialog(true);
   };
@@ -105,7 +104,7 @@ export default function Contacts() {
     
     updateContact(selectedContact.id, {
       name: editContactData.name,
-      phoneNumber: editContactData.phoneNumber
+      phone_number: editContactData.phoneNumber
     });
     
     setShowEditDialog(false);
@@ -204,7 +203,7 @@ export default function Contacts() {
                       return (
                         <TableRow key={contact.id}>
                           <TableCell className="font-medium">{contact.name}</TableCell>
-                          <TableCell>{contact.phoneNumber}</TableCell>
+                          <TableCell>{contact.phone_number}</TableCell>
                           <TableCell>
                             <div className="flex flex-wrap gap-1">
                               {contact.tags.map(tag => (
@@ -327,7 +326,7 @@ export default function Contacts() {
                       return (
                         <TableRow key={contact.id}>
                           <TableCell className="font-medium">{contact.name}</TableCell>
-                          <TableCell>{contact.phoneNumber}</TableCell>
+                          <TableCell>{contact.phone_number}</TableCell>
                           <TableCell>
                             <div className="flex flex-wrap gap-1">
                               {contact.tags.map(tag => (
@@ -491,7 +490,7 @@ export default function Contacts() {
                   {getContactSequences(selectedContact.id).length > 0 ? (
                     <div className="space-y-4">
                       {getContactSequences(selectedContact.id).map((contactSequence: ContactSequence) => {
-                        const sequence = sequences.find(s => s.id === contactSequence.sequenceId);
+                        const sequence = sequences.find(s => s.id === contactSequence.sequence_id);
                         if (!sequence) return null;
                         
                         return (
@@ -502,12 +501,12 @@ export default function Contacts() {
                                 {formatContactSequenceStatus(contactSequence.status)}
                               </div>
                               <CardDescription>
-                                Iniciada em {new Date(contactSequence.startedAt).toLocaleDateString('pt-BR')}
-                                {contactSequence.completedAt && (
-                                  <> • Concluída em {new Date(contactSequence.completedAt).toLocaleDateString('pt-BR')}</>
+                                Iniciada em {new Date(contactSequence.started_at).toLocaleDateString('pt-BR')}
+                                {contactSequence.completed_at && (
+                                  <> • Concluída em {new Date(contactSequence.completed_at).toLocaleDateString('pt-BR')}</>
                                 )}
-                                {contactSequence.removedAt && (
-                                  <> • Removida em {new Date(contactSequence.removedAt).toLocaleDateString('pt-BR')}</>
+                                {contactSequence.removed_at && (
+                                  <> • Removida em {new Date(contactSequence.removed_at).toLocaleDateString('pt-BR')}</>
                                 )}
                               </CardDescription>
                             </CardHeader>
@@ -517,7 +516,7 @@ export default function Contacts() {
                                 <div className="space-y-2">
                                   {sequence.stages.map((stage, index) => {
                                     const progress = contactSequence.stageProgress ? 
-                                      contactSequence.stageProgress.find(p => p.stageId === stage.id) : undefined;
+                                      contactSequence.stageProgress.find(p => p.stage_id === stage.id) : undefined;
                                     
                                     return (
                                       <div 
@@ -526,7 +525,7 @@ export default function Contacts() {
                                           "flex items-start space-x-3 p-2 rounded-md",
                                           progress?.status === "completed" && "bg-green-500/10",
                                           progress?.status === "skipped" && "bg-gray-500/10",
-                                          contactSequence.currentStageId === stage.id && "bg-blue-500/10 border border-blue-500/30"
+                                          contactSequence.current_stage_id === stage.id && "bg-blue-500/10 border border-blue-500/30"
                                         )}
                                       >
                                         <div className="mt-0.5">
@@ -534,7 +533,7 @@ export default function Contacts() {
                                             <CheckCircle2 className="h-5 w-5 text-green-500" />
                                           ) : progress?.status === "skipped" ? (
                                             <AlertCircle className="h-5 w-5 text-gray-500" />
-                                          ) : contactSequence.currentStageId === stage.id ? (
+                                          ) : contactSequence.current_stage_id === stage.id ? (
                                             <Clock className="h-5 w-5 text-blue-500" />
                                           ) : (
                                             <div className="h-5 w-5 rounded-full border border-muted flex items-center justify-center">
@@ -545,16 +544,16 @@ export default function Contacts() {
                                         <div className="flex-1">
                                           <div className="flex items-center">
                                             <h6 className="font-medium text-sm">{stage.name}</h6>
-                                            {contactSequence.currentStageId === stage.id && (
+                                            {contactSequence.current_stage_id === stage.id && (
                                               <Badge variant="outline" className="ml-2 bg-blue-500/10 text-blue-700 dark:text-blue-400 text-xs">
                                                 Atual
                                               </Badge>
                                             )}
                                           </div>
                                           <p className="text-xs text-muted-foreground mt-0.5">
-                                            {progress?.status === "completed" && progress.completedAt ? (
-                                              `Enviado em ${new Date(progress.completedAt).toLocaleString('pt-BR')}`
-                                            ) : contactSequence.currentStageId === stage.id ? (
+                                            {progress?.status === "completed" && progress.completed_at ? (
+                                              `Enviado em ${new Date(progress.completed_at).toLocaleString('pt-BR')}`
+                                            ) : contactSequence.current_stage_id === stage.id ? (
                                               "Aguardando envio"
                                             ) : (
                                               "Pendente"

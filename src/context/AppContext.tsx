@@ -3,7 +3,7 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { Database } from '@/integrations/supabase/types';
-import { AppContextType, Instance, Sequence, Contact, ContactSequence, TimeRestriction, Condition } from '@/types';
+import { AppContextType, Instance, Sequence, Contact, ContactSequence, TimeRestriction, Condition, SequenceStage } from '@/types';
 import { toast } from 'sonner';
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -236,12 +236,19 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
           type: seq.stop_condition_type as 'AND' | 'OR',
           tags: seq.stop_condition_tags || []
         };
+
+        // Transform stages to ensure type safety
+        const typedStages: SequenceStage[] = seq.stages ? seq.stages.map((stage: any) => ({
+          ...stage,
+          type: stage.type as "message" | "pattern" | "typebot",
+        })) : [];
         
         return {
           ...seq,
           startCondition,
           stopCondition,
-          timeRestrictions: [] // Initialize empty time restrictions
+          timeRestrictions: [],
+          stages: typedStages
         };
       });
       
@@ -435,17 +442,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       
       // In a real application, you would make an API call here
       toast.success(`Sequência "${sequence.name}" criada com sucesso`);
-      
-      // Example of a Supabase call (adapt as needed)
-      // const { data, error } = await supabase
-      //   .from('sequences')
-      //   .insert([sequence])
-      //   .select()
-      //   .single();
-      
-      // if (error) throw error;
     } catch (error) {
-      setLoading(false);
       console.error("Erro ao criar sequência:", error);
       toast.error(`Erro ao criar sequência: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
@@ -504,21 +501,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       ));
       
       // In production, implement backend update
-      
-      // In the version with backend, the sequence would be updated in the database
-      // const { error } = await supabase
-      //   .from("sequences")
-      //   .update({
-      //     ...data,
-      //     updated_at: new Date().toISOString()
-      //   })
-      //   .eq("id", id);
-      
-      // if (error) throw error;
-      
-      // Then it would be necessary to separately update the stages,
-      // removing obsolete ones and adding new ones
-      
       setLoading(false);
       return { success: true };
     } catch (error) {
@@ -538,14 +520,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       
       // In a real application, you would make an API call here
       toast.success(`Sequência excluída com sucesso`);
-      
-      // Example of a Supabase call (adapt as needed)
-      // const { error } = await supabase
-      //   .from('sequences')
-      //   .delete()
-      //   .eq('id', id);
-      
-      // if (error) throw error;
     } catch (error) {
       setLoading(false);
       console.error("Erro ao excluir sequência:", error);
@@ -563,14 +537,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       
       // In a real implementation, you would make an API call here
       toast.success(`Contato excluído com sucesso`);
-      
-      // Note: In a production environment, you would integrate this with the backend
-      // const { error } = await supabase
-      //  .from('contacts')
-      //  .delete()
-      //  .eq('id', contactId);
-      
-      // if (error) throw error;
     } catch (error) {
       console.error('Erro ao excluir contato:', error);
       toast.error(`Erro ao excluir contato: ${error instanceof Error ? error.message : String(error)}`);
@@ -587,14 +553,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       
       // In a real implementation, you would make an API call here
       toast.success(`Contato atualizado com sucesso`);
-      
-      // Note: In a production environment, you would integrate this with the backend
-      // const { error } = await supabase
-      //  .from('contacts')
-      //  .update(data)
-      //  .eq('id', contactId);
-      
-      // if (error) throw error;
     } catch (error) {
       console.error('Erro ao atualizar contato:', error);
       toast.error(`Erro ao atualizar contato: ${error instanceof Error ? error.message : String(error)}`);
@@ -619,15 +577,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         tags,
         timeRestrictions,
         setLoading,
-        setSession,
-        setUser,
-        setInstances,
-        setSequences,
-        setContacts,
-        setContactSequences,
-        setCurrentInstance,
-        setIsSuperAdmin,
         refreshData,
+        fetchInstances,
         addInstance,
         updateInstance,
         deleteInstance,
@@ -636,7 +587,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         deleteSequence,
         deleteContact,
         updateContact,
-        addTag
+        addTag,
+        setCurrentInstance
       }}
     >
       {children}

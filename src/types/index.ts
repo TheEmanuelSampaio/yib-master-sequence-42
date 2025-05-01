@@ -1,7 +1,10 @@
 
 import { Database } from "@/integrations/supabase/types";
 
-export type User = Database['public']['Tables']['profiles']['Row'];
+export type User = Database['public']['Tables']['profiles']['Row'] & {
+  accountName?: string;
+  email?: string;
+};
 
 export type DailyStats = {
   messages_sent: number;
@@ -12,13 +15,25 @@ export type DailyStats = {
   date: string;
   id: string;
   instance_id?: string;
+  // Camel case aliases for frontend
+  messagesSent?: number;
+  messagesScheduled?: number;
+  messagesFailed?: number;
+  newContacts?: number;
+  completedSequences?: number;
+  instanceId?: string;
 };
 
 export type Contact = Database['public']['Tables']['contacts']['Row'] & {
   tags: string[];
+  // Camel case aliases for frontend
+  phoneNumber?: string;
 };
 
-export type Instance = Database['public']['Tables']['instances']['Row'];
+export type Instance = Database['public']['Tables']['instances']['Row'] & {
+  // Camel case aliases for frontend
+  evolutionApiUrl?: string;
+};
 
 export type TimeRestriction = {
   id: string;
@@ -50,6 +65,12 @@ export type SequenceStage = {
   sequence_id: string;
   order_index: number;
   created_at: string;
+  // Camel case aliases for frontend
+  delayUnit?: string;
+  typebotStage?: string;
+  sequenceId?: string;
+  orderIndex?: number;
+  createdAt?: string;
 };
 
 export type Sequence = Database['public']['Tables']['sequences']['Row'] & {
@@ -57,15 +78,49 @@ export type Sequence = Database['public']['Tables']['sequences']['Row'] & {
   startCondition: Condition;
   stopCondition: Condition;
   timeRestrictions?: TimeRestriction[];
+  // Camel case aliases
+  instanceId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  createdBy?: string;
 };
 
-export type StageProgress = Database['public']['Tables']['stage_progress']['Row'];
+export type StageProgress = Database['public']['Tables']['stage_progress']['Row'] & {
+  // Camel case aliases
+  stageId?: string;
+  contactSequenceId?: string;
+  completedAt?: string;
+};
 
 export type ContactSequence = Database['public']['Tables']['contact_sequences']['Row'] & {
   sequence?: Sequence;
   contact?: Contact;
   stageProgress?: StageProgress[];
+  // Camel case aliases
+  contactId?: string;
+  sequenceId?: string;
+  currentStageId?: string;
+  currentStageIndex?: number;
+  startedAt?: string;
+  lastMessageAt?: string;
+  completedAt?: string;
+  removedAt?: string;
 };
+
+export interface AuthContextType {
+  session: any;
+  user: User | null;
+  signIn: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, userData: any) => Promise<void>;
+  signOut: () => Promise<void>;
+  loading: boolean;
+  error: string | null;
+  clearError: () => void;
+  isSignedIn: boolean;
+  setupCompleted?: boolean | null;
+  logout?: () => Promise<void>;
+  isSuper?: boolean;
+}
 
 export type AppContextType = {
   user: any;
@@ -96,4 +151,19 @@ export type AppContextType = {
   deleteContact: (contactId: string) => Promise<void>;
   updateContact: (contactId: string, data: Partial<Omit<Contact, "id">>) => Promise<void>;
   addTag: (tag: string) => void;
+  setCurrentInstance: (instance: Instance) => void;
+
+  // Temporary placeholders for read-only components
+  clients?: any[];
+  addClient?: (client: any) => Promise<void>;
+  updateClient?: (id: string, updates: any) => Promise<void>;
+  deleteClient?: (id: string) => Promise<void>;
+  deleteTag?: (tagId: string) => Promise<void>;
+  addTimeRestriction?: (restriction: any) => Promise<void>;
+  updateTimeRestriction?: (id: string, updates: any) => Promise<void>; 
+  deleteTimeRestriction?: (id: string) => Promise<void>;
+  users?: any[];
+  addUser?: (user: any) => Promise<void>;
+  updateUser?: (id: string, updates: any) => Promise<void>;
+  deleteUser?: (id: string) => Promise<void>;
 };

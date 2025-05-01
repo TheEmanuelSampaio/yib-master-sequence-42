@@ -1,9 +1,9 @@
 
-import { Contact, Instance, Sequence, User, DailyStats } from "@/types";
+import { Contact, Instance, Sequence, DailyStats } from "@/types";
 import { v4 as uuidv4 } from "uuid";
 
 // Mock User
-export const mockUser: User = {
+export const mockUser = {
   id: "1",
   created_at: new Date().toISOString(),
   account_name: "Master Sequence Testing",
