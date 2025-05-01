@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { PlusCircle, Clock, Trash2, ChevronDown, ChevronUp, MessageCircle, FileCode, Bot, X, Edit, Save, Lock } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,7 +13,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/context/AppContext";
-import { Sequence, SequenceStage, TagCondition, TimeRestriction } from "@/types";
+import { Sequence, SequenceStage, TagCondition, TimeRestriction, TagString } from "@/types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RestrictionItem } from "./RestrictionItem";
 import { StageItem } from "./StageItem";
@@ -94,7 +93,8 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
     }
   };
   
-  const addTagToCondition = (target: "start" | "stop", tag: string) => {
+  // This is the updated addTagToCondition function to fix the type issue
+  const addTagToCondition = (target: "start" | "stop", tag: TagString) => {
     if (!tag) return;
 
     // Save tag to the global tag list for reuse
@@ -123,7 +123,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
     setShowTagSelector(null);
   };
   
-  const removeTag = (target: "start" | "stop", tag: string) => {
+  const removeTag = (target: "start" | "stop", tag: TagString) => {
     if (target === "start") {
       setStartCondition({
         ...startCondition,
@@ -386,6 +386,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         stages,
         timeRestrictions,
         status,
+        createdBy: "system" // Adding the required createdBy property
       };
       
       console.log("Dados da sequência sendo enviados:", JSON.stringify(newSequence, null, 2));
@@ -449,7 +450,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
 
   const handleCancel = () => {
     if (hasBeenModified()) {
-      toast.warning("Atenção! Você tem alterações não salvas. Deseja mesmo sair?", {
+      toast.warning("Atenção! Você tem altera��ões não salvas. Deseja mesmo sair?", {
         action: {
           label: "Sim, sair",
           onClick: () => onCancel()

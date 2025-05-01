@@ -1,94 +1,100 @@
 
-import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useState } from "react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { Tag, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
-import { toast } from "sonner";
+import { TagString } from "@/types";
 
 export const TagsTab = () => {
   const { tags, addTag, deleteTag } = useApp();
-  const [newTagName, setNewTagName] = useState("");
-
+  
+  const [newTag, setNewTag] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  
   const handleAddTag = async () => {
-    if (!newTagName.trim()) {
-      toast.error("Digite o nome da tag");
-      return;
-    }
+    if (!newTag.trim()) return;
     
-    try {
-      await addTag(newTagName.trim());
-      setNewTagName("");
-      toast.success("Tag adicionada com sucesso");
-    } catch (error) {
-      console.error(error);
-      toast.error("Erro ao adicionar tag");
+    const { success, error } = await addTag(newTag.trim());
+    if (success) {
+      setNewTag('');
     }
   };
 
-  const handleDeleteTag = async (tagName: string) => {
-    try {
-      await deleteTag(tagName);
-      toast.success("Tag removida com sucesso");
-    } catch (error) {
-      console.error(error);
-      toast.error("Erro ao remover tag");
-    }
-  };
-
+  const filteredTags = tags.filter(tag => 
+    tag.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+  
   return (
     <Card className="mt-6">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <div>
-          <CardTitle>Tags</CardTitle>
-          <CardDescription>
-            Gerencie as tags usadas em sequências e contatos
-          </CardDescription>
-        </div>
-        <div className="flex space-x-2">
-          <div className="flex">
-            <Input
-              placeholder="Nome da tag"
-              value={newTagName}
-              onChange={(e) => setNewTagName(e.target.value)}
-              className="w-[200px]"
-            />
-            <Button 
-              className="ml-2" 
-              onClick={handleAddTag}
-              disabled={!newTagName.trim()}
-            >
-              <Tag className="h-4 w-4 mr-2" />
-              Adicionar
-            </Button>
-          </div>
-        </div>
+      <CardHeader>
+        <CardTitle>Gerenciamento de Tags</CardTitle>
+        <CardDescription>
+          Gerencie tags utilizadas pelo sistema para segmentação de contatos
+        </CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="flex flex-wrap gap-2">
-          {tags.map((tag) => (
-            <Badge key={tag} variant="secondary" className="px-3 py-1 text-sm">
-              <span className="mr-1">{tag}</span>
-              <button 
-                onClick={() => handleDeleteTag(tag)}
-                className="text-muted-foreground hover:text-red-500 transition-colors ml-1"
-              >
-                <Trash2 className="h-3 w-3" />
-              </button>
-            </Badge>
-          ))}
+      <CardContent className="space-y-6">
+        <div className="flex space-x-2">
+          <Input
+            placeholder="Nova tag..."
+            value={newTag}
+            onChange={(e) => setNewTag(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                handleAddTag();
+              }
+            }}
+          />
+          <Button onClick={handleAddTag}>
+            Adicionar
+          </Button>
+        </div>
+
+        <div>
+          <Input
+            placeholder="Pesquisar tags..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="mb-4"
+          />
           
-          {tags.length === 0 && (
-            <div className="w-full flex flex-col items-center justify-center py-8 bg-muted/30 rounded-lg">
-              <Tag className="h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium mb-2">Nenhuma tag cadastrada</h3>
-              <p className="text-center text-muted-foreground mb-4">
-                Adicione tags para usar em sequências e contatos
-              </p>
-            </div>
-          )}
+          <div className="flex flex-wrap gap-2">
+            {filteredTags.map((tag: TagString) => (
+              <Badge key={tag} variant="secondary" className="py-1.5 px-3 text-sm">
+                {tag}
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="ghost" size="sm" className="h-4 w-4 p-0 ml-2 text-destructive hover:text-destructive hover:bg-transparent">
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Excluir Tag</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Tem certeza que deseja excluir a tag "{tag}"? Esta ação não pode ser desfeita.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction 
+                        className="bg-destructive hover:bg-destructive/90"
+                        onClick={() => deleteTag && deleteTag(tag)}
+                      >
+                        Excluir
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </Badge>
+            ))}
+            {filteredTags.length === 0 && (
+              <p className="text-sm text-muted-foreground">Nenhuma tag encontrada</p>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>

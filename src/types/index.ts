@@ -1,4 +1,3 @@
-
 // User related types
 export interface User {
   id: string;
@@ -151,13 +150,15 @@ export interface AppSetup {
   setupCompletedAt?: string;
 }
 
-// New interface for Tag
+// Modified Tag interface to support both string and object type
 export interface Tag {
   id: string;
   name: string;
   createdBy: string;
   createdAt: string;
 }
+
+export type TagString = string;
 
 // New interface for Profile
 export interface Profile {
@@ -232,7 +233,7 @@ export interface DeliveryStatusPayload {
   attempts?: number;
 }
 
-// App Context Type
+// Update AppContextType to include missing properties
 export interface AppContextType {
   currentInstance: Instance | null;
   instances: Instance[];
@@ -241,7 +242,7 @@ export interface AppContextType {
   contactSequences: ContactSequence[];
   timeRestrictions: TimeRestriction[];
   scheduledMessages: ScheduledMessage[];
-  tags: Tag[];
+  tags: TagString[];
   stats: DailyStats[];
   isDataInitialized: boolean;
   setCurrentInstance: (instance: Instance | null) => void;
@@ -256,6 +257,20 @@ export interface AppContextType {
   updateContact: (id: string, data: Partial<Contact>) => Promise<{ success: boolean, error?: any }>;
   deleteContact: (id: string) => Promise<{ success: boolean, error?: any }>;
   addTag: (name: string) => Promise<{ success: boolean, error?: any }>;
+  deleteTag: (name: string) => Promise<{ success: boolean, error?: any }>;
+  
+  // Properties missing from AppContextType
+  clients?: any[];
+  users?: any[];
+  addClient?: (client: any) => Promise<any>;
+  updateClient?: (id: string, client: any) => Promise<any>;
+  deleteClient?: (id: string) => Promise<any>;
+  addUser?: (user: any) => Promise<any>;
+  updateUser?: (id: string, user: any) => Promise<any>;
+  deleteUser?: (id: string) => Promise<any>;
+  addTimeRestriction?: (restriction: any) => Promise<any>;
+  updateTimeRestriction?: (id: string, restriction: any) => Promise<any>;
+  deleteTimeRestriction?: (id: string) => Promise<any>;
 }
 
 export interface Database {

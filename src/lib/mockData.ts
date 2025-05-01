@@ -1,3 +1,4 @@
+
 import { Instance, Sequence, User, Contact, DailyStats, TimeRestriction, TagCondition } from '@/types';
 
 // User mock data
@@ -94,6 +95,7 @@ export const sequences: Sequence[] = [
       } as TimeRestriction
     ],
     status: "active",
+    createdBy: "user-1", // Added missing property
     createdAt: "2023-12-02T10:15:00Z",
     updatedAt: "2023-12-10T16:45:00Z"
   },
@@ -150,6 +152,7 @@ export const sequences: Sequence[] = [
       } as TimeRestriction
     ],
     status: "inactive",
+    createdBy: "user-1", // Added missing property
     createdAt: "2023-12-05T09:20:00Z",
     updatedAt: "2023-12-12T11:30:00Z"
   }
