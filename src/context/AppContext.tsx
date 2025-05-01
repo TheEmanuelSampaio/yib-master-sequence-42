@@ -14,7 +14,8 @@ import {
   Instance,
   Profile,
   AppContextType,
-  ScheduledMessage
+  ScheduledMessage,
+  TagCondition
 } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -138,7 +139,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         endHour: restriction.end_hour,
         endMinute: restriction.end_minute,
         createdBy: restriction.created_by,
-        createdAt: restriction.created_at
+        createdAt: restriction.created_at,
+        isGlobal: true // Default to true for global restrictions
       }));
 
       setTimeRestrictions(mappedTimeRestrictions);
@@ -186,14 +188,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       // Map the data to our frontend model
       const mappedSequences = sequencesData.map((sequence) => {
         // Process start condition
-        const startCondition = {
-          type: sequence.start_condition_type,
+        const startCondition: TagCondition = {
+          type: (sequence.start_condition_type as "AND" | "OR"), // Cast to ensure type safety
           tags: sequence.start_condition_tags || []
         };
         
         // Process stop condition
-        const stopCondition = {
-          type: sequence.stop_condition_type,
+        const stopCondition: TagCondition = {
+          type: (sequence.stop_condition_type as "AND" | "OR"), // Cast to ensure type safety
           tags: sequence.stop_condition_tags || []
         };
         
@@ -202,10 +204,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           id: stage.id,
           name: stage.name,
           content: stage.content,
-          type: stage.type,
+          type: (stage.type as "message" | "pattern" | "typebot"), // Cast to ensure type safety
           typebotStage: stage.typebot_stage,
           delay: stage.delay,
-          delayUnit: stage.delay_unit,
+          delayUnit: (stage.delay_unit as "minutes" | "hours" | "days"), // Cast to ensure type safety
           orderIndex: stage.order_index,
           sequenceId: stage.sequence_id,
           createdAt: stage.created_at,
@@ -221,7 +223,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           startCondition,
           stopCondition,
           stages,
-          status: sequence.status,
+          status: sequence.status as "active" | "inactive",
           createdBy: sequence.created_by,
           createdAt: sequence.created_at,
           updatedAt: sequence.updated_at,
@@ -321,12 +323,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         lastMessageAt: cs.last_message_at,
         completedAt: cs.completed_at,
         removedAt: cs.removed_at,
-        status: cs.status,
+        status: cs.status as "active" | "completed" | "paused" | "removed",
         stageProgress: cs.stage_progress.map(sp => ({
           id: sp.id,
           contactSequenceId: sp.contact_sequence_id,
           stageId: sp.stage_id,
-          status: sp.status,
+          status: sp.status as "pending" | "completed" | "skipped",
           completedAt: sp.completed_at
         }))
       }));
@@ -600,145 +602,148 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
       // Update stages if provided
       if (data.stages !== undefined) {
-        // Get existing stages to compare
-        const { data: existingStagesData, error: existingStagesError } = await supabase
-          .from('sequence_stages')
-          .select('*')
-          .eq('sequence_id', id)
-          .order('order_index');
-          
-        if (existingStagesError) throw existingStagesError;
-
-        const existingStages = existingStagesData || [];
-        const newStages = data.stages || [];
-
-        // FIX: Primeiro, recuperamos qualquer contato_sequences que esteja usando os estágios desta sequência
-        const { data: contactSeqData, error: contactSeqError } = await supabase
-          .from('contact_sequences')
-          .select('*')
-          .eq('sequence_id', id);
-
-        if (contactSeqError) throw contactSeqError;
-
-        // Se existem contatos usando esta sequência, não podemos simplesmente excluir os estágios
-        if (contactSeqData && contactSeqData.length > 0) {
-          // Mapa de ID antigo para novo ID para atualizar referências
-          const stageIdMap = new Map();
-
-          // 1. Criar novos estágios para preservar o histórico
-          for (let i = 0; i < newStages.length; i++) {
-            const stage = newStages[i];
+        try {
+          // Get existing stages to compare
+          const { data: existingStagesData, error: existingStagesError } = await supabase
+            .from('sequence_stages')
+            .select('*')
+            .eq('sequence_id', id)
+            .order('order_index');
             
-            // Se o estágio já existe e tem um ID
-            if (stage.id) {
-              // Para estágios existentes, apenas atualizamos os dados
-              const { error: updateStageError } = await supabase
-                .from('sequence_stages')
-                .update({
-                  name: stage.name,
-                  content: stage.content,
-                  type: stage.type,
-                  typebot_stage: stage.typebotStage,
-                  delay: stage.delay,
-                  delay_unit: stage.delayUnit,
-                  order_index: i
-                })
-                .eq('id', stage.id);
-                
-              if (updateStageError) throw updateStageError;
-            } else {
-              // Para novos estágios, inserimos
-              const { data: newStageData, error: newStageError } = await supabase
-                .from('sequence_stages')
-                .insert({
-                  name: stage.name,
-                  content: stage.content,
-                  type: stage.type,
-                  typebot_stage: stage.typebotStage,
-                  delay: stage.delay,
-                  delay_unit: stage.delayUnit,
-                  order_index: i,
-                  sequence_id: id
-                })
-                .select();
-                
-              if (newStageError) throw newStageError;
+          if (existingStagesError) throw existingStagesError;
+
+          const existingStages = existingStagesData || [];
+          const newStages = data.stages || [];
+
+          // Check if there are any contact sequences using this sequence's stages
+          const { data: contactSeqData, error: contactSeqError } = await supabase
+            .from('contact_sequences')
+            .select('*')
+            .eq('sequence_id', id);
+
+          if (contactSeqError) throw contactSeqError;
+
+          // If there are contacts using this sequence, handle carefully
+          if (contactSeqData && contactSeqData.length > 0) {
+            console.log("Sequence has contacts using it, updating carefully");
+            
+            // For each stage in the new list
+            for (let i = 0; i < newStages.length; i++) {
+              const stage = newStages[i];
               
-              if (newStageData && newStageData.length > 0) {
-                // Se for um novo estágio, não precisamos mapear
+              // If this is an existing stage with an ID
+              if (stage.id) {
+                // Just update it
+                const { error: updateStageError } = await supabase
+                  .from('sequence_stages')
+                  .update({
+                    name: stage.name,
+                    content: stage.content,
+                    type: stage.type,
+                    typebot_stage: stage.typebotStage,
+                    delay: stage.delay,
+                    delay_unit: stage.delayUnit,
+                    order_index: i
+                  })
+                  .eq('id', stage.id);
+                  
+                if (updateStageError) {
+                  console.error("Error updating stage:", updateStageError);
+                  throw updateStageError;
+                }
+              } else {
+                // This is a new stage, insert it
+                const { data: newStageData, error: newStageError } = await supabase
+                  .from('sequence_stages')
+                  .insert({
+                    name: stage.name,
+                    content: stage.content,
+                    type: stage.type,
+                    typebot_stage: stage.typebotStage,
+                    delay: stage.delay,
+                    delay_unit: stage.delayUnit,
+                    order_index: i,
+                    sequence_id: id
+                  })
+                  .select();
+                  
+                if (newStageError) {
+                  console.error("Error inserting new stage:", newStageError);
+                  throw newStageError;
+                }
               }
             }
-          }
-          
-          // 2. Removemos os estágios que não existem mais na lista nova,
-          // apenas se eles não estiverem sendo usados por nenhum contato
-          const newStageIds = newStages
-            .filter(s => s.id) // Filtra apenas estágios existentes com ID
-            .map(s => s.id);
             
-          const stagesToDelete = existingStages
-            .filter(s => !newStageIds.includes(s.id))
-            .map(s => s.id);
-            
-          if (stagesToDelete.length > 0) {
-            // Verificar quais estágios estão sendo usados
-            const { data: usedStages, error: usedStagesError } = await supabase
-              .from('contact_sequences')
-              .select('current_stage_id')
-              .in('current_stage_id', stagesToDelete);
+            // Now carefully handle deletion of stages that are no longer in the new list
+            const newStageIds = newStages
+              .filter(s => s.id)
+              .map(s => s.id as string);
               
-            if (usedStagesError) throw usedStagesError;
-            
-            const usedStageIds = usedStages ? usedStages.map(s => s.current_stage_id) : [];
-            
-            // Remover apenas estágios não usados
-            const safeToDeleteStageIds = stagesToDelete.filter(id => !usedStageIds.includes(id));
-            
-            if (safeToDeleteStageIds.length > 0) {
-              const { error: deleteStagesError } = await supabase
-                .from('sequence_stages')
-                .delete()
-                .in('id', safeToDeleteStageIds);
+            const stagesToDelete = existingStages
+              .filter(s => !newStageIds.includes(s.id))
+              .map(s => s.id);
+              
+            if (stagesToDelete.length > 0) {
+              // Check which stages are being used by any contact
+              const { data: usedStages, error: usedStagesError } = await supabase
+                .from('contact_sequences')
+                .select('current_stage_id')
+                .in('current_stage_id', stagesToDelete);
                 
-              if (deleteStagesError) throw deleteStagesError;
-            }
-            
-            // Desativar (não excluir) estágios que estão em uso
-            if (usedStageIds.length > 0) {
-              // Aqui podemos marcar esses estágios como obsoletos ou implementar outra lógica...
-              // Por enquanto, simplesmente não vamos apagá-los
-            }
-          }
-        } else {
-          // Se não há contatos usando esta sequência, podemos atualizar normalmente
-          
-          // 1. Delete all existing stages
-          const { error: deleteError } = await supabase
-            .from('sequence_stages')
-            .delete()
-            .eq('sequence_id', id);
-            
-          if (deleteError) throw deleteError;
-          
-          // 2. Insert all new stages
-          if (newStages.length > 0) {
-            const stagesToInsert = newStages.map((stage, index) => ({
-              name: stage.name,
-              content: stage.content,
-              type: stage.type,
-              typebot_stage: stage.typebotStage,
-              delay: stage.delay,
-              delay_unit: stage.delayUnit,
-              order_index: index,
-              sequence_id: id
-            }));
-
-            const { error: insertError } = await supabase
-              .from('sequence_stages')
-              .insert(stagesToInsert);
+              if (usedStagesError) throw usedStagesError;
               
-            if (insertError) throw insertError;
+              // Get the stage IDs that are currently in use
+              const usedStageIds = usedStages ? usedStages.map(s => s.current_stage_id) : [];
+              
+              // Only delete stages that are not in use
+              const safeToDeleteStageIds = stagesToDelete.filter(id => !usedStageIds.includes(id));
+              
+              if (safeToDeleteStageIds.length > 0) {
+                const { error: deleteStagesError } = await supabase
+                  .from('sequence_stages')
+                  .delete()
+                  .in('id', safeToDeleteStageIds);
+                  
+                if (deleteStagesError) {
+                  console.error("Error deleting stages:", deleteStagesError);
+                  throw deleteStagesError;
+                }
+              }
+            }
+          } else {
+            // No contacts using this sequence, we can safely update
+            
+            // Delete all existing stages
+            const { error: deleteError } = await supabase
+              .from('sequence_stages')
+              .delete()
+              .eq('sequence_id', id);
+              
+            if (deleteError) throw deleteError;
+            
+            // Insert all new stages
+            if (newStages.length > 0) {
+              const stagesToInsert = newStages.map((stage, index) => ({
+                name: stage.name,
+                content: stage.content,
+                type: stage.type,
+                typebot_stage: stage.typebotStage,
+                delay: stage.delay,
+                delay_unit: stage.delayUnit,
+                order_index: index,
+                sequence_id: id
+              }));
+
+              const { error: insertError } = await supabase
+                .from('sequence_stages')
+                .insert(stagesToInsert);
+                
+              if (insertError) throw insertError;
+            }
           }
+        } catch (error) {
+          console.error("Error updating stages:", error);
+          throw error;
         }
       }
       
@@ -775,7 +780,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       return { success: true };
     } catch (error) {
       console.error("Erro ao atualizar sequência:", error);
-      toast.error(`Erro ao atualizar sequéncia: ${error.message}`);
+      toast.error(`Erro ao atualizar sequéncia: ${(error as Error).message}`);
       return { success: false, error };
     }
   };
@@ -808,14 +813,18 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const addContact = async (contact: Omit<Contact, "id">) => {
+  const addContact = async (contact: Omit<Contact, "id" | "createdAt" | "updatedAt">) => {
     try {
       if (!currentInstance) throw new Error("Nenhuma instância selecionada");
+      
+      // Create the contact with a generated ID
+      const newContactId = uuidv4();
       
       // Create the contact
       const { data, error } = await supabase
         .from('contacts')
         .insert({
+          id: newContactId,
           name: contact.name,
           phone_number: contact.phoneNumber,
           client_id: currentInstance.id,
@@ -828,12 +837,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       if (error) throw error;
       if (!data || data.length === 0) throw new Error("Failed to create contact");
 
-      const contactId = data[0].id;
-      
       // Add tags if any
       if (contact.tags && contact.tags.length > 0) {
         const tagInserts = contact.tags.map(tag => ({
-          contact_id: contactId,
+          contact_id: newContactId,
           tag_name: tag
         }));
 
@@ -930,9 +937,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const addTag = async (name: string) => {
     try {
+      const session = await supabase.auth.getSession();
+      const userId = session.data?.session?.user.id;
+      
+      if (!userId) throw new Error("User not authenticated");
+      
       const { error } = await supabase.rpc('insert_tag_if_not_exists_for_user', {
         p_name: name,
-        p_created_by: supabase.auth.getSession().data.session.user.id
+        p_created_by: userId
       });
       
       if (error) throw error;

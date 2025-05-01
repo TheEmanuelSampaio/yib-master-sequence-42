@@ -1,3 +1,4 @@
+
 // User related types
 export interface User {
   id: string;
@@ -43,6 +44,7 @@ export interface Sequence {
   stages: SequenceStage[];
   timeRestrictions: TimeRestriction[];
   status: "active" | "inactive";
+  createdBy: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -61,6 +63,8 @@ export interface SequenceStage {
   delay: number;
   delayUnit: "minutes" | "hours" | "days";
   orderIndex?: number;
+  sequenceId?: string;
+  createdAt?: string;
 }
 
 export interface TimeRestriction {
@@ -73,6 +77,8 @@ export interface TimeRestriction {
   endHour: number;
   endMinute: number;
   isGlobal: boolean; // Indica se é uma restrição global ou local
+  createdBy?: string;
+  createdAt?: string;
 }
 
 export interface Contact {
@@ -145,6 +151,22 @@ export interface AppSetup {
   setupCompletedAt?: string;
 }
 
+// New interface for Tag
+export interface Tag {
+  id: string;
+  name: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+// New interface for Profile
+export interface Profile {
+  id: string;
+  accountName: string;
+  role: "super_admin" | "admin";
+  createdAt: string;
+}
+
 // API Payload types
 export interface TagChangePayload {
   data: {
@@ -208,6 +230,32 @@ export interface DeliveryStatusPayload {
   messageId: string;
   status: "success" | "failed";
   attempts?: number;
+}
+
+// App Context Type
+export interface AppContextType {
+  currentInstance: Instance | null;
+  instances: Instance[];
+  sequences: Sequence[];
+  contacts: Contact[];
+  contactSequences: ContactSequence[];
+  timeRestrictions: TimeRestriction[];
+  scheduledMessages: ScheduledMessage[];
+  tags: Tag[];
+  stats: DailyStats[];
+  isDataInitialized: boolean;
+  setCurrentInstance: (instance: Instance | null) => void;
+  refreshData: () => Promise<{ success: boolean, error?: any }>;
+  addInstance: (instance: Omit<Instance, "id" | "createdAt" | "updatedAt">) => Promise<{ success: boolean, error?: any }>;
+  updateInstance: (id: string, instance: Partial<Instance>) => Promise<{ success: boolean, error?: any }>;
+  deleteInstance: (id: string) => Promise<{ success: boolean, error?: any }>;
+  addSequence: (sequence: Omit<Sequence, "id" | "createdAt" | "updatedAt">) => Promise<{ success: boolean, error?: any }>;
+  updateSequence: (id: string, data: Partial<Sequence>) => Promise<{ success: boolean, error?: any }>;
+  deleteSequence: (id: string) => Promise<{ success: boolean, error?: any }>;
+  addContact: (contact: Omit<Contact, "id" | "createdAt" | "updatedAt">) => Promise<{ success: boolean, error?: any }>;
+  updateContact: (id: string, data: Partial<Contact>) => Promise<{ success: boolean, error?: any }>;
+  deleteContact: (id: string) => Promise<{ success: boolean, error?: any }>;
+  addTag: (name: string) => Promise<{ success: boolean, error?: any }>;
 }
 
 export interface Database {
