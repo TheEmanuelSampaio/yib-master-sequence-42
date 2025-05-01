@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from "sonner";
@@ -9,7 +8,6 @@ import {
   ContactSequence,
   TimeRestriction,
   DailyStats,
-  StageProgress,
   Tag,
   Instance,
   Profile,
@@ -42,6 +40,7 @@ const AppContext = createContext<AppContextType>({
   updateContact: async () => ({ success: false }),
   deleteContact: async () => ({ success: false }),
   addTag: async () => ({ success: false }),
+  deleteTag: async () => ({ success: false }), // Added the missing deleteTag function
 });
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
@@ -973,42 +972,5 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
   
-  const value = {
-    currentInstance,
-    instances,
-    sequences,
-    contacts,
-    contactSequences,
-    timeRestrictions,
-    scheduledMessages,
-    tags,
-    stats,
-    isDataInitialized,
-    setCurrentInstance,
-    refreshData,
-    addInstance,
-    updateInstance,
-    deleteInstance,
-    addSequence,
-    updateSequence,
-    deleteSequence,
-    addContact,
-    updateContact,
-    deleteContact,
-    addTag,
-  };
-  
-  return (
-    <AppContext.Provider value={value}>
-      {children}
-    </AppContext.Provider>
-  );
-};
-
-export const useApp = () => {
-  const context = useContext(AppContext);
-  if (context === undefined) {
-    throw new Error('useApp must be used within an AppProvider');
-  }
-  return context;
-};
+  // Add the deleteTag function implementation
+  const deleteTag = async (name: string) => {

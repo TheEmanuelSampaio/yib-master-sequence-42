@@ -24,6 +24,12 @@ export const TagsTab = () => {
     }
   };
 
+  const handleDeleteTag = async (tag: string) => {
+    if (deleteTag) {
+      await deleteTag(tag);
+    }
+  };
+
   const filteredTags = tags.filter(tag => 
     tag.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -82,7 +88,7 @@ export const TagsTab = () => {
                       <AlertDialogCancel>Cancelar</AlertDialogCancel>
                       <AlertDialogAction 
                         className="bg-destructive hover:bg-destructive/90"
-                        onClick={() => deleteTag && deleteTag(tag)}
+                        onClick={() => handleDeleteTag(tag)}
                       >
                         Excluir
                       </AlertDialogAction>
