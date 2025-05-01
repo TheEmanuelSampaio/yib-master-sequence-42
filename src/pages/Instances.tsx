@@ -1,159 +1,273 @@
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { useApp } from "@/context/AppContext";
-import { Badge } from "@/components/ui/badge";
-import { Plus, Settings, PlusCircle, Trash2, Edit, Check, X, RefreshCw, AlertCircle } from "lucide-react";
-import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { toast } from "sonner";
-import { useAuth } from "@/context/AuthContext";
-import { Instance } from "@/types";
 
-export default function InstancesPage() {
-  const { instances, addInstance, updateInstance, deleteInstance, clients = [] } = useApp();
-  const { user } = useAuth();
-  
-  const [isAddingInstance, setIsAddingInstance] = useState(false);
-  const [editingInstanceId, setEditingInstanceId] = useState<string | null>(null);
-  
+import { useState, useEffect } from "react";
+import { useApp } from '@/context/AppContext';
+import { Pencil, Search, MoreVertical, Power, PowerOff, Trash2, Plus, Laptop } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Instance, Client } from "@/types";
+import { toast } from "sonner";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+export default function Instances() {
+  const { instances, clients, addInstance, updateInstance, deleteInstance, currentInstance, setCurrentInstance } = useApp();
+  const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [evolutionApiUrl, setEvolutionApiUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
-  const [clientId, setClientId] = useState("");
+  const [clientId, setClientId] = useState<string>("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [activeTab, setActiveTab] = useState<"all" | "active" | "inactive">("all");
+  const [editInstance, setEditInstance] = useState<Instance | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  
+  // Clean up any body styles when component unmounts
+  useEffect(() => {
+    return () => {
+      document.body.style.removeProperty('pointer-events');
+    };
+  }, []);
+  
+  // Fix for pointer-events issue when dialog closes
+  useEffect(() => {
+    if (!open) {
+      // Use setTimeout to ensure this happens after dialog animation completes
+      const timer = setTimeout(() => {
+        document.body.style.removeProperty('pointer-events');
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [open]);
+  
+  const handleAddInstance = () => {
+    if (!name || !evolutionApiUrl || !apiKey || !clientId) {
+      toast.error("Preencha todos os campos obrigatórios");
+      return;
+    }
+    
+    addInstance({
+      name,
+      evolutionApiUrl,
+      apiKey,
+      active: true,
+      clientId
+    });
+    
+    resetForm();
+  };
   
   const resetForm = () => {
     setName("");
     setEvolutionApiUrl("");
     setApiKey("");
     setClientId("");
+    setOpen(false);
+    setIsEditing(false);
+    setEditInstance(null);
+    // Ensure pointer-events are enabled
+    document.body.style.removeProperty('pointer-events');
   };
-  
-  const handleAddInstance = async () => {
-    if (!name || !evolutionApiUrl || !apiKey || !clientId) {
-      toast.error("Por favor, preencha todos os campos");
-      return;
-    }
-    
-    try {
-      const { success, error } = await addInstance({
-        name,
-        evolutionApiUrl,
-        apiKey,
-        active: true,
-        clientId,
-        createdBy: user?.id || "system" // Include createdBy property
-      });
-      
-      if (success) {
-        toast.success("Instância adicionada com sucesso");
-        resetForm();
-        setIsAddingInstance(false);
-      } else {
-        toast.error(`Erro ao adicionar instância: ${error}`);
-      }
-    } catch (error) {
-      console.error("Erro ao adicionar instância:", error);
-      toast.error("Erro ao adicionar instância");
-    }
-  };
-  
-  const handleUpdateInstance = async (id: string) => {
-    if (!name || !evolutionApiUrl || !apiKey || !clientId) {
-      toast.error("Por favor, preencha todos os campos");
-      return;
-    }
-    
-    try {
-      const { success, error } = await updateInstance(id, {
-        name,
-        evolutionApiUrl,
-        apiKey,
-        clientId
-      });
-      
-      if (success) {
-        toast.success("Instância atualizada com sucesso");
-        resetForm();
-        setEditingInstanceId(null);
-      } else {
-        toast.error(`Erro ao atualizar instância: ${error}`);
-      }
-    } catch (error) {
-      console.error("Erro ao atualizar instância:", error);
-      toast.error("Erro ao atualizar instância");
-    }
-  };
-  
-  const handleDeleteInstance = async (id: string) => {
-    try {
-      const { success, error } = await deleteInstance(id);
-      
-      if (success) {
-        toast.success("Instância excluída com sucesso");
-      } else {
-        toast.error(`Erro ao excluir instância: ${error}`);
-      }
-    } catch (error) {
-      console.error("Erro ao excluir instância:", error);
-      toast.error("Erro ao excluir instância");
-    }
-  };
-  
+
   const startEditing = (instance: Instance) => {
+    setEditInstance(instance);
     setName(instance.name);
     setEvolutionApiUrl(instance.evolutionApiUrl);
     setApiKey(instance.apiKey);
     setClientId(instance.clientId);
-    setEditingInstanceId(instance.id);
+    setIsEditing(true);
+    setOpen(true);
   };
   
-  const cancelEditing = () => {
+  const handleUpdateInstance = () => {
+    if (!editInstance) return;
+    
+    if (!name || !evolutionApiUrl || !apiKey || !clientId) {
+      toast.error("Preencha todos os campos obrigatórios");
+      return;
+    }
+    
+    updateInstance(editInstance.id, {
+      name,
+      evolutionApiUrl,
+      apiKey,
+      active: editInstance.active,
+      clientId
+    });
+    
+    toast.success(`Instância "${name}" atualizada com sucesso`);
     resetForm();
-    setEditingInstanceId(null);
+  };
+  
+  const handleToggleInstance = (instance: Instance) => {
+    updateInstance(instance.id, { active: !instance.active });
   };
 
+  const handleSelectInstance = (instance: Instance) => {
+    setCurrentInstance(instance);
+    toast.success(`Instância "${instance.name}" selecionada`);
+  };
+
+  // Filter instances based on search and active status
+  const filteredInstances = instances.filter(instance => {
+    // Filter by search term
+    const matchesSearch = 
+      instance.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      instance.evolutionApiUrl.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    // Filter by active status
+    if (activeTab === "active" && !instance.active) return false;
+    if (activeTab === "inactive" && instance.active) return false;
+    
+    return matchesSearch;
+  });
+
+  // Count instances by status
+  const activeInstances = instances.filter(inst => inst.active);
+  const inactiveInstances = instances.filter(inst => !inst.active);
+
   return (
-    <div className="container mx-auto py-10">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Gerenciamento de Instâncias</h1>
-        <Button onClick={() => setIsAddingInstance(true)}>
-          <PlusCircle className="h-4 w-4 mr-2" />
-          Adicionar Instância
+    <div className="space-y-6">
+      <div className="flex flex-col">
+        <h1 className="text-2xl font-bold tracking-tight">Instâncias</h1>
+        <p className="text-muted-foreground">
+          Gerencie as instâncias do Evolution API
+        </p>
+      </div>
+      
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex w-full sm:max-w-sm items-center">
+          <div className="relative w-full">
+            <Input
+              placeholder="Buscar instâncias..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pr-10"
+            />
+          </div>
+          <Button variant="ghost" size="icon" className="ml-2 text-muted-foreground">
+            <Search className="h-4 w-4" />
+          </Button>
+        </div>
+        
+        <Button onClick={() => {
+          resetForm();
+          setOpen(true);
+        }}>
+          <Plus className="h-4 w-4 mr-2" />
+          Nova Instância
         </Button>
       </div>
-
-      <Sheet open={isAddingInstance} onOpenChange={setIsAddingInstance}>
-        <SheetTrigger asChild>
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            Adicionar Instância
-          </Button>
-        </SheetTrigger>
-        <SheetContent className="sm:max-w-lg">
-          <SheetHeader>
-            <SheetTitle>Adicionar Instância</SheetTitle>
-            <SheetDescription>
-              Adicione uma nova instância para conectar um novo cliente.
-            </SheetDescription>
-          </SheetHeader>
+      
+      <Tabs 
+        defaultValue="all" 
+        value={activeTab} 
+        onValueChange={(value) => setActiveTab(value as "all" | "active" | "inactive")}
+      >
+        <TabsList>
+          <TabsTrigger value="all">Todas ({instances.length})</TabsTrigger>
+          <TabsTrigger value="active">Ativas ({activeInstances.length})</TabsTrigger>
+          <TabsTrigger value="inactive">Inativas ({inactiveInstances.length})</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="all" className="mt-4">
+          {renderInstanceList(filteredInstances)}
+        </TabsContent>
+        
+        <TabsContent value="active" className="mt-4">
+          {renderInstanceList(filteredInstances)}
+        </TabsContent>
+        
+        <TabsContent value="inactive" className="mt-4">
+          {renderInstanceList(filteredInstances)}
+        </TabsContent>
+      </Tabs>
+      
+      {/* Dialog handling with special focus on fixing pointer-events issue */}
+      <Dialog 
+        open={open} 
+        onOpenChange={(isOpen) => {
+          setOpen(isOpen);
+          if (!isOpen) {
+            // Force pointer-events back to normal on close
+            // Use setTimeout to ensure this happens after dialog animation completes
+            setTimeout(() => {
+              document.body.style.removeProperty('pointer-events');
+              resetForm();
+            }, 300);
+          }
+        }}
+      >
+        <DialogContent 
+          className="sm:max-w-[425px]"
+          onInteractOutside={(e) => {
+            // Prevent any weird interaction issues
+            e.preventDefault();
+          }}
+          onEscapeKeyDown={() => {
+            // Ensure proper cleanup on escape key
+            setTimeout(() => {
+              document.body.style.removeProperty('pointer-events');
+            }, 300);
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>{isEditing ? 'Editar Instância' : 'Adicionar Instância'}</DialogTitle>
+            <DialogDescription>
+              {isEditing 
+                ? 'Atualize os dados da instância do Evolution API.'
+                : 'Adicione uma nova instância do Evolution API para gerenciar as sequências.'}
+            </DialogDescription>
+          </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="name" className="text-right">
+              <Label htmlFor="name" className="text-right text-sm">
                 Nome
               </Label>
               <Input id="name" value={name} onChange={(e) => setName(e.target.value)} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="evolutionApiUrl" className="text-right">
-                URL da API Evolution
+              <Label htmlFor="client" className="text-right text-sm">
+                Cliente
+              </Label>
+              <Select value={clientId} onValueChange={setClientId}>
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Selecione um cliente" />
+                </SelectTrigger>
+                <SelectContent>
+                  {clients.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.accountName} (ID: {client.accountId})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="evolutionApiUrl" className="text-right text-sm">
+                URL da API
               </Label>
               <Input
                 id="evolutionApiUrl"
@@ -163,145 +277,151 @@ export default function InstancesPage() {
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="apiKey" className="text-right">
+              <Label htmlFor="apiKey" className="text-right text-sm">
                 API Key
               </Label>
-              <Input id="apiKey" value={apiKey} onChange={(e) => setApiKey(e.target.value)} className="col-span-3" />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="clientId" className="text-right">
-                Client ID
-              </Label>
-              <Input id="clientId" value={clientId} onChange={(e) => setClientId(e.target.value)} className="col-span-3" />
+              <Input id="apiKey" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} className="col-span-3" />
             </div>
           </div>
-          <SheetFooter>
-            <Button type="submit" onClick={handleAddInstance}>
-              Salvar
+          <DialogFooter>
+            <Button type="button" variant="secondary" onClick={() => {
+              setOpen(false);
+              // Force pointer-events back to normal
+              setTimeout(() => {
+                document.body.style.removeProperty('pointer-events');
+              }, 300);
+              resetForm();
+            }}>
+              Cancelar
             </Button>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
+            <Button type="submit" onClick={isEditing ? handleUpdateInstance : handleAddInstance}>
+              {isEditing ? 'Atualizar' : 'Adicionar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
 
+  function renderInstanceList(instances: Instance[]) {
+    if (instances.length === 0) {
+      return (
+        <Card className="p-8 flex flex-col items-center justify-center text-center">
+          <div className="rounded-full bg-muted p-3 mb-4">
+            <Search className="h-6 w-6 text-muted-foreground" />
+          </div>
+          <h3 className="font-semibold text-lg mb-1">
+            {searchTerm ? "Nenhuma instância encontrada" : "Nenhuma instância criada"}
+          </h3>
+          <p className="text-muted-foreground mb-4">
+            {searchTerm 
+              ? "Tente alterar os termos da busca ou remover filtros" 
+              : "Crie sua primeira instância para começar a automatizar seu follow-up"}
+          </p>
+          {!searchTerm && (
+            <Button onClick={() => setOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Nova Instância
+            </Button>
+          )}
+        </Card>
+      );
+    }
+    
+    return (
       <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-        {instances && instances.length > 0 ? (
-          instances.map((instance) => (
-            <Card key={instance.id}>
-              <CardHeader>
-                <CardTitle>{instance.name}</CardTitle>
-                <CardDescription>
-                  {instance.evolutionApiUrl}
+        {instances.map((instance) => {
+          const clientName = clients.find(c => c.id === instance.clientId)?.accountName || "Cliente desconhecido";
+          
+          return (
+            <Card key={instance.id} className="hover:shadow-md transition-shadow">
+              <CardHeader className="pb-1">
+                <CardTitle className="mb-3">{instance.name}</CardTitle>
+                <CardDescription className="flex items-center">
+                  {instance.active ? 
+                    <Power className="h-4 w-4 text-green-500 mr-2" /> : 
+                    <PowerOff className="h-4 w-4 text-destructive mr-2" />
+                  }
+                  <Badge variant={instance.active ? "default" : "destructive"}>
+                    {instance.active ? "Ativa" : "Inativa"}
+                  </Badge>
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-2">
-                <div>
-                  <Badge variant="secondary">ID: {instance.id}</Badge>
+                <div className="space-y-1">
+                  <Label className="text-sm font-medium">Cliente</Label>
+                  <p className="text-sm text-muted-foreground">{clientName}</p>
                 </div>
-                <p>
-                  <strong>API Key:</strong> {instance.apiKey}
-                </p>
-                <p>
-                  <strong>Client ID:</strong> {instance.clientId}
-                </p>
+                <div className="space-y-1">
+                  <Label className="text-sm font-medium">URL da API</Label>
+                  <p className="text-sm text-muted-foreground break-all">{instance.evolutionApiUrl}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-sm font-medium">API Key</Label>
+                  <p className="text-sm text-muted-foreground break-all">{instance.apiKey}</p>
+                </div>
               </CardContent>
               <CardFooter className="flex justify-between items-center">
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => startEditing(instance)}
-                  >
-                    <Edit className="h-4 w-4 mr-2" />
-                    Editar
-                  </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="destructive" size="sm">
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Excluir
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Tem certeza?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Esta ação é irreversível. Tem certeza de que deseja excluir esta instância?
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => handleDeleteInstance(instance.id)}>Excluir</AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </div>
-                {instance.active ? (
-                  <Badge variant="success">Ativa</Badge>
-                ) : (
-                  <Badge variant="destructive">Inativa</Badge>
-                )}
+                <Button 
+                  variant={currentInstance?.id === instance.id ? "default" : "outline"} 
+                  onClick={() => handleSelectInstance(instance)}
+                >
+                  {currentInstance?.id === instance.id ? "Selecionada" : "Selecionar"}
+                </Button>
+                
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                      <MoreVertical className="h-4 w-4" />
+                      <span className="sr-only">Ações</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => startEditing(instance)} className="cursor-pointer">
+                      <Pencil className="h-4 w-4 mr-2" />
+                      Editar
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleToggleInstance(instance)} className="cursor-pointer">
+                      {instance.active ? (
+                        <>
+                          <PowerOff className="h-4 w-4 mr-2" />
+                          Desativar
+                        </>
+                      ) : (
+                        <>
+                          <Power className="h-4 w-4 mr-2" />
+                          Ativar
+                        </>
+                      )}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      onClick={() => deleteInstance(instance.id)} 
+                      className="text-destructive cursor-pointer"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Excluir
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </CardFooter>
             </Card>
-          ))
-        ) : (
-          <div className="col-span-full text-center py-8">
-            <AlertCircle className="h-6 w-6 inline-block mr-2" />
-            Nenhuma instância encontrada.
-          </div>
-        )}
+          );
+        })}
+        
+        <Card 
+          className="border-dashed h-full flex items-center justify-center cursor-pointer hover:bg-secondary/50 transition-colors"
+          onClick={() => {
+            resetForm();
+            setOpen(true);
+          }}
+        >
+          <CardContent className="flex flex-col items-center justify-center space-y-2 p-4">
+            <Plus className="h-6 w-6 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Adicionar nova instância</p>
+          </CardContent>
+        </Card>
       </div>
-
-      {editingInstanceId && (
-        <Sheet open={!!editingInstanceId} onOpenChange={() => setEditingInstanceId(null)}>
-          <SheetContent className="sm:max-w-lg">
-            <SheetHeader>
-              <SheetTitle>Editar Instância</SheetTitle>
-              <SheetDescription>
-                Edite os detalhes da instância selecionada.
-              </SheetDescription>
-            </SheetHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="name" className="text-right">
-                  Nome
-                </Label>
-                <Input id="name" value={name} onChange={(e) => setName(e.target.value)} className="col-span-3" />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="evolutionApiUrl" className="text-right">
-                  URL da API Evolution
-                </Label>
-                <Input
-                  id="evolutionApiUrl"
-                  value={evolutionApiUrl}
-                  onChange={(e) => setEvolutionApiUrl(e.target.value)}
-                  className="col-span-3"
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="apiKey" className="text-right">
-                  API Key
-                </Label>
-                <Input id="apiKey" value={apiKey} onChange={(e) => setApiKey(e.target.value)} className="col-span-3" />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="clientId" className="text-right">
-                  Client ID
-                </Label>
-                <Input id="clientId" value={clientId} onChange={(e) => setClientId(e.target.value)} className="col-span-3" />
-              </div>
-            </div>
-            <SheetFooter>
-              <Button type="submit" onClick={() => handleUpdateInstance(editingInstanceId)}>
-                Atualizar
-              </Button>
-              <Button variant="ghost" onClick={cancelEditing}>
-                Cancelar
-              </Button>
-            </SheetFooter>
-          </SheetContent>
-        </Sheet>
-      )}
-    </div>
-  );
+    );
+  }
 }
