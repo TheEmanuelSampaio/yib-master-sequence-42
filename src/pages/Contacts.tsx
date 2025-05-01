@@ -1,7 +1,7 @@
 
 import { useState } from "react";
 import { useApp } from '@/context/AppContext';
-import { Search, User, Tag, CheckCircle2, Clock, AlertCircle, ChevronDown, MoreVertical } from "lucide-react";
+import { Search, User, Tag, CheckCircle2, Clock, AlertCircle, ChevronDown, MoreVertical, Edit, Trash2 } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -27,6 +27,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   DropdownMenu,
@@ -38,12 +39,29 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Contact, ContactSequence } from '@/types';
 import { cn } from '@/lib/utils';
+import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function Contacts() {
-  const { contacts, sequences, contactSequences } = useApp();
+  const { contacts, sequences, contactSequences, updateContact, deleteContact } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [showSequences, setShowSequences] = useState(false);
+  const [showEditContact, setShowEditContact] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [editingContact, setEditingContact] = useState<{name: string, phoneNumber: string}>({
+    name: '',
+    phoneNumber: ''
+  });
   
   // Helper function to get contact sequences
   const getContactSequences = (contactId: string) => {
@@ -78,6 +96,63 @@ export default function Contacts() {
   const handleViewSequences = (contact: Contact) => {
     setSelectedContact(contact);
     setShowSequences(true);
+  };
+
+  // Edit contact
+  const handleEditContact = (contact: Contact) => {
+    setSelectedContact(contact);
+    setEditingContact({
+      name: contact.name,
+      phoneNumber: contact.phoneNumber
+    });
+    setShowEditContact(true);
+  };
+
+  // Delete contact
+  const handleDeleteContact = (contact: Contact) => {
+    setSelectedContact(contact);
+    setShowDeleteConfirm(true);
+  };
+
+  // Save contact edits
+  const handleSaveContact = async () => {
+    if (!selectedContact) return;
+    
+    try {
+      const result = await updateContact(selectedContact.id, {
+        name: editingContact.name,
+        phoneNumber: editingContact.phoneNumber
+      });
+      
+      if (result.success) {
+        toast.success("Contato atualizado com sucesso");
+        setShowEditContact(false);
+      } else {
+        toast.error("Erro ao atualizar contato");
+      }
+    } catch (error) {
+      console.error("Error updating contact:", error);
+      toast.error("Erro ao atualizar contato");
+    }
+  };
+
+  // Confirm delete contact
+  const handleConfirmDelete = async () => {
+    if (!selectedContact) return;
+    
+    try {
+      const result = await deleteContact(selectedContact.id);
+      
+      if (result.success) {
+        toast.success("Contato excluído com sucesso");
+        setShowDeleteConfirm(false);
+      } else {
+        toast.error("Erro ao excluir contato");
+      }
+    } catch (error) {
+      console.error("Error deleting contact:", error);
+      toast.error("Erro ao excluir contato");
+    }
   };
   
   const formatContactSequenceStatus = (status: string) => {
@@ -199,14 +274,26 @@ export default function Contacts() {
                             )}
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleViewSequences(contact)}
-                              disabled={seqDetails.total === 0}
-                            >
-                              Detalhes
-                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handleViewSequences(contact)} disabled={seqDetails.total === 0}>
+                                  Sequências
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleEditContact(contact)}>
+                                  <Edit className="h-4 w-4 mr-2" />
+                                  Editar
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleDeleteContact(contact)} className="text-red-500">
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Excluir
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </TableCell>
                         </TableRow>
                       );
@@ -274,13 +361,26 @@ export default function Contacts() {
                             </div>
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleViewSequences(contact)}
-                            >
-                              Detalhes
-                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handleViewSequences(contact)}>
+                                  Sequências
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleEditContact(contact)}>
+                                  <Edit className="h-4 w-4 mr-2" />
+                                  Editar
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleDeleteContact(contact)} className="text-red-500">
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Excluir
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </TableCell>
                         </TableRow>
                       );
@@ -426,6 +526,65 @@ export default function Contacts() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Edit Contact Dialog */}
+      <Dialog open={showEditContact} onOpenChange={setShowEditContact}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Editar contato</DialogTitle>
+            <DialogDescription>
+              Modifique os dados do contato abaixo e clique em salvar quando terminar.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <label htmlFor="name" className="text-right text-sm font-medium">
+                Nome
+              </label>
+              <Input
+                id="name"
+                value={editingContact.name}
+                onChange={(e) => setEditingContact({...editingContact, name: e.target.value})}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <label htmlFor="phone" className="text-right text-sm font-medium">
+                Telefone
+              </label>
+              <Input
+                id="phone"
+                value={editingContact.phoneNumber}
+                onChange={(e) => setEditingContact({...editingContact, phoneNumber: e.target.value})}
+                className="col-span-3"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditContact(false)}>Cancelar</Button>
+            <Button onClick={handleSaveContact}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir contato?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. Isso excluirá permanentemente o contato
+              {selectedContact && ` "${selectedContact.name}"`} e removerá todos os dados associados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDelete} className="bg-red-500 hover:bg-red-600">
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
