@@ -7,7 +7,6 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Badge } from "@/components/ui/badge";
 import { Trash2 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
-import { TagString } from "@/types";
 
 export const TagsTab = () => {
   const { tags, addTag, deleteTag } = useApp();
@@ -68,7 +67,7 @@ export const TagsTab = () => {
           />
           
           <div className="flex flex-wrap gap-2">
-            {filteredTags.map((tag: TagString) => (
+            {filteredTags.map((tag) => (
               <Badge key={tag} variant="secondary" className="py-1.5 px-3 text-sm">
                 {tag}
                 <AlertDialog>

@@ -13,7 +13,8 @@ import {
   Profile,
   AppContextType,
   ScheduledMessage,
-  TagCondition
+  TagCondition,
+  TagString
 } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -52,7 +53,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [contactSequences, setContactSequences] = useState<ContactSequence[]>([]);
   const [timeRestrictions, setTimeRestrictions] = useState<TimeRestriction[]>([]);
   const [scheduledMessages, setScheduledMessages] = useState<ScheduledMessage[]>([]);
-  const [tags, setTags] = useState<Tag[]>([]);
+  const [tags, setTags] = useState<TagString[]>([]); // Changed from Tag[] to TagString[] (string[])
   const [stats, setStats] = useState<DailyStats[]>([]);
 
   // Fetch all data when the component mounts
@@ -111,14 +112,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
       if (tagsError) throw tagsError;
       
-      const mappedTags = tagsData.map(tag => ({
-        id: tag.id,
-        name: tag.name,
-        createdBy: tag.created_by,
-        createdAt: tag.created_at
-      }));
-
-      setTags(mappedTags);
+      // Extract only the tag names from the Tag objects and store them as strings
+      const tagNames = tagsData.map(tag => tag.name);
+      setTags(tagNames);
 
       // Fetch time restrictions
       const { data: timeRestrictionsData, error: timeRestrictionsError } = await supabase
@@ -948,22 +944,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       
       if (error) throw error;
 
-      // Refresh tags
-      const { data: tagsData, error: tagsError } = await supabase
-        .from('tags')
-        .select('*')
-        .order('name');
-
-      if (tagsError) throw tagsError;
-      
-      const mappedTags = tagsData.map(tag => ({
-        id: tag.id,
-        name: tag.name,
-        createdBy: tag.created_by,
-        createdAt: tag.created_at
-      }));
-
-      setTags(mappedTags);
+      // Update the tags array in state
+      setTags(prevTags => [...prevTags, name]);
       
       return { success: true };
     } catch (error) {
@@ -1027,7 +1009,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       if (tagError) throw tagError;
 
       // Update the tags state
-      setTags(tags.filter(t => t.name !== name));
+      setTags(tags.filter(t => t !== name));
       
       return { success: true };
     } catch (error) {
