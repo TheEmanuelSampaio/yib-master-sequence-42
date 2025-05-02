@@ -1,3 +1,4 @@
+
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { supabase, UserWithEmail, isValidUUID, checkStagesInUse } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
@@ -34,7 +35,7 @@ interface AppContextType {
   updateInstance: (id: string, instance: Partial<Instance>) => void;
   deleteInstance: (id: string) => void;
   addSequence: (sequence: Omit<Sequence, "id" | "createdAt" | "updatedAt">) => void;
-  updateSequence: (id: string, update: Partial<Sequence>) => Promise<{ success: boolean; error?: string }>; // Update return type
+  updateSequence: (id: string, update: Partial<Sequence>) => Promise<{ success: boolean; error?: string }>;
   deleteSequence: (id: string) => void;
   addTimeRestriction: (restriction: Omit<TimeRestriction, "id">) => void;
   updateTimeRestriction: (id: string, restriction: Partial<TimeRestriction>) => void;
@@ -98,7 +99,6 @@ const defaultContextValue: AppContextType = {
   updateInstance: () => {},
   deleteInstance: () => {},
   addSequence: () => {},
-  // Fix this function to return a Promise with the correct shape
   updateSequence: async () => ({ success: false }),
   deleteSequence: () => {},
   addTimeRestriction: () => {},
@@ -116,6 +116,12 @@ const defaultContextValue: AppContextType = {
   deleteTag: async () => {},
   refreshData: async () => {},
   isDataInitialized: false,
+  
+  // Add the missing contact functions to the default context value
+  deleteContact: async () => ({ success: false, error: 'Não implementado' }),
+  updateContact: async () => ({ success: false, error: 'Não implementado' }),
+  removeFromSequence: async () => ({ success: false, error: 'Não implementado' }),
+  updateContactSequence: async () => ({ success: false, error: 'Não implementado' }),
 };
 
 export const AppContext = createContext<AppContextType>(defaultContextValue);
