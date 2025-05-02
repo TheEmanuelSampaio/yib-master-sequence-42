@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { createSafeDialogHandler, stopEventPropagation } from "@/utils/dialogHelpers";
+import { createSafeDialogHandler, resetBodyStylesAfterDialog, stopEventPropagation } from "@/utils/dialogHelpers";
 
 interface ContactEditDialogProps {
   open: boolean;
