@@ -33,7 +33,7 @@ interface AppContextType {
   updateInstance: (id: string, instance: Partial<Instance>) => void;
   deleteInstance: (id: string) => void;
   addSequence: (sequence: Omit<Sequence, "id" | "createdAt" | "updatedAt">) => void;
-  updateSequence: (id: string, update: Partial<Sequence>) => void;
+  updateSequence: (id: string, update: Partial<Sequence>) => Promise<{ success: boolean; error?: string }>; // Update return type
   deleteSequence: (id: string) => void;
   addTimeRestriction: (restriction: Omit<TimeRestriction, "id">) => void;
   updateTimeRestriction: (id: string, restriction: Partial<TimeRestriction>) => void;
