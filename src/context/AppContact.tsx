@@ -166,16 +166,82 @@ export const createContactFunctions = (): AppContactFunctions => {
           // Continuamos mesmo com erro para tentar a atualização
         }
 
-        // Aqui o sistema deveria reagendar as mensagens baseadas no novo estágio
-        // Isso normalmente é feito por um trigger no banco de dados ou pelo sistema N8N
-        // que monitora as alterações e cria novas mensagens agendadas
-        console.log(`Mensagens agendadas para contato ${seqData.contact_id} na sequência ${seqData.sequence_id} foram removidas. Novo estágio: ${data.currentStageId}`);
+        // Obter informações do estágio selecionado para criar nova mensagem agendada
+        const { data: stageData, error: stageError } = await supabase
+          .from('sequence_stages')
+          .select('*')
+          .eq('id', data.currentStageId)
+          .single();
+        
+        if (stageError) throw new Error(`Erro ao obter dados do estágio: ${stageError.message}`);
+        
+        // Adicionar registro de progresso do estágio
+        const { error: progressError } = await supabase
+          .from('stage_progress')
+          .insert([{
+            contact_sequence_id: contactSequenceId,
+            stage_id: data.currentStageId,
+            status: 'pending'
+          }]);
+        
+        if (progressError) {
+          console.error(`Erro ao adicionar progresso do estágio: ${progressError.message}`);
+        }
+        
+        // Calcular o tempo de agendamento da mensagem
+        const delayMs = calculateDelayMs(stageData.delay, stageData.delay_unit);
+        const scheduledTime = new Date(Date.now() + delayMs);
+        
+        // Agendar a mensagem para o estágio selecionado
+        const { error: scheduleError } = await supabase
+          .from('scheduled_messages')
+          .insert([{
+            contact_id: seqData.contact_id,
+            sequence_id: seqData.sequence_id,
+            stage_id: data.currentStageId,
+            raw_scheduled_time: scheduledTime.toISOString(),
+            scheduled_time: scheduledTime.toISOString(),
+            status: 'pending'
+          }]);
+        
+        if (scheduleError) throw new Error(`Erro ao agendar nova mensagem: ${scheduleError.message}`);
+        
+        console.log(`Mensagem agendada com sucesso para ${scheduledTime.toISOString()}`);
+        
+        // Incrementar estatísticas diárias
+        try {
+          await supabase.rpc('increment_daily_stats', { 
+            instance_id: stageData.instance_id, 
+            stat_date: new Date().toISOString().split('T')[0],
+            messages_scheduled: 1 
+          });
+        } catch (statsError) {
+          console.error(`[ESTATÍSTICAS] Erro ao incrementar estatísticas: ${statsError}`);
+        }
       }
       
       return { success: true };
     } catch (error) {
       console.error("Erro ao atualizar sequência do contato:", error);
       return { success: false, error: error.message };
+    }
+  };
+
+  // Função auxiliar para calcular o atraso em milissegundos
+  const calculateDelayMs = (delay: number, unit: string): number => {
+    const minute = 60 * 1000;
+    const hour = 60 * minute;
+    const day = 24 * hour;
+    
+    switch (unit) {
+      case 'minutes':
+        return delay * minute;
+      case 'hours':
+        return delay * hour;
+      case 'days':
+        return delay * day;
+      default:
+        return delay * minute; // Fallback para minutos
     }
   };
 

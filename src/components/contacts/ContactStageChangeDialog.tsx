@@ -43,6 +43,13 @@ export const ContactStageChangeDialog = ({
   // Criar handler seguro para o diálogo
   const safeOpenChangeHandler = createSafeDialogHandler(onOpenChange);
 
+  // Encontrar a sequência e o estágio atual
+  const currentSequence = selectedContactSequence ? 
+    sequences.find(s => s.id === selectedContactSequence.sequenceId) : null;
+  
+  const currentStage = currentSequence && selectedContactSequence?.currentStageId ? 
+    currentSequence.stages.find(s => s.id === selectedContactSequence.currentStageId) : null;
+
   return (
     <Dialog 
       open={open} 
@@ -53,10 +60,15 @@ export const ContactStageChangeDialog = ({
           <DialogTitle>Alterar Estágio</DialogTitle>
           <DialogDescription>
             Selecione o novo estágio para este contato na sequência.
+            {currentStage && (
+              <p className="mt-2">
+                Estágio atual: <strong>{currentStage.name}</strong>
+              </p>
+            )}
           </DialogDescription>
         </DialogHeader>
         <div className="py-4">
-          {selectedContactSequence && (
+          {selectedContactSequence && currentSequence && (
             <Select
               value={selectedStageId}
               onValueChange={setSelectedStageId}
@@ -66,13 +78,11 @@ export const ContactStageChangeDialog = ({
               </SelectTrigger>
               <SelectContent onClick={stopEventPropagation}>
                 <SelectGroup>
-                  {sequences
-                    .find(s => s.id === selectedContactSequence.sequenceId)
-                    ?.stages.map(stage => (
-                      <SelectItem key={stage.id} value={stage.id}>
-                        {stage.name}
-                      </SelectItem>
-                    ))}
+                  {currentSequence.stages.map(stage => (
+                    <SelectItem key={stage.id} value={stage.id}>
+                      {stage.name}
+                    </SelectItem>
+                  ))}
                 </SelectGroup>
               </SelectContent>
             </Select>
