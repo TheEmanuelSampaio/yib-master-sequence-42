@@ -42,9 +42,15 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Filtro opcional de instância
+    const instanceIdFilter = jsonData?.instanceId ? { 'sequences.instances.id': jsonData.instanceId } : {};
+    console.log(`[FILTER] Filtro de instância: ${JSON.stringify(instanceIdFilter)}`);
+
     // Pegar mensagens pendentes com horário de envio menor que o horário atual
     console.log(`[QUERY] Buscando mensagens pendentes...`);
     const now = new Date();
+    console.log(`[QUERY] Data/hora atual: ${now.toISOString()}`);
+
     const { data: pendingMessages, error: messagesError } = await supabase
       .from('scheduled_messages')
       .select(`
@@ -81,7 +87,7 @@ Deno.serve(async (req) => {
       .eq('status', 'pending')
       .lt('scheduled_time', now.toISOString())
       .order('scheduled_time', { ascending: true })
-      .limit(10); // Limitar a 10 mensagens por vez para evitar sobrecarga
+      .limit(20); // Aumentei o limite para garantir que encontre mensagens
 
     if (messagesError) {
       console.error(`[QUERY] Erro ao buscar mensagens pendentes: ${messagesError.message}`);
@@ -93,6 +99,8 @@ Deno.serve(async (req) => {
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    console.log(`[QUERY] Mensagens encontradas: ${pendingMessages ? pendingMessages.length : 0}`);
 
     // Se não houver mensagens pendentes, retornar array vazio
     if (!pendingMessages || pendingMessages.length === 0) {
@@ -110,6 +118,7 @@ Deno.serve(async (req) => {
 
     // Marcar as mensagens como "processing"
     const messageIds = pendingMessages.map(msg => msg.id);
+    console.log(`[UPDATE] Atualizando status para 'processing' para IDs: ${messageIds.join(', ')}`);
     
     const { error: updateError } = await supabase
       .from('scheduled_messages')
@@ -129,6 +138,8 @@ Deno.serve(async (req) => {
 
     // Obter tags de contatos para incluir no payload
     const contactIds = pendingMessages.map(msg => msg.contacts.id);
+    console.log(`[TAGS] Buscando tags para ${contactIds.length} contatos`);
+    
     const { data: contactTags, error: tagsError } = await supabase
       .from('contact_tags')
       .select('contact_id, tag_name')
@@ -136,6 +147,7 @@ Deno.serve(async (req) => {
 
     if (tagsError) {
       console.log(`[TAGS] Erro ao buscar tags dos contatos: ${tagsError.message}`);
+      // Continuamos mesmo com erro, para não bloquear o envio das mensagens
     }
 
     // Agrupar tags por contato
@@ -146,6 +158,8 @@ Deno.serve(async (req) => {
       }
       tagsByContact[tag.contact_id].push(tag.tag_name);
     });
+    
+    console.log(`[FORMAT] Formatando ${pendingMessages.length} mensagens para retorno`);
 
     // Formatar mensagens no formato esperado pelo N8N
     const formattedMessages = pendingMessages.map(msg => {
@@ -156,6 +170,7 @@ Deno.serve(async (req) => {
       
       // Obter tags do contato, se existirem
       const contactTagsList = tagsByContact[contact.id] || [];
+      const stageId = stage.id.toString();
       
       return {
         id: msg.id,
@@ -187,8 +202,8 @@ Deno.serve(async (req) => {
           sequenceName: sequence.name,
           type: stage.type,
           stage: {
-            [`stg${stage.id}`]: {
-              id: stage.id,
+            [`stg${stageId}`]: {
+              id: stageId,
               content: stage.content,
               rawScheduledTime: msg.raw_scheduled_time,
               scheduledTime: msg.scheduled_time
@@ -197,6 +212,8 @@ Deno.serve(async (req) => {
         }
       };
     });
+
+    console.log(`[RESPONSE] Retornando ${formattedMessages.length} mensagens formatadas`);
 
     return new Response(
       JSON.stringify({ 
