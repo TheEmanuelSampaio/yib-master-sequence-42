@@ -208,15 +208,36 @@ export const createContactFunctions = (): AppContactFunctions => {
         
         console.log(`Mensagem agendada com sucesso para ${scheduledTime.toISOString()}`);
         
-        // Incrementar estatísticas diárias
-        try {
-          await supabase.rpc('increment_daily_stats', { 
-            instance_id: stageData.instance_id, 
-            stat_date: new Date().toISOString().split('T')[0],
-            messages_scheduled: 1 
-          });
-        } catch (statsError) {
-          console.error(`[ESTATÍSTICAS] Erro ao incrementar estatísticas: ${statsError}`);
+        // Obter o ID da instância a partir da sequência
+        const { data: sequenceData, error: sequenceError } = await supabase
+          .from('sequences')
+          .select('instance_id')
+          .eq('id', seqData.sequence_id)
+          .single();
+          
+        if (sequenceError) {
+          console.error(`Erro ao obter instância da sequência: ${sequenceError.message}`);
+        } else {
+          // Incrementar estatísticas diárias usando o método from e procedimento armazenado
+          try {
+            const { error: statsError } = await supabase
+              .from('daily_stats')
+              .insert([{
+                instance_id: sequenceData.instance_id,
+                date: new Date().toISOString().split('T')[0], 
+                messages_scheduled: 1,
+                messages_sent: 0,
+                messages_failed: 0,
+                completed_sequences: 0,
+                new_contacts: 0
+              }], { upsert: true });
+            
+            if (statsError) {
+              console.error(`[ESTATÍSTICAS] Erro ao incrementar estatísticas: ${statsError.message}`);
+            }
+          } catch (statsError) {
+            console.error(`[ESTATÍSTICAS] Erro ao incrementar estatísticas: ${statsError}`);
+          }
         }
       }
       
