@@ -66,12 +66,7 @@ const ApiDocs = () => {
   "stats": {
     "tagsAdded": 3,
     "existingTags": 0,
-    "tagErrors": 0,
-    "sequences": {
-      "processed": 2,
-      "added": 1,
-      "skipped": 1
-    }
+    "tagErrors": 0
   },
   "client": {
     "id": "uuid-do-cliente",
@@ -148,11 +143,7 @@ const ApiDocs = () => {
         }
       }
     }
-  ],
-  "meta": {
-    "count": 1,
-    "processedAt": "2025-04-30T10:05:00Z"
-  }
+  ]
 }`}
                 </pre>
               </div>
@@ -190,21 +181,6 @@ const ApiDocs = () => {
               </div>
             </div>
           </div>
-        </div>
-        
-        <div className="border-t pt-6">
-          <h2 className="text-2xl font-semibold mb-4">Testes e Depuração</h2>
-          <p className="mb-4">
-            Para testar os endpoints, você pode usar ferramentas como o Postman ou o cURL. Certifique-se de verificar os logs das funções no painel do Supabase para diagnóstico de problemas.
-          </p>
-          <p className="text-muted-foreground">
-            Exemplo de comando cURL para o endpoint /pending-messages:
-          </p>
-          <pre className="bg-secondary/50 p-4 rounded-md text-sm font-mono whitespace-pre-wrap mt-2">
-{`curl -X POST https://mlwcupyfhtxdxcybwbmg.supabase.co/functions/v1/pending-messages \\
-  -H "Content-Type: application/json" \\
-  -d '{"name":"Functions"}'`}
-          </pre>
         </div>
       </div>
     </div>
