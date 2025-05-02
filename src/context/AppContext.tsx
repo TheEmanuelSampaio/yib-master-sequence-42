@@ -792,69 +792,90 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const updateSequence = async (id: string, sequenceData: Partial<Sequence>) => {
+  const updateSequence = async (
+    sequenceId: string,
+    updatedData: Partial<Sequence>
+  ) => {
     try {
-      if (sequenceData.name || sequenceData.status || 
-          sequenceData.startCondition || sequenceData.stopCondition) {
-        
-        const updateData: any = {
-          updated_at: new Date().toISOString()
-        };
-        
-        if (sequenceData.name) updateData.name = sequenceData.name;
-        if (sequenceData.status) updateData.status = sequenceData.status;
-        if (sequenceData.startCondition) {
-          // Ensure valid "AND" or "OR" type
-          updateData.start_condition_type = sequenceData.startCondition.type;
-          updateData.start_condition_tags = sequenceData.startCondition.tags;
-        }
-        if (sequenceData.stopCondition) {
-          // Ensure valid "AND" or "OR" type
-          updateData.stop_condition_type = sequenceData.stopCondition.type;
-          updateData.stop_condition_tags = sequenceData.stopCondition.tags;
-        }
-        
-        const { error } = await supabase
-          .from('sequences')
-          .update(updateData)
-          .eq('id', id);
-        
-        if (error) throw error;
+      if (!isValidUUID(sequenceId)) {
+        console.error(`ID de sequência inválido: ${sequenceId}`);
+        toast.error("ID de sequência inválido");
+        return;
+      }
+
+      setLoading(true);
+
+      // Verificar se há contactos ativos usando esta sequência
+      const { data: activeContacts, error: contactsError } = await supabase
+        .from("contact_sequences")
+        .select("id, current_stage_id")
+        .eq("sequence_id", sequenceId)
+        .in("status", ["active", "paused"]);
+      
+      if (contactsError) {
+        throw new Error(`Falha ao verificar contatos ativos: ${contactsError.message}`);
       }
       
-      // Update stages if provided
-      if (sequenceData.stages) {
-        // Verificar se a sequência tem contatos ativos antes de prosseguir
-        const { data: contactSequences, error: checkError } = await supabase
-          .from('contact_sequences')
-          .select('id, current_stage_id, current_stage_index')
-          .eq('sequence_id', id)
-          .in('status', ['active', 'paused']);
-          
-        if (checkError) throw checkError;
+      // Se houver estágios para atualizar e contatos ativos, precisamos fazer uma migração cuidadosa
+      if (updatedData.stages && activeContacts && activeContacts.length > 0) {
+        // Buscar os estágios existentes
+        const { data: existingStages, error: stagesError } = await supabase
+          .from("sequence_stages")
+          .select("*")
+          .eq("sequence_id", sequenceId)
+          .order("order_index", { ascending: true });
         
-        // Obter os estágios atuais
-        const { data: currentStages, error: stagesError } = await supabase
-          .from('sequence_stages')
-          .select('id, name, order_index')
-          .eq('sequence_id', id)
-          .order('order_index', { ascending: true });
-          
-        if (stagesError) throw stagesError;
+        if (stagesError) {
+          throw new Error(`Falha ao buscar estágios existentes: ${stagesError.message}`);
+        }
         
-        // Criar um mapeamento dos estágios antigos para os novos estágios baseado no índice e nome
-        // Isso preservará a relação entre contatos e estágios o máximo possível
-        let stageMapping: Record<string, { newIndex: number, newId?: string }> = {};
+        // Criar um mapeamento de estágios antigos para novos com base em nome e posição
+        const stageMapping = new Map();
+        const stageIdsToUpdate = [];
         
-        // Primeiro, criar os novos estágios e manter os IDs
-        const newStageIds: string[] = [];
-        for (let i = 0; i < sequenceData.stages.length; i++) {
-          const stage = sequenceData.stages[i];
-          
-          const { data: stageData, error: stageError } = await supabase
-            .from('sequence_stages')
+        // Identificar quais estágios antigos estão em uso e precisam ser preservados/mapeados
+        const usedStageIds = new Set(activeContacts
+          .map(contact => contact.current_stage_id)
+          .filter(id => id !== null));
+        
+        for (const oldStage of existingStages) {
+          if (usedStageIds.has(oldStage.id)) {
+            // Encontre o estágio correspondente nos novos estágios com base no nome e ordem
+            const matchingStage = updatedData.stages.find(
+              (s, idx) => s.name === oldStage.name && Math.abs(idx - oldStage.order_index) <= 1
+            );
+            
+            if (matchingStage) {
+              stageMapping.set(oldStage.id, matchingStage);
+              stageIdsToUpdate.push(oldStage.id);
+            }
+          }
+        }
+        
+        // Atualizar a sequência no banco de dados (exceto estágios)
+        const { stages, ...sequenceData } = updatedData;
+        const { error: updateError } = await supabase
+          .from("sequences")
+          .update({
+            ...sequenceData,
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", sequenceId);
+        
+        if (updateError) {
+          throw new Error(`Falha ao atualizar sequência: ${updateError.message}`);
+        }
+        
+        // Tratar os estágios separadamente para evitar violação da restrição de chave estrangeira
+        
+        // 1. Criar novos estágios com IDs temporários
+        const newStages = [];
+        for (let i = 0; i < stages.length; i++) {
+          const stage = stages[i];
+          const { data: newStage, error: createStageError } = await supabase
+            .from("sequence_stages")
             .insert({
-              sequence_id: id,
+              sequence_id: sequenceId,
               name: stage.name,
               type: stage.type,
               content: stage.content,
@@ -865,135 +886,194 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             })
             .select()
             .single();
-          
-          if (stageError) throw stageError;
-          
-          newStageIds.push(stageData.id);
-          
-          // Tentar mapear o estágio antigo para o novo com base no nome e posição similar
-          const similarOldStage = currentStages?.find(oldStage => 
-            oldStage.name === stage.name || 
-            Math.abs(oldStage.order_index - i) <= 1 // Considera estágios em posições próximas
-          );
-          
-          if (similarOldStage) {
-            stageMapping[similarOldStage.id] = { 
-              newIndex: i,
-              newId: stageData.id
-            };
+            
+          if (createStageError) {
+            throw new Error(`Falha ao criar novo estágio: ${createStageError.message}`);
           }
+          
+          newStages.push(newStage);
         }
         
-        // Atualizar os contatos que estão associados aos estágios
-        if (contactSequences && contactSequences.length > 0) {
-          for (const cs of contactSequences) {
-            if (cs.current_stage_id) {
-              const mapping = stageMapping[cs.current_stage_id];
+        // 2. Para cada contato ativo, atualizar para o novo estágio correspondente
+        for (const contact of activeContacts) {
+          if (!contact.current_stage_id) continue;
+          
+          const oldStageId = contact.current_stage_id;
+          const mappedStage = stageMapping.get(oldStageId);
+          
+          if (mappedStage) {
+            // Encontrar o novo ID de estágio correspondente
+            const newStageIndex = stages.findIndex(s => 
+              s.name === mappedStage.name && 
+              s.type === mappedStage.type && 
+              s.content === mappedStage.content
+            );
+            
+            if (newStageIndex !== -1) {
+              const newStageId = newStages[newStageIndex].id;
               
-              if (mapping) {
-                // Temos um mapeamento, atualizar o contato para o novo estágio
-                const { error: updateError } = await supabase
-                  .from('contact_sequences')
-                  .update({ 
-                    current_stage_id: mapping.newId,
-                    current_stage_index: mapping.newIndex
-                  })
-                  .eq('id', cs.id);
-                  
-                if (updateError) throw updateError;
-              } else {
-                // Não temos um mapeamento direto, manter o contato no mesmo índice se possível
-                const safeIndex = Math.min(cs.current_stage_index, sequenceData.stages.length - 1);
-                const newStageId = newStageIds[safeIndex];
+              // Atualizar o contato para usar o novo ID de estágio
+              const { error: updateContactError } = await supabase
+                .from("contact_sequences")
+                .update({
+                  current_stage_id: newStageId,
+                  current_stage_index: newStageIndex
+                })
+                .eq("id", contact.id);
                 
-                const { error: updateError } = await supabase
-                  .from('contact_sequences')
-                  .update({ 
-                    current_stage_id: newStageId,
-                    current_stage_index: safeIndex
-                  })
-                  .eq('id', cs.id);
-                  
-                if (updateError) throw updateError;
+              if (updateContactError) {
+                console.error(`Falha ao atualizar estágio do contato: ${updateContactError.message}`);
+              }
+              
+              // Atualizar os registros de progresso
+              const { error: updateProgressError } = await supabase
+                .from("stage_progress")
+                .update({
+                  stage_id: newStageId
+                })
+                .eq("contact_sequence_id", contact.id)
+                .eq("stage_id", oldStageId);
+                
+              if (updateProgressError) {
+                console.error(`Falha ao atualizar progresso do estágio: ${updateProgressError.message}`);
+              }
+              
+              // Atualizar mensagens agendadas
+              const { error: updateScheduledError } = await supabase
+                .from("scheduled_messages")
+                .update({
+                  stage_id: newStageId
+                })
+                .eq("contact_id", contact.id)
+                .eq("sequence_id", sequenceId)
+                .eq("stage_id", oldStageId)
+                .in("status", ["pending", "processing"]);
+                
+              if (updateScheduledError) {
+                console.error(`Falha ao atualizar mensagens agendadas: ${updateScheduledError.message}`);
               }
             }
           }
         }
         
-        // Agora que os contatos foram atualizados para os novos estágios, excluir os antigos
-        const { error: deleteError } = await supabase
-          .from('sequence_stages')
-          .delete()
-          .eq('sequence_id', id)
-          .not('id', 'in', newStageIds);
-        
-        if (deleteError) throw deleteError;
-      }
-      
-      // Update time restrictions if provided
-      if (sequenceData.timeRestrictions) {
-        // Separar as restrições em globais e locais
-        const globalRestrictions = sequenceData.timeRestrictions.filter(r => r.isGlobal);
-        const localRestrictions = sequenceData.timeRestrictions.filter(r => !r.isGlobal);
-        
-        // Validar restrições globais
-        if (globalRestrictions.length > 0) {
-          const globalRestrictionIds = globalRestrictions.map(r => r.id);
-          
-          // Verificar se todos os IDs de restrições globais existem
-          const { data: existingRestrictions, error: checkError } = await supabase
-            .from('time_restrictions')
-            .select('id')
-            .in('id', globalRestrictionIds);
-          
-          if (checkError) throw checkError;
-          
-          // Verificar se todas as restrições foram encontradas
-          if (!existingRestrictions || existingRestrictions.length !== globalRestrictionIds.length) {
-            // Algumas restrições não existem, identificar quais
-            const existingIds = existingRestrictions?.map(r => r.id) || [];
-            const missingIds = globalRestrictionIds.filter(id => !existingIds.includes(id));
+        // 3. Remover os estágios antigos quando for seguro
+        setTimeout(async () => {
+          try {
+            // Excluir estágios antigos que não são mais necessários
+            const { error: deleteStagesError } = await supabase
+              .from("sequence_stages")
+              .delete()
+              .eq("sequence_id", sequenceId)
+              .not("id", "in", newStages.map(s => s.id));
             
-            console.error(`Restrições não encontradas: ${missingIds.join(', ')}`);
-            throw new Error(`Algumas restrições de horário não existem no banco de dados: ${missingIds.join(', ')}`);
+            if (deleteStagesError) {
+              console.error(`Erro ao excluir estágios antigos: ${deleteStagesError.message}`);
+            }
+          } catch (error) {
+            console.error("Erro ao limpar estágios antigos:", error);
           }
-        }
+        }, 1000); // Pequeno atraso para garantir que as atualizações acima foram concluídas
         
-        // Delete all existing global restrictions for this sequence
-        const { error: deleteRestError } = await supabase
-          .from('sequence_time_restrictions')
+        // Atualizar o estado local
+        setSequences(prevSequences => 
+          prevSequences.map(seq => 
+            seq.id === sequenceId 
+              ? { 
+                  ...seq, 
+                  ...sequenceData, 
+                  stages: stages.map((stage, index) => ({ 
+                    ...stage, 
+                    id: newStages[index]?.id || stage.id 
+                  })),
+                  updatedAt: new Date().toISOString()
+                } 
+              : seq
+          )
+        );
+        
+        return;
+      }
+
+      // Caminho simples: sem estágios ou sem contatos ativos
+      const { stages, timeRestrictions, ...restData } = updatedData;
+
+      // Atualizar dados básicos da sequência
+      const { error: updateError } = await supabase
+        .from("sequences")
+        .update({
+          ...restData,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", sequenceId);
+
+      if (updateError) throw updateError;
+
+      // Se houver estágios para atualizar, primeiro excluir os antigos e depois inserir os novos
+      if (stages) {
+        // Excluir estágios antigos
+        const { error: deleteError } = await supabase
+          .from("sequence_stages")
           .delete()
-          .eq('sequence_id', id);
-        
-        if (deleteRestError) throw deleteRestError;
-        
-        // Delete all existing local restrictions for this sequence
-        const { error: deleteLocalRestError } = await supabase
-          .from('sequence_local_restrictions')
-          .delete()
-          .eq('sequence_id', id);
-          
-        if (deleteLocalRestError) throw deleteLocalRestError;
-        
-        // Add global restrictions
-        for (const restriction of globalRestrictions) {
-          const { error: restrictionError } = await supabase
-            .from('sequence_time_restrictions')
+          .eq("sequence_id", sequenceId);
+
+        if (deleteError) throw deleteError;
+
+        // Inserir novos estágios
+        for (let i = 0; i < stages.length; i++) {
+          const stage = stages[i];
+          const { error: stageError } = await supabase
+            .from("sequence_stages")
             .insert({
-              sequence_id: id,
-              time_restriction_id: restriction.id
+              sequence_id: sequenceId,
+              name: stage.name,
+              type: stage.type,
+              content: stage.content,
+              typebot_stage: stage.typebotStage,
+              delay: stage.delay,
+              delay_unit: stage.delayUnit,
+              order_index: i
             });
-          
-          if (restrictionError) throw restrictionError;
+
+          if (stageError) throw stageError;
         }
-        
-        // Add local restrictions
-        if (localRestrictions.length > 0 && user) {
-          for (const restriction of localRestrictions) {
-            const { error: localRestError } = await supabase
-              .from('sequence_local_restrictions')
+      }
+
+      // Se houver restrições de tempo para atualizar
+      if (timeRestrictions) {
+        // Primeiro, excluir todas as associações existentes com restrições globais
+        const { error: deleteGlobalError } = await supabase
+          .from("sequence_time_restrictions")
+          .delete()
+          .eq("sequence_id", sequenceId);
+
+        if (deleteGlobalError) throw deleteGlobalError;
+
+        // Excluir todas as restrições locais
+        const { error: deleteLocalError } = await supabase
+          .from("sequence_local_restrictions")
+          .delete()
+          .eq("sequence_id", sequenceId);
+
+        if (deleteLocalError) throw deleteLocalError;
+
+        // Inserir novas restrições
+        for (const restriction of timeRestrictions) {
+          if (restriction.isGlobal) {
+            // Para restrições globais, criar uma associação
+            const { error: restrictionError } = await supabase
+              .from("sequence_time_restrictions")
               .insert({
-                sequence_id: id,
+                sequence_id: sequenceId,
+                time_restriction_id: restriction.id
+              });
+
+            if (restrictionError) throw restrictionError;
+          } else {
+            // Para restrições locais, criar uma nova restrição local
+            const { error: localRestrictionError } = await supabase
+              .from("sequence_local_restrictions")
+              .insert({
+                sequence_id: sequenceId,
                 name: restriction.name,
                 active: restriction.active,
                 days: restriction.days,
@@ -1001,21 +1081,38 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
                 start_minute: restriction.startMinute,
                 end_hour: restriction.endHour,
                 end_minute: restriction.endMinute,
-                created_by: user.id
+                created_by: user?.id
               });
-              
-            if (localRestError) throw localRestError;
+
+            if (localRestrictionError) throw localRestrictionError;
           }
         }
       }
-      
-      toast.success("Sequência atualizada com sucesso");
-      
-      // Refresh sequences
-      refreshData();
-    } catch (error: any) {
-      console.error("Error updating sequence:", error);
+
+      // Atualizar o estado local
+      setSequences(prevSequences => {
+        return prevSequences.map(seq => {
+          if (seq.id === sequenceId) {
+            return {
+              ...seq,
+              ...restData,
+              // Se temos novos estágios, atualizar o estado
+              ...(stages ? { stages } : {}),
+              // Se temos novas restrições de tempo, atualizar o estado
+              ...(timeRestrictions ? { timeRestrictions } : {}),
+              updatedAt: new Date().toISOString()
+            };
+          }
+          return seq;
+        });
+      });
+
+      console.log(`Sequência ${sequenceId} atualizada com sucesso`);
+    } catch (error) {
+      console.error("Erro ao atualizar sequência:", error);
       toast.error(`Erro ao atualizar sequência: ${error.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 

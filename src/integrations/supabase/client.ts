@@ -29,6 +29,12 @@ export const isValidUUID = (uuid: string): boolean => {
   return uuidRegex.test(uuid);
 };
 
+// Helper function to prepare array of IDs for IN or NOT IN filters
+export const prepareIdsForFilter = (ids: string[]): string[] => {
+  // Filter out invalid UUIDs and ensure proper formatting
+  return ids.filter(id => isValidUUID(id));
+};
+
 // Define types for our custom RPC functions
 export type UserWithEmail = {
   id: string;
