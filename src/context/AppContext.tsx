@@ -294,7 +294,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             days: lr.days,
             startHour: lr.start_hour,
             startMinute: lr.start_minute,
-            endHour: lr.end_hour,
+            endHour: lr.endHour,
             endMinute: lr.end_minute,
             isGlobal: false // Marca explicitamente como restrição local
           }));
@@ -827,63 +827,31 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         // Verificar se a sequência tem contatos ativos antes de prosseguir
         const { data: contactSequences, error: checkError } = await supabase
           .from('contact_sequences')
-          .select('id, current_stage_id')
+          .select('id, current_stage_id, current_stage_index')
           .eq('sequence_id', id)
           .in('status', ['active', 'paused']);
           
         if (checkError) throw checkError;
         
-        if (contactSequences && contactSequences.length > 0) {
-          // Existe contatos associados à sequência
-          
-          // 1. Primeiro, vamos obter os estágios atuais
-          const { data: currentStages, error: stagesError } = await supabase
-            .from('sequence_stages')
-            .select('id')
-            .eq('sequence_id', id);
-            
-          if (stagesError) throw stagesError;
-          
-          // 2. Mapeie os IDs de estágios atuais para verificação rápida
-          const currentStageIds = new Set((currentStages || []).map(stage => stage.id));
-          
-          // 3. Colete IDs de estágios que estão sendo referenciados
-          const referencedStageIds = new Set(contactSequences.map(cs => cs.current_stage_id).filter(Boolean));
-          
-          // 4. Verifique se algum estágio referenciado não está nos novos estágios
-          const keepStageIds = new Set();
-          for (const stageId of referencedStageIds) {
-            if (stageId && currentStageIds.has(stageId)) {
-              keepStageIds.add(stageId);
-            }
-          }
-          
-          if (keepStageIds.size > 0) {
-            // 5. Atualizar contatos que referenciam estágios que serão excluídos
-            // Define o current_stage_id como null para essas sequências
-            const { error: updateError } = await supabase
-              .from('contact_sequences')
-              .update({ current_stage_id: null })
-              .eq('sequence_id', id)
-              .in('status', ['active', 'paused']);
-              
-            if (updateError) throw updateError;
-          }
-        }
-        
-        // Agora podemos excluir todos os estágios com segurança
-        const { error: deleteError } = await supabase
+        // Obter os estágios atuais
+        const { data: currentStages, error: stagesError } = await supabase
           .from('sequence_stages')
-          .delete()
-          .eq('sequence_id', id);
+          .select('id, name, order_index')
+          .eq('sequence_id', id)
+          .order('order_index', { ascending: true });
+          
+        if (stagesError) throw stagesError;
         
-        if (deleteError) throw deleteError;
+        // Criar um mapeamento dos estágios antigos para os novos estágios baseado no índice e nome
+        // Isso preservará a relação entre contatos e estágios o máximo possível
+        let stageMapping: Record<string, { newIndex: number, newId?: string }> = {};
         
-        // Then create the new stages
+        // Primeiro, criar os novos estágios e manter os IDs
+        const newStageIds: string[] = [];
         for (let i = 0; i < sequenceData.stages.length; i++) {
           const stage = sequenceData.stages[i];
           
-          const { error: stageError } = await supabase
+          const { data: stageData, error: stageError } = await supabase
             .from('sequence_stages')
             .insert({
               sequence_id: id,
@@ -894,10 +862,72 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               delay: stage.delay,
               delay_unit: stage.delayUnit,
               order_index: i
-            });
+            })
+            .select()
+            .single();
           
           if (stageError) throw stageError;
+          
+          newStageIds.push(stageData.id);
+          
+          // Tentar mapear o estágio antigo para o novo com base no nome e posição similar
+          const similarOldStage = currentStages?.find(oldStage => 
+            oldStage.name === stage.name || 
+            Math.abs(oldStage.order_index - i) <= 1 // Considera estágios em posições próximas
+          );
+          
+          if (similarOldStage) {
+            stageMapping[similarOldStage.id] = { 
+              newIndex: i,
+              newId: stageData.id
+            };
+          }
         }
+        
+        // Atualizar os contatos que estão associados aos estágios
+        if (contactSequences && contactSequences.length > 0) {
+          for (const cs of contactSequences) {
+            if (cs.current_stage_id) {
+              const mapping = stageMapping[cs.current_stage_id];
+              
+              if (mapping) {
+                // Temos um mapeamento, atualizar o contato para o novo estágio
+                const { error: updateError } = await supabase
+                  .from('contact_sequences')
+                  .update({ 
+                    current_stage_id: mapping.newId,
+                    current_stage_index: mapping.newIndex
+                  })
+                  .eq('id', cs.id);
+                  
+                if (updateError) throw updateError;
+              } else {
+                // Não temos um mapeamento direto, manter o contato no mesmo índice se possível
+                const safeIndex = Math.min(cs.current_stage_index, sequenceData.stages.length - 1);
+                const newStageId = newStageIds[safeIndex];
+                
+                const { error: updateError } = await supabase
+                  .from('contact_sequences')
+                  .update({ 
+                    current_stage_id: newStageId,
+                    current_stage_index: safeIndex
+                  })
+                  .eq('id', cs.id);
+                  
+                if (updateError) throw updateError;
+              }
+            }
+          }
+        }
+        
+        // Agora que os contatos foram atualizados para os novos estágios, excluir os antigos
+        const { error: deleteError } = await supabase
+          .from('sequence_stages')
+          .delete()
+          .eq('sequence_id', id)
+          .not('id', 'in', newStageIds);
+        
+        if (deleteError) throw deleteError;
       }
       
       // Update time restrictions if provided
