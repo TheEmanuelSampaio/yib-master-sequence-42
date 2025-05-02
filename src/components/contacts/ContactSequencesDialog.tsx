@@ -1,4 +1,3 @@
-
 import { Contact, ContactSequence, Sequence } from '@/types';
 import { User, Tag, CheckCircle2, Clock, AlertCircle, X, Move, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -157,7 +156,10 @@ export const ContactSequencesDialog = ({
                                       <DropdownMenuSeparator />
                                       <AlertDialog>
                                         <AlertDialogTrigger asChild>
-                                          <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-red-500">
+                                          <DropdownMenuItem 
+                                            onSelect={(e) => e.preventDefault()} 
+                                            className="text-red-500"
+                                          >
                                             <X className="h-4 w-4 mr-2" />
                                             Remover da sequência
                                           </DropdownMenuItem>
