@@ -294,7 +294,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             days: lr.days,
             startHour: lr.start_hour,
             startMinute: lr.start_minute,
-            endHour: lr.endHour,
+            endHour: lr.end_hour, // Fixed: Changed from endHour to end_hour
             endMinute: lr.end_minute,
             isGlobal: false // Marca explicitamente como restrição local
           }));
