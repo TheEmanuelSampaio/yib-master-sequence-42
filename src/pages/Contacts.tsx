@@ -1,71 +1,19 @@
 
 import { useState } from "react";
 import { useApp } from '@/context/AppContext';
-import { Search, User, Tag, CheckCircle2, Clock, AlertCircle, ChevronDown, MoreVertical, Trash2, Edit, X, Move, ArrowRight } from "lucide-react";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  CardFooter,
-} from "@/components/ui/card";
+import { Search, User } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Contact, ContactSequence, Sequence } from '@/types';
-import { cn } from '@/lib/utils';
+import { Contact, ContactSequence } from '@/types';
 import { toast } from "sonner";
-import { 
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { 
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+
+// Componentes refatorados
+import { ContactTable } from "@/components/contacts/ContactTable";
+import { ContactEditDialog } from "@/components/contacts/ContactEditDialog";
+import { ContactStageChangeDialog } from "@/components/contacts/ContactStageChangeDialog";
+import { ContactSequencesDialog } from "@/components/contacts/ContactSequencesDialog";
 
 export default function Contacts() {
   const { contacts, sequences, contactSequences, deleteContact, updateContact, removeFromSequence, updateContactSequence, refreshData } = useApp();
@@ -206,38 +154,6 @@ export default function Contacts() {
     
     setIsProcessing(false);
   };
-  
-  const formatContactSequenceStatus = (status: string) => {
-    switch (status) {
-      case 'active':
-        return (
-          <Badge className="bg-green-600">
-            <Clock className="h-3 w-3 mr-1" />
-            Ativa
-          </Badge>
-        );
-      case 'completed':
-        return (
-          <Badge variant="outline" className="bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-500/30">
-            <CheckCircle2 className="h-3 w-3 mr-1" />
-            Concluída
-          </Badge>
-        );
-      case 'removed':
-        return (
-          <Badge variant="outline" className="bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30">
-            <AlertCircle className="h-3 w-3 mr-1" />
-            Removida
-          </Badge>
-        );
-      default:
-        return (
-          <Badge variant="outline">
-            {status}
-          </Badge>
-        );
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -277,116 +193,14 @@ export default function Contacts() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[250px]">Nome</TableHead>
-                      <TableHead>Telefone</TableHead>
-                      <TableHead>Tags</TableHead>
-                      <TableHead>Sequências</TableHead>
-                      <TableHead></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredContacts.length > 0 ? filteredContacts.map(contact => {
-                      const seqDetails = getContactSequenceDetails(contact.id);
-                      
-                      return (
-                        <TableRow key={contact.id}>
-                          <TableCell className="font-medium">{contact.name}</TableCell>
-                          <TableCell>{contact.phoneNumber}</TableCell>
-                          <TableCell>
-                            <div className="flex flex-wrap gap-1">
-                              {contact.tags.map(tag => (
-                                <Badge key={tag} variant="outline" className="text-xs py-0">
-                                  {tag}
-                                </Badge>
-                              ))}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            {seqDetails.total > 0 ? (
-                              <div className="flex items-center space-x-2">
-                                {seqDetails.active > 0 && (
-                                  <Badge className="bg-green-600">
-                                    {seqDetails.active} ativa{seqDetails.active > 1 && 's'}
-                                  </Badge>
-                                )}
-                                {seqDetails.completed > 0 && (
-                                  <Badge variant="outline" className="bg-blue-500/20 text-blue-700 dark:text-blue-400">
-                                    {seqDetails.completed} concluída{seqDetails.completed > 1 && 's'}
-                                  </Badge>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-muted-foreground text-sm">
-                                Sem sequências
-                              </span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="sm">
-                                  <MoreVertical className="h-4 w-4" />
-                                  <span className="sr-only">Ações</span>
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => handlePrepareEdit(contact)}>
-                                  <Edit className="h-4 w-4 mr-2" />
-                                  Editar
-                                </DropdownMenuItem>
-                                {seqDetails.total > 0 && (
-                                  <DropdownMenuItem onClick={() => handleViewSequences(contact)}>
-                                    <Clock className="h-4 w-4 mr-2" />
-                                    Sequências
-                                  </DropdownMenuItem>
-                                )}
-                                <DropdownMenuSeparator />
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild>
-                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-red-500">
-                                      <Trash2 className="h-4 w-4 mr-2" />
-                                      Excluir
-                                    </DropdownMenuItem>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>Excluir contato?</AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        Esta ação não pode ser desfeita. Isso excluirá permanentemente o 
-                                        contato "{contact.name}" e removerá todos os dados associados a ele.
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                      <AlertDialogAction
-                                        onClick={() => handleDeleteContact(contact.id)}
-                                        className="bg-red-500 hover:bg-red-600"
-                                        disabled={isProcessing}
-                                      >
-                                        Excluir
-                                      </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    }) : (
-                      <TableRow>
-                        <TableCell colSpan={5} className="h-24 text-center">
-                          Nenhum contato encontrado
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
+              <ContactTable
+                contacts={filteredContacts}
+                getContactSequenceDetails={getContactSequenceDetails}
+                onViewSequences={handleViewSequences}
+                onPrepareEdit={handlePrepareEdit}
+                onDeleteContact={handleDeleteContact}
+                isProcessing={isProcessing}
+              />
             </CardContent>
           </Card>
         </TabsContent>
@@ -400,367 +214,53 @@ export default function Contacts() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[250px]">Nome</TableHead>
-                      <TableHead>Telefone</TableHead>
-                      <TableHead>Tags</TableHead>
-                      <TableHead>Sequências</TableHead>
-                      <TableHead></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {activeContacts.length > 0 ? activeContacts.map(contact => {
-                      const seqDetails = getContactSequenceDetails(contact.id);
-                      
-                      return (
-                        <TableRow key={contact.id}>
-                          <TableCell className="font-medium">{contact.name}</TableCell>
-                          <TableCell>{contact.phoneNumber}</TableCell>
-                          <TableCell>
-                            <div className="flex flex-wrap gap-1">
-                              {contact.tags.map(tag => (
-                                <Badge key={tag} variant="outline" className="text-xs py-0">
-                                  {tag}
-                                </Badge>
-                              ))}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center space-x-2">
-                              <Badge className="bg-green-600">
-                                {seqDetails.active} ativa{seqDetails.active > 1 && 's'}
-                              </Badge>
-                              {seqDetails.completed > 0 && (
-                                <Badge variant="outline" className="bg-blue-500/20 text-blue-700 dark:text-blue-400">
-                                  {seqDetails.completed} concluída{seqDetails.completed > 1 && 's'}
-                                </Badge>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="sm">
-                                  <MoreVertical className="h-4 w-4" />
-                                  <span className="sr-only">Ações</span>
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => handlePrepareEdit(contact)}>
-                                  <Edit className="h-4 w-4 mr-2" />
-                                  Editar
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleViewSequences(contact)}>
-                                  <Clock className="h-4 w-4 mr-2" />
-                                  Sequências
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild>
-                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-red-500">
-                                      <Trash2 className="h-4 w-4 mr-2" />
-                                      Excluir
-                                    </DropdownMenuItem>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>Excluir contato?</AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        Esta ação não pode ser desfeita. Isso excluirá permanentemente o 
-                                        contato "{contact.name}" e removerá todos os dados associados a ele.
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                      <AlertDialogAction
-                                        onClick={() => handleDeleteContact(contact.id)}
-                                        className="bg-red-500 hover:bg-red-600"
-                                        disabled={isProcessing}
-                                      >
-                                        Excluir
-                                      </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    }) : (
-                      <TableRow>
-                        <TableCell colSpan={5} className="h-24 text-center">
-                          Nenhum contato em sequências ativas
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
+              <ContactTable
+                contacts={activeContacts}
+                getContactSequenceDetails={getContactSequenceDetails}
+                onViewSequences={handleViewSequences}
+                onPrepareEdit={handlePrepareEdit}
+                onDeleteContact={handleDeleteContact}
+                isProcessing={isProcessing}
+              />
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
       
-      {/* Dialog de Edição do Contato */}
-      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Editar Contato</DialogTitle>
-            <DialogDescription>
-              Edite as informações do contato.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <label htmlFor="name" className="text-right text-sm font-medium">
-                Nome
-              </label>
-              <Input
-                id="name"
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <label htmlFor="phone" className="text-right text-sm font-medium">
-                Telefone
-              </label>
-              <Input
-                id="phone"
-                value={editPhone}
-                onChange={(e) => setEditPhone(e.target.value)}
-                className="col-span-3"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowEditDialog(false)}>Cancelar</Button>
-            <Button onClick={handleSaveEdit} disabled={isProcessing}>
-              {isProcessing ? "Salvando..." : "Salvar alterações"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Modais/Dialogs refatorados em componentes */}
+      <ContactEditDialog
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        contact={contactToEdit}
+        onSave={handleSaveEdit}
+        isProcessing={isProcessing}
+        editName={editName}
+        setEditName={setEditName}
+        editPhone={editPhone}
+        setEditPhone={setEditPhone}
+      />
       
-      {/* Dialog de Alteração de Estágio */}
-      <Dialog open={showStageChangeDialog} onOpenChange={setShowStageChangeDialog}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Alterar Estágio</DialogTitle>
-            <DialogDescription>
-              Selecione o novo estágio para este contato na sequência.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            {selectedContactSequence && (
-              <Select
-                value={selectedStageId}
-                onValueChange={setSelectedStageId}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Selecione um estágio" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {sequences
-                      .find(s => s.id === selectedContactSequence.sequenceId)
-                      ?.stages.map(stage => (
-                        <SelectItem key={stage.id} value={stage.id}>
-                          {stage.name}
-                        </SelectItem>
-                      ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowStageChangeDialog(false)}>Cancelar</Button>
-            <Button onClick={handleSaveStageChange} disabled={isProcessing || !selectedStageId}>
-              {isProcessing ? "Salvando..." : "Atualizar estágio"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ContactStageChangeDialog
+        open={showStageChangeDialog}
+        onOpenChange={setShowStageChangeDialog}
+        selectedContactSequence={selectedContactSequence}
+        selectedStageId={selectedStageId}
+        setSelectedStageId={setSelectedStageId}
+        onSave={handleSaveStageChange}
+        isProcessing={isProcessing}
+        sequences={sequences}
+      />
       
-      {/* Contact Sequences Dialog */}
-      <Dialog open={showSequences} onOpenChange={setShowSequences}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center">
-              <User className="h-5 w-5 mr-2" />
-              {selectedContact?.name}
-            </DialogTitle>
-            <DialogDescription>
-              Sequências e progresso para este contato
-            </DialogDescription>
-          </DialogHeader>
-          {selectedContact && (
-            <ScrollArea className="max-h-[500px] pr-4">
-              <div className="space-y-4">
-                <div>
-                  <h4 className="text-sm font-semibold mb-1 flex items-center">
-                    <Tag className="h-4 w-4 mr-1" />
-                    Tags
-                  </h4>
-                  <div className="flex flex-wrap gap-1">
-                    {selectedContact.tags.map(tag => (
-                      <Badge key={tag} variant="outline">
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-                
-                <div>
-                  <h4 className="text-sm font-semibold mb-2">Histórico de Sequências</h4>
-                  {getContactSequences(selectedContact.id).length > 0 ? (
-                    <div className="space-y-4">
-                      {getContactSequences(selectedContact.id).map((contactSequence: ContactSequence) => {
-                        const sequence = sequences.find(s => s.id === contactSequence.sequenceId);
-                        if (!sequence) return null;
-                        
-                        return (
-                          <Card key={contactSequence.id} className="overflow-hidden">
-                            <CardHeader className="py-3">
-                              <div className="flex justify-between items-center">
-                                <CardTitle className="text-base">{sequence.name}</CardTitle>
-                                <div className="flex items-center gap-2">
-                                  {formatContactSequenceStatus(contactSequence.status)}
-                                  
-                                  {contactSequence.status === 'active' && (
-                                    <DropdownMenu>
-                                      <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="icon">
-                                          <MoreVertical className="h-4 w-4" />
-                                        </Button>
-                                      </DropdownMenuTrigger>
-                                      <DropdownMenuContent align="end">
-                                        <DropdownMenuItem onClick={() => handlePrepareStageChange(contactSequence)}>
-                                          <Move className="h-4 w-4 mr-2" />
-                                          Alterar estágio
-                                        </DropdownMenuItem>
-                                        <DropdownMenuSeparator />
-                                        <AlertDialog>
-                                          <AlertDialogTrigger asChild>
-                                            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-red-500">
-                                              <X className="h-4 w-4 mr-2" />
-                                              Remover da sequência
-                                            </DropdownMenuItem>
-                                          </AlertDialogTrigger>
-                                          <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                              <AlertDialogTitle>Remover contato da sequência?</AlertDialogTitle>
-                                              <AlertDialogDescription>
-                                                O contato será removido da sequência "{sequence.name}" e não receberá mais mensagens desta sequência.
-                                              </AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                              <AlertDialogAction
-                                                onClick={() => handleRemoveFromSequence(contactSequence.id)}
-                                                className="bg-red-500 hover:bg-red-600"
-                                                disabled={isProcessing}
-                                              >
-                                                Remover
-                                              </AlertDialogAction>
-                                            </AlertDialogFooter>
-                                          </AlertDialogContent>
-                                        </AlertDialog>
-                                      </DropdownMenuContent>
-                                    </DropdownMenu>
-                                  )}
-                                </div>
-                              </div>
-                              <CardDescription>
-                                Iniciada em {new Date(contactSequence.startedAt).toLocaleDateString('pt-BR')}
-                                {contactSequence.completedAt && (
-                                  <> • Concluída em {new Date(contactSequence.completedAt).toLocaleDateString('pt-BR')}</>
-                                )}
-                                {contactSequence.removedAt && (
-                                  <> • Removida em {new Date(contactSequence.removedAt).toLocaleDateString('pt-BR')}</>
-                                )}
-                              </CardDescription>
-                            </CardHeader>
-                            <CardContent className="py-3">
-                              <div>
-                                <h5 className="text-sm font-medium mb-2">Progresso dos Estágios</h5>
-                                <div className="space-y-2">
-                                  {sequence.stages.map((stage, index) => {
-                                    const progress = contactSequence.stageProgress ? 
-                                      contactSequence.stageProgress.find(p => p.stageId === stage.id) : undefined;
-                                    
-                                    return (
-                                      <div 
-                                        key={stage.id} 
-                                        className={cn(
-                                          "flex items-start space-x-3 p-2 rounded-md",
-                                          progress?.status === "completed" && "bg-green-500/10",
-                                          progress?.status === "skipped" && "bg-gray-500/10",
-                                          contactSequence.currentStageId === stage.id && "bg-blue-500/10 border border-blue-500/30"
-                                        )}
-                                      >
-                                        <div className="mt-0.5">
-                                          {progress?.status === "completed" ? (
-                                            <CheckCircle2 className="h-5 w-5 text-green-500" />
-                                          ) : progress?.status === "skipped" ? (
-                                            <AlertCircle className="h-5 w-5 text-gray-500" />
-                                          ) : contactSequence.currentStageId === stage.id ? (
-                                            <Clock className="h-5 w-5 text-blue-500" />
-                                          ) : (
-                                            <div className="h-5 w-5 rounded-full border border-muted flex items-center justify-center">
-                                              <span className="text-xs">{index + 1}</span>
-                                            </div>
-                                          )}
-                                        </div>
-                                        <div className="flex-1">
-                                          <div className="flex items-center">
-                                            <h6 className="font-medium text-sm">{stage.name}</h6>
-                                            {contactSequence.currentStageId === stage.id && (
-                                              <Badge variant="outline" className="ml-2 bg-blue-500/10 text-blue-700 dark:text-blue-400 text-xs">
-                                                Atual
-                                              </Badge>
-                                            )}
-                                          </div>
-                                          <p className="text-xs text-muted-foreground mt-0.5">
-                                            {progress?.status === "completed" && progress.completedAt ? (
-                                              `Enviado em ${new Date(progress.completedAt).toLocaleString('pt-BR')}`
-                                            ) : contactSequence.currentStageId === stage.id ? (
-                                              "Aguardando envio"
-                                            ) : (
-                                              "Pendente"
-                                            )}
-                                          </p>
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="text-center p-4 border rounded-md">
-                      <p className="text-muted-foreground">
-                        Este contato não está em nenhuma sequência.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </ScrollArea>
-          )}
-        </DialogContent>
-      </Dialog>
+      <ContactSequencesDialog
+        open={showSequences}
+        onOpenChange={setShowSequences}
+        contact={selectedContact}
+        contactSequences={contactSequences}
+        sequences={sequences}
+        onPrepareStageChange={handlePrepareStageChange}
+        onRemoveFromSequence={handleRemoveFromSequence}
+        isProcessing={isProcessing}
+      />
     </div>
   );
 }
-
