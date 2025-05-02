@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { supabase, UserWithEmail, isValidUUID, checkStagesInUse } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
@@ -16,6 +15,7 @@ import {
   TagCondition
 } from "@/types";
 import { toast } from "@/components/ui/use-toast";
+import AppContactContext, { createContactFunctions, AppContactFunctions } from './AppContact';
 
 interface AppContextType {
   clients: Client[];
@@ -51,6 +51,15 @@ interface AppContextType {
   deleteTag: (tagName: string) => Promise<void>;
   refreshData: () => Promise<void>;
   isDataInitialized: boolean;
+  
+  // Funções de manipulação de contatos
+  deleteContact: (contactId: string) => Promise<{ success: boolean; error?: string }>;
+  updateContact: (contactId: string, data: Partial<Contact>) => Promise<{ success: boolean; error?: string }>;
+  removeFromSequence: (contactSequenceId: string) => Promise<{ success: boolean; error?: string }>;
+  updateContactSequence: (contactSequenceId: string, data: {
+    sequenceId?: string;
+    currentStageId?: string;
+  }) => Promise<{ success: boolean; error?: string }>;
 }
 
 // Interface to extend the sequence data from the database with additional properties
@@ -135,6 +144,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return contactSequences.filter(cs => cs.contactId === contactId);
   };
 
+  // Criar funções de manipulação de contatos
+  const contactFunctions = createContactFunctions();
+  
   // Fetch data when auth user changes
   useEffect(() => {
     if (user && !isDataInitialized) {
@@ -1515,9 +1527,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     deleteTag,
     refreshData,
     isDataInitialized,
+    
+    // Funções de manipulação de contatos
+    deleteContact: contactFunctions.deleteContact,
+    updateContact: contactFunctions.updateContact,
+    removeFromSequence: contactFunctions.removeFromSequence,
+    updateContactSequence: contactFunctions.updateContactSequence,
   };
 
-  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+  return (
+    <AppContext.Provider value={value}>
+      <AppContactContext.Provider value={contactFunctions}>
+        {children}
+      </AppContactContext.Provider>
+    </AppContext.Provider>
+  );
 };
 
 export const useApp = (): AppContextType => {

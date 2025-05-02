@@ -1,7 +1,7 @@
 
 import { useState } from "react";
 import { useApp } from '@/context/AppContext';
-import { Search, User, Tag, CheckCircle2, Clock, AlertCircle, ChevronDown, MoreVertical } from "lucide-react";
+import { Search, User, Tag, CheckCircle2, Clock, AlertCircle, ChevronDown, MoreVertical, Trash2, Edit, X, Move, ArrowRight } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -16,6 +16,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,23 +28,58 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Contact, ContactSequence } from '@/types';
+import { Contact, ContactSequence, Sequence } from '@/types';
 import { cn } from '@/lib/utils';
+import { toast } from "sonner";
+import { 
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { 
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 export default function Contacts() {
-  const { contacts, sequences, contactSequences } = useApp();
+  const { contacts, sequences, contactSequences, deleteContact, updateContact, removeFromSequence, updateContactSequence, refreshData } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [showSequences, setShowSequences] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [contactToEdit, setContactToEdit] = useState<Contact | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [selectedContactSequence, setSelectedContactSequence] = useState<ContactSequence | null>(null);
+  const [selectedStageId, setSelectedStageId] = useState<string>('');
+  const [showStageChangeDialog, setShowStageChangeDialog] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   
   // Helper function to get contact sequences
   const getContactSequences = (contactId: string) => {
@@ -78,6 +114,97 @@ export default function Contacts() {
   const handleViewSequences = (contact: Contact) => {
     setSelectedContact(contact);
     setShowSequences(true);
+  };
+  
+  // Preparar edição do contato
+  const handlePrepareEdit = (contact: Contact) => {
+    setContactToEdit(contact);
+    setEditName(contact.name);
+    setEditPhone(contact.phoneNumber);
+    setShowEditDialog(true);
+  };
+  
+  // Salvar edição do contato
+  const handleSaveEdit = async () => {
+    if (!contactToEdit) return;
+    
+    setIsProcessing(true);
+    
+    const result = await updateContact(contactToEdit.id, {
+      name: editName,
+      phoneNumber: editPhone
+    });
+    
+    if (result.success) {
+      toast.success("Contato atualizado com sucesso");
+      refreshData();
+      setShowEditDialog(false);
+    } else {
+      toast.error(result.error || "Erro ao atualizar contato");
+    }
+    
+    setIsProcessing(false);
+  };
+  
+  // Excluir contato
+  const handleDeleteContact = async (contactId: string) => {
+    setIsProcessing(true);
+    
+    const result = await deleteContact(contactId);
+    
+    if (result.success) {
+      toast.success("Contato excluído com sucesso");
+      refreshData();
+    } else {
+      toast.error(result.error || "Erro ao excluir contato");
+    }
+    
+    setIsProcessing(false);
+  };
+  
+  // Remover contato de uma sequência
+  const handleRemoveFromSequence = async (contactSequenceId: string) => {
+    setIsProcessing(true);
+    
+    const result = await removeFromSequence(contactSequenceId);
+    
+    if (result.success) {
+      toast.success("Contato removido da sequência com sucesso");
+      refreshData();
+      setShowSequences(false); // Fechar o modal
+    } else {
+      toast.error(result.error || "Erro ao remover contato da sequência");
+    }
+    
+    setIsProcessing(false);
+  };
+  
+  // Preparar mudança de estágio
+  const handlePrepareStageChange = (contactSequence: ContactSequence) => {
+    setSelectedContactSequence(contactSequence);
+    setSelectedStageId(contactSequence.currentStageId || '');
+    setShowStageChangeDialog(true);
+  };
+  
+  // Salvar mudança de estágio
+  const handleSaveStageChange = async () => {
+    if (!selectedContactSequence || !selectedStageId) return;
+    
+    setIsProcessing(true);
+    
+    const result = await updateContactSequence(selectedContactSequence.id, {
+      currentStageId: selectedStageId
+    });
+    
+    if (result.success) {
+      toast.success("Estágio atualizado com sucesso");
+      refreshData();
+      setShowStageChangeDialog(false);
+    } else {
+      toast.error(result.error || "Erro ao atualizar estágio");
+    }
+    
+    setIsProcessing(false);
   };
   
   const formatContactSequenceStatus = (status: string) => {
@@ -199,14 +326,54 @@ export default function Contacts() {
                             )}
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleViewSequences(contact)}
-                              disabled={seqDetails.total === 0}
-                            >
-                              Detalhes
-                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm">
+                                  <MoreVertical className="h-4 w-4" />
+                                  <span className="sr-only">Ações</span>
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handlePrepareEdit(contact)}>
+                                  <Edit className="h-4 w-4 mr-2" />
+                                  Editar
+                                </DropdownMenuItem>
+                                {seqDetails.total > 0 && (
+                                  <DropdownMenuItem onClick={() => handleViewSequences(contact)}>
+                                    <Clock className="h-4 w-4 mr-2" />
+                                    Sequências
+                                  </DropdownMenuItem>
+                                )}
+                                <DropdownMenuSeparator />
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-red-500">
+                                      <Trash2 className="h-4 w-4 mr-2" />
+                                      Excluir
+                                    </DropdownMenuItem>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Excluir contato?</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Esta ação não pode ser desfeita. Isso excluirá permanentemente o 
+                                        contato "{contact.name}" e removerá todos os dados associados a ele.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                      <AlertDialogAction
+                                        onClick={() => handleDeleteContact(contact.id)}
+                                        className="bg-red-500 hover:bg-red-600"
+                                        disabled={isProcessing}
+                                      >
+                                        Excluir
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </TableCell>
                         </TableRow>
                       );
@@ -274,13 +441,52 @@ export default function Contacts() {
                             </div>
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleViewSequences(contact)}
-                            >
-                              Detalhes
-                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm">
+                                  <MoreVertical className="h-4 w-4" />
+                                  <span className="sr-only">Ações</span>
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handlePrepareEdit(contact)}>
+                                  <Edit className="h-4 w-4 mr-2" />
+                                  Editar
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleViewSequences(contact)}>
+                                  <Clock className="h-4 w-4 mr-2" />
+                                  Sequências
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-red-500">
+                                      <Trash2 className="h-4 w-4 mr-2" />
+                                      Excluir
+                                    </DropdownMenuItem>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Excluir contato?</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Esta ação não pode ser desfeita. Isso excluirá permanentemente o 
+                                        contato "{contact.name}" e removerá todos os dados associados a ele.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                      <AlertDialogAction
+                                        onClick={() => handleDeleteContact(contact.id)}
+                                        className="bg-red-500 hover:bg-red-600"
+                                        disabled={isProcessing}
+                                      >
+                                        Excluir
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </TableCell>
                         </TableRow>
                       );
@@ -298,6 +504,89 @@ export default function Contacts() {
           </Card>
         </TabsContent>
       </Tabs>
+      
+      {/* Dialog de Edição do Contato */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Editar Contato</DialogTitle>
+            <DialogDescription>
+              Edite as informações do contato.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <label htmlFor="name" className="text-right text-sm font-medium">
+                Nome
+              </label>
+              <Input
+                id="name"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <label htmlFor="phone" className="text-right text-sm font-medium">
+                Telefone
+              </label>
+              <Input
+                id="phone"
+                value={editPhone}
+                onChange={(e) => setEditPhone(e.target.value)}
+                className="col-span-3"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditDialog(false)}>Cancelar</Button>
+            <Button onClick={handleSaveEdit} disabled={isProcessing}>
+              {isProcessing ? "Salvando..." : "Salvar alterações"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Dialog de Alteração de Estágio */}
+      <Dialog open={showStageChangeDialog} onOpenChange={setShowStageChangeDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Alterar Estágio</DialogTitle>
+            <DialogDescription>
+              Selecione o novo estágio para este contato na sequência.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            {selectedContactSequence && (
+              <Select
+                value={selectedStageId}
+                onValueChange={setSelectedStageId}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Selecione um estágio" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {sequences
+                      .find(s => s.id === selectedContactSequence.sequenceId)
+                      ?.stages.map(stage => (
+                        <SelectItem key={stage.id} value={stage.id}>
+                          {stage.name}
+                        </SelectItem>
+                      ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowStageChangeDialog(false)}>Cancelar</Button>
+            <Button onClick={handleSaveStageChange} disabled={isProcessing || !selectedStageId}>
+              {isProcessing ? "Salvando..." : "Atualizar estágio"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       
       {/* Contact Sequences Dialog */}
       <Dialog open={showSequences} onOpenChange={setShowSequences}>
@@ -341,7 +630,52 @@ export default function Contacts() {
                             <CardHeader className="py-3">
                               <div className="flex justify-between items-center">
                                 <CardTitle className="text-base">{sequence.name}</CardTitle>
-                                {formatContactSequenceStatus(contactSequence.status)}
+                                <div className="flex items-center gap-2">
+                                  {formatContactSequenceStatus(contactSequence.status)}
+                                  
+                                  {contactSequence.status === 'active' && (
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="icon">
+                                          <MoreVertical className="h-4 w-4" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end">
+                                        <DropdownMenuItem onClick={() => handlePrepareStageChange(contactSequence)}>
+                                          <Move className="h-4 w-4 mr-2" />
+                                          Alterar estágio
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <AlertDialog>
+                                          <AlertDialogTrigger asChild>
+                                            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-red-500">
+                                              <X className="h-4 w-4 mr-2" />
+                                              Remover da sequência
+                                            </DropdownMenuItem>
+                                          </AlertDialogTrigger>
+                                          <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                              <AlertDialogTitle>Remover contato da sequência?</AlertDialogTitle>
+                                              <AlertDialogDescription>
+                                                O contato será removido da sequência "{sequence.name}" e não receberá mais mensagens desta sequência.
+                                              </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                              <AlertDialogAction
+                                                onClick={() => handleRemoveFromSequence(contactSequence.id)}
+                                                className="bg-red-500 hover:bg-red-600"
+                                                disabled={isProcessing}
+                                              >
+                                                Remover
+                                              </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                          </AlertDialogContent>
+                                        </AlertDialog>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  )}
+                                </div>
                               </div>
                               <CardDescription>
                                 Iniciada em {new Date(contactSequence.startedAt).toLocaleDateString('pt-BR')}
@@ -429,3 +763,4 @@ export default function Contacts() {
     </div>
   );
 }
+
