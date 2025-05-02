@@ -29,6 +29,48 @@ export const isValidUUID = (uuid: string): boolean => {
   return uuidRegex.test(uuid);
 };
 
+// Helper function to check if stages are in use by any active contacts
+export const checkStagesInUse = async (stageIds: string[]): Promise<{
+  inUse: boolean;
+  stageIds: string[];
+}> => {
+  try {
+    if (!stageIds || stageIds.length === 0) {
+      return { inUse: false, stageIds: [] };
+    }
+
+    const validIds = stageIds.filter(id => isValidUUID(id));
+    if (validIds.length === 0) {
+      return { inUse: false, stageIds: [] };
+    }
+
+    // Check if any stage is currently in use by a contact sequence
+    const { data, error } = await supabase
+      .from("contact_sequences")
+      .select("current_stage_id")
+      .in("current_stage_id", validIds)
+      .in("status", ["active", "paused"]);
+
+    if (error) {
+      console.error("Erro ao verificar estágios em uso:", error);
+      // Em caso de erro, presume que os estágios estão em uso (por segurança)
+      return { inUse: true, stageIds: validIds };
+    }
+
+    const inUseStageIds = data && data.length > 0 ? 
+      data.map(item => item.current_stage_id).filter(Boolean) as string[] : 
+      [];
+
+    return {
+      inUse: inUseStageIds.length > 0,
+      stageIds: inUseStageIds
+    };
+  } catch (error) {
+    console.error("Erro ao verificar estágios em uso:", error);
+    return { inUse: true, stageIds: [] };
+  }
+};
+
 // Define types for our custom RPC functions
 export type UserWithEmail = {
   id: string;

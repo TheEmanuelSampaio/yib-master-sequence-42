@@ -42,6 +42,7 @@ import { Sequence } from "@/types";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
+import { isValidUUID } from "@/integrations/supabase/client";
 
 export default function Sequences() {
   const { sequences, currentInstance, addSequence, updateSequence, deleteSequence, refreshData, isDataInitialized } = useApp();
@@ -71,11 +72,18 @@ export default function Sequences() {
   
   const handleSaveSequence = async (sequence: Omit<Sequence, "id" | "createdAt" | "updatedAt">) => {
     if (isEditMode && currentSequence) {
-      await updateSequence(currentSequence.id, sequence);
-      setIsEditMode(false);
-      setCurrentSequence(null);
-      toast.success("Sequência atualizada com sucesso");
-      setHasUnsavedChanges(false);
+      const result = await updateSequence(currentSequence.id, sequence);
+      
+      if (result.success) {
+        setIsEditMode(false);
+        setCurrentSequence(null);
+        toast.success("Sequência atualizada com sucesso");
+        setHasUnsavedChanges(false);
+      } else {
+        // Exibir mensagem de erro específica
+        toast.error(result.error || "Erro ao atualizar sequência");
+        // Não fechamos o modo de edição aqui, permitindo que o usuário corrija o problema
+      }
     } else {
       await addSequence(sequence);
       setIsCreateMode(false);
