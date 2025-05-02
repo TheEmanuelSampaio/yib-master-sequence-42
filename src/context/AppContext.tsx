@@ -824,7 +824,54 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       
       // Update stages if provided
       if (sequenceData.stages) {
-        // First delete all existing stages
+        // Verificar se a sequência tem contatos ativos antes de prosseguir
+        const { data: contactSequences, error: checkError } = await supabase
+          .from('contact_sequences')
+          .select('id, current_stage_id')
+          .eq('sequence_id', id)
+          .in('status', ['active', 'paused']);
+          
+        if (checkError) throw checkError;
+        
+        if (contactSequences && contactSequences.length > 0) {
+          // Existe contatos associados à sequência
+          
+          // 1. Primeiro, vamos obter os estágios atuais
+          const { data: currentStages, error: stagesError } = await supabase
+            .from('sequence_stages')
+            .select('id')
+            .eq('sequence_id', id);
+            
+          if (stagesError) throw stagesError;
+          
+          // 2. Mapeie os IDs de estágios atuais para verificação rápida
+          const currentStageIds = new Set((currentStages || []).map(stage => stage.id));
+          
+          // 3. Colete IDs de estágios que estão sendo referenciados
+          const referencedStageIds = new Set(contactSequences.map(cs => cs.current_stage_id).filter(Boolean));
+          
+          // 4. Verifique se algum estágio referenciado não está nos novos estágios
+          const keepStageIds = new Set();
+          for (const stageId of referencedStageIds) {
+            if (stageId && currentStageIds.has(stageId)) {
+              keepStageIds.add(stageId);
+            }
+          }
+          
+          if (keepStageIds.size > 0) {
+            // 5. Atualizar contatos que referenciam estágios que serão excluídos
+            // Define o current_stage_id como null para essas sequências
+            const { error: updateError } = await supabase
+              .from('contact_sequences')
+              .update({ current_stage_id: null })
+              .eq('sequence_id', id)
+              .in('status', ['active', 'paused']);
+              
+            if (updateError) throw updateError;
+          }
+        }
+        
+        // Agora podemos excluir todos os estágios com segurança
         const { error: deleteError } = await supabase
           .from('sequence_stages')
           .delete()
