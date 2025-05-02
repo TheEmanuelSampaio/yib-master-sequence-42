@@ -152,15 +152,14 @@ const ApiDocs = () => {
             <div className="border rounded-md p-4">
               <h3 className="font-medium mb-2">POST /delivery-status</h3>
               <p className="mb-2 text-muted-foreground">
-                Atualiza o status de entrega de uma mensagem enviada.
+                Atualiza o status de entrega de uma mensagem enviada e avança o contato para o próximo estágio da sequência.
               </p>
               <div className="bg-secondary/50 p-4 rounded-md mb-4">
                 <h4 className="text-sm font-medium mb-1">Payload</h4>
                 <pre className="text-sm font-mono whitespace-pre-wrap">
 {`{
   "messageId": "message-uuid-here",
-  "status": "success", // ou "failed"
-  "attempts": 1 // opcional - número de tentativas
+  "status": "success" // ou "failed"
 }`}
                 </pre>
               </div>
@@ -169,11 +168,15 @@ const ApiDocs = () => {
                 <pre className="text-sm font-mono whitespace-pre-wrap">
 {`{
   "success": true,
-  "message": "Status da mensagem atualizado com sucesso",
+  "message": "Status da mensagem atualizado para sent",
   "messageId": "message-uuid-here",
   "status": "sent", // ou "failed" ou "persistent_error"
-  "nextStage": { // Se houver um próximo estágio
+  "attempts": 3, // Contagem atual de tentativas
+  "processedAt": "2025-05-01T10:00:00Z",
+  "nextStage": { // Se houver um próximo estágio (apenas em caso de sucesso)
     "id": "next-stage-uuid",
+    "name": "Nome do próximo estágio",
+    "messageId": "next-message-uuid",
     "scheduledTime": "2025-05-01T10:00:00Z"
   }
 }`}
