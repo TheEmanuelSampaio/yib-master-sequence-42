@@ -1,3 +1,4 @@
+
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { supabase, UserWithEmail, isValidUUID, checkStagesInUse } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
@@ -88,7 +89,8 @@ const defaultContextValue: AppContextType = {
   updateInstance: () => {},
   deleteInstance: () => {},
   addSequence: () => {},
-  updateSequence: () => {},
+  // Fix this function to return a Promise with the correct shape
+  updateSequence: async () => ({ success: false }),
   deleteSequence: () => {},
   addTimeRestriction: () => {},
   updateTimeRestriction: () => {},
