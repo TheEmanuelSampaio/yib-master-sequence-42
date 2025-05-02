@@ -36,8 +36,15 @@ export const ContactEditDialog = ({
   setEditPhone
 }: ContactEditDialogProps) => {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+    <Dialog open={open} onOpenChange={(newOpen) => {
+      // Garante que document.body não fique com classes indesejadas
+      if (!newOpen) {
+        document.body.style.pointerEvents = '';
+        document.body.removeAttribute('data-scroll-locked');
+      }
+      onOpenChange(newOpen);
+    }}>
+      <DialogContent className="sm:max-w-[425px]" onClick={(e) => e.stopPropagation()}>
         <DialogHeader>
           <DialogTitle>Editar Contato</DialogTitle>
           <DialogDescription>

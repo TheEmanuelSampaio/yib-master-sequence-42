@@ -1,3 +1,4 @@
+
 import { Contact, ContactSequence, Sequence } from '@/types';
 import { User, Tag, CheckCircle2, Clock, AlertCircle, X, Move, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -96,8 +97,20 @@ export const ContactSequencesDialog = ({
     return contactSequences.filter(seq => seq.contactId === contactId);
   };
   
+  const handleAlertDialogClick = (e: React.MouseEvent) => {
+    // Previne propagação do evento para evitar que o DialogContent seja fechado
+    e.stopPropagation();
+  };
+  
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(newOpen) => {
+      // Garante que document.body não fique com classes indesejadas
+      if (!newOpen) {
+        document.body.style.pointerEvents = '';
+        document.body.removeAttribute('data-scroll-locked');
+      }
+      onOpenChange(newOpen);
+    }}>
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle className="flex items-center">
@@ -148,7 +161,7 @@ export const ContactSequencesDialog = ({
                                         <MoreVertical className="h-4 w-4" />
                                       </Button>
                                     </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
+                                    <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
                                       <DropdownMenuItem onClick={() => onPrepareStageChange(contactSequence)}>
                                         <Move className="h-4 w-4 mr-2" />
                                         Alterar estágio
@@ -164,7 +177,7 @@ export const ContactSequencesDialog = ({
                                             Remover da sequência
                                           </DropdownMenuItem>
                                         </AlertDialogTrigger>
-                                        <AlertDialogContent>
+                                        <AlertDialogContent onClick={handleAlertDialogClick}>
                                           <AlertDialogHeader>
                                             <AlertDialogTitle>Remover contato da sequência?</AlertDialogTitle>
                                             <AlertDialogDescription>

@@ -35,6 +35,23 @@ export const ContactTable = ({
   onDeleteContact,
   isProcessing
 }: ContactTableProps) => {
+  
+  // Função para garantir que o body não fique com pointer-events: none
+  const resetBodyStyles = () => {
+    if (document.body.style.pointerEvents === 'none') {
+      document.body.style.pointerEvents = '';
+    }
+    if (document.body.hasAttribute('data-scroll-locked')) {
+      document.body.removeAttribute('data-scroll-locked');
+    }
+  };
+
+  // Handler para prevenir a propagação de eventos
+  const handleMenuClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    resetBodyStyles();
+  };
+
   return (
     <div className="rounded-md border">
       <Table>
@@ -90,7 +107,11 @@ export const ContactTable = ({
                       <Button 
                         variant="ghost" 
                         size="sm"
-                        onClick={() => onViewSequences(contact)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          resetBodyStyles();
+                          onViewSequences(contact);
+                        }}
                       >
                         <Clock className="h-4 w-4" />
                         <span className="sr-only">Ver Sequências</span>
@@ -98,12 +119,12 @@ export const ContactTable = ({
                     )}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm">
+                        <Button variant="ghost" size="sm" onClick={resetBodyStyles}>
                           <MoreVertical className="h-4 w-4" />
                           <span className="sr-only">Ações</span>
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
+                      <DropdownMenuContent align="end" onClick={handleMenuClick}>
                         <DropdownMenuItem onClick={() => onPrepareEdit(contact)}>
                           <Edit className="h-4 w-4 mr-2" />
                           Editar
@@ -116,7 +137,7 @@ export const ContactTable = ({
                               Excluir
                             </DropdownMenuItem>
                           </AlertDialogTrigger>
-                          <AlertDialogContent>
+                          <AlertDialogContent onClick={(e) => e.stopPropagation()}>
                             <AlertDialogHeader>
                               <AlertDialogTitle>Excluir contato?</AlertDialogTitle>
                               <AlertDialogDescription>
