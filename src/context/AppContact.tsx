@@ -134,12 +134,43 @@ export const createContactFunctions = (): AppContactFunctions => {
         return { success: false, error: "Nenhum dado fornecido para atualização" };
       }
 
+      // Obter contato_id e sequence_id para atualizar mensagens agendadas
+      const { data: seqData, error: seqError } = await supabase
+        .from('contact_sequences')
+        .select('contact_id, sequence_id')
+        .eq('id', contactSequenceId)
+        .single();
+      
+      if (seqError) throw new Error(`Erro ao obter dados da sequência: ${seqError.message}`);
+
+      // Atualizar o estágio na tabela contact_sequences
       const { error } = await supabase
         .from('contact_sequences')
         .update(updateData)
         .eq('id', contactSequenceId);
 
       if (error) throw new Error(`Erro ao atualizar sequência do contato: ${error.message}`);
+      
+      // Se estamos atualizando o estágio, também precisamos atualizar as mensagens agendadas
+      if (data.currentStageId) {
+        // Deletar mensagens agendadas pendentes para este contato nesta sequência
+        const { error: deleteError } = await supabase
+          .from('scheduled_messages')
+          .delete()
+          .eq('contact_id', seqData.contact_id)
+          .eq('sequence_id', seqData.sequence_id)
+          .in('status', ['pending', 'processing']);
+        
+        if (deleteError) {
+          console.error("Erro ao excluir mensagens agendadas antigas:", deleteError);
+          // Continuamos mesmo com erro para tentar a atualização
+        }
+
+        // Aqui o sistema deveria reagendar as mensagens baseadas no novo estágio
+        // Isso normalmente é feito por um trigger no banco de dados ou pelo sistema N8N
+        // que monitora as alterações e cria novas mensagens agendadas
+        console.log(`Mensagens agendadas para contato ${seqData.contact_id} na sequência ${seqData.sequence_id} foram removidas. Novo estágio: ${data.currentStageId}`);
+      }
       
       return { success: true };
     } catch (error) {

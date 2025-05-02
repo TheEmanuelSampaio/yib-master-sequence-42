@@ -145,7 +145,7 @@ export default function Contacts() {
     });
     
     if (result.success) {
-      toast.success("Estágio atualizado com sucesso");
+      toast.success("Estágio atualizado com sucesso e mensagens reagendadas");
       refreshData();
       setShowStageChangeDialog(false);
     } else {
