@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useApp } from '@/context/AppContext';
 import {
@@ -100,17 +101,13 @@ export default function Sequences() {
   const handleToggleStatus = (sequence: Sequence) => {
     updateSequence(sequence.id, {
       status: sequence.status === 'active' ? 'inactive' : 'active'
-    }).then(result => {
-      if (result.success) {
-        toast.success(
-          sequence.status === 'active' 
-            ? "Sequência desativada com sucesso" 
-            : "Sequência ativada com sucesso"
-        );
-      } else {
-        toast.error(result.error || "Erro ao alterar status da sequência");
-      }
     });
+    
+    toast.success(
+      sequence.status === 'active' 
+        ? "Sequência desativada com sucesso" 
+        : "Sequência ativada com sucesso"
+    );
   };
   
   const handleDeleteSequence = (id: string) => {
