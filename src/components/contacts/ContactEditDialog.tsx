@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { createSafeDialogHandler, stopEventPropagation } from "@/utils/dialogHelpers";
 
 interface ContactEditDialogProps {
   open: boolean;
@@ -35,16 +36,15 @@ export const ContactEditDialog = ({
   editPhone,
   setEditPhone
 }: ContactEditDialogProps) => {
+  // Criar handler seguro para o diálogo
+  const safeOpenChangeHandler = createSafeDialogHandler(onOpenChange);
+
   return (
-    <Dialog open={open} onOpenChange={(newOpen) => {
-      // Garante que document.body não fique com classes indesejadas
-      if (!newOpen) {
-        document.body.style.pointerEvents = '';
-        document.body.removeAttribute('data-scroll-locked');
-      }
-      onOpenChange(newOpen);
-    }}>
-      <DialogContent className="sm:max-w-[425px]" onClick={(e) => e.stopPropagation()}>
+    <Dialog 
+      open={open} 
+      onOpenChange={safeOpenChangeHandler}
+    >
+      <DialogContent className="sm:max-w-[425px]" onClick={stopEventPropagation}>
         <DialogHeader>
           <DialogTitle>Editar Contato</DialogTitle>
           <DialogDescription>
@@ -76,7 +76,10 @@ export const ContactEditDialog = ({
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => {
+            resetBodyStylesAfterDialog();
+            onOpenChange(false);
+          }}>
             Cancelar
           </Button>
           <Button onClick={onSave} disabled={isProcessing}>

@@ -1,4 +1,3 @@
-
 import { Contact, ContactSequence, Sequence } from '@/types';
 import { User, Tag, CheckCircle2, Clock, AlertCircle, X, Move, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -38,6 +37,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { cn } from '@/lib/utils';
 import { MoreVertical } from "lucide-react";
+import { createSafeDialogHandler, resetBodyStylesAfterDialog, stopEventPropagation } from "@/utils/dialogHelpers";
 
 interface ContactSequencesDialogProps {
   open: boolean;
@@ -60,6 +60,8 @@ export const ContactSequencesDialog = ({
   onRemoveFromSequence,
   isProcessing
 }: ContactSequencesDialogProps) => {
+  // Criar handler seguro para o diálogo
+  const safeOpenChangeHandler = createSafeDialogHandler(onOpenChange);
   
   const formatContactSequenceStatus = (status: string) => {
     switch (status) {
@@ -97,21 +99,12 @@ export const ContactSequencesDialog = ({
     return contactSequences.filter(seq => seq.contactId === contactId);
   };
   
-  const handleAlertDialogClick = (e: React.MouseEvent) => {
-    // Previne propagação do evento para evitar que o DialogContent seja fechado
-    e.stopPropagation();
-  };
-  
   return (
-    <Dialog open={open} onOpenChange={(newOpen) => {
-      // Garante que document.body não fique com classes indesejadas
-      if (!newOpen) {
-        document.body.style.pointerEvents = '';
-        document.body.removeAttribute('data-scroll-locked');
-      }
-      onOpenChange(newOpen);
-    }}>
-      <DialogContent className="sm:max-w-[600px]">
+    <Dialog 
+      open={open} 
+      onOpenChange={safeOpenChangeHandler}
+    >
+      <DialogContent className="sm:max-w-[600px]" onClick={stopEventPropagation}>
         <DialogHeader>
           <DialogTitle className="flex items-center">
             <User className="h-5 w-5 mr-2" />
@@ -156,13 +149,16 @@ export const ContactSequencesDialog = ({
                                 
                                 {contactSequence.status === 'active' && (
                                   <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
+                                    <DropdownMenuTrigger asChild onClick={() => resetBodyStylesAfterDialog()}>
                                       <Button variant="ghost" size="icon">
                                         <MoreVertical className="h-4 w-4" />
                                       </Button>
                                     </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                                      <DropdownMenuItem onClick={() => onPrepareStageChange(contactSequence)}>
+                                    <DropdownMenuContent align="end" onClick={stopEventPropagation}>
+                                      <DropdownMenuItem onClick={() => {
+                                        resetBodyStylesAfterDialog();
+                                        onPrepareStageChange(contactSequence);
+                                      }}>
                                         <Move className="h-4 w-4 mr-2" />
                                         Alterar estágio
                                       </DropdownMenuItem>
@@ -170,14 +166,17 @@ export const ContactSequencesDialog = ({
                                       <AlertDialog>
                                         <AlertDialogTrigger asChild>
                                           <DropdownMenuItem 
-                                            onSelect={(e) => e.preventDefault()} 
+                                            onSelect={(e) => {
+                                              e.preventDefault();
+                                              resetBodyStylesAfterDialog();
+                                            }} 
                                             className="text-red-500"
                                           >
                                             <X className="h-4 w-4 mr-2" />
                                             Remover da sequência
                                           </DropdownMenuItem>
                                         </AlertDialogTrigger>
-                                        <AlertDialogContent onClick={handleAlertDialogClick}>
+                                        <AlertDialogContent onClick={stopEventPropagation}>
                                           <AlertDialogHeader>
                                             <AlertDialogTitle>Remover contato da sequência?</AlertDialogTitle>
                                             <AlertDialogDescription>
@@ -185,9 +184,14 @@ export const ContactSequencesDialog = ({
                                             </AlertDialogDescription>
                                           </AlertDialogHeader>
                                           <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                            <AlertDialogCancel onClick={() => resetBodyStylesAfterDialog()}>
+                                              Cancelar
+                                            </AlertDialogCancel>
                                             <AlertDialogAction
-                                              onClick={() => onRemoveFromSequence(contactSequence.id)}
+                                              onClick={() => {
+                                                resetBodyStylesAfterDialog();
+                                                onRemoveFromSequence(contactSequence.id);
+                                              }}
                                               className="bg-red-500 hover:bg-red-600"
                                               disabled={isProcessing}
                                             >

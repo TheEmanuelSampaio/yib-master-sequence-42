@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { createSafeDialogHandler, resetBodyStylesAfterDialog, stopEventPropagation } from "@/utils/dialogHelpers";
 
 interface ContactStageChangeDialogProps {
   open: boolean;
@@ -39,16 +40,15 @@ export const ContactStageChangeDialog = ({
   isProcessing,
   sequences
 }: ContactStageChangeDialogProps) => {
+  // Criar handler seguro para o diálogo
+  const safeOpenChangeHandler = createSafeDialogHandler(onOpenChange);
+
   return (
-    <Dialog open={open} onOpenChange={(newOpen) => {
-      // Garante que document.body não fique com classes indesejadas
-      if (!newOpen) {
-        document.body.style.pointerEvents = '';
-        document.body.removeAttribute('data-scroll-locked');
-      }
-      onOpenChange(newOpen);
-    }}>
-      <DialogContent className="sm:max-w-[425px]" onClick={(e) => e.stopPropagation()}>
+    <Dialog 
+      open={open} 
+      onOpenChange={safeOpenChangeHandler}
+    >
+      <DialogContent className="sm:max-w-[425px]" onClick={stopEventPropagation}>
         <DialogHeader>
           <DialogTitle>Alterar Estágio</DialogTitle>
           <DialogDescription>
@@ -64,7 +64,7 @@ export const ContactStageChangeDialog = ({
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Selecione um estágio" />
               </SelectTrigger>
-              <SelectContent onClick={(e) => e.stopPropagation()}>
+              <SelectContent onClick={stopEventPropagation}>
                 <SelectGroup>
                   {sequences
                     .find(s => s.id === selectedContactSequence.sequenceId)
@@ -79,7 +79,10 @@ export const ContactStageChangeDialog = ({
           )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => {
+            resetBodyStylesAfterDialog();
+            onOpenChange(false);
+          }}>
             Cancelar
           </Button>
           <Button onClick={onSave} disabled={isProcessing || !selectedStageId}>

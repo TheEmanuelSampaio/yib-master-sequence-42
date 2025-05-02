@@ -11,7 +11,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { 
+  AlertDialog, 
+  AlertDialogAction, 
+  AlertDialogCancel, 
+  AlertDialogContent, 
+  AlertDialogDescription, 
+  AlertDialogFooter, 
+  AlertDialogHeader, 
+  AlertDialogTitle, 
+  AlertDialogTrigger 
+} from "@/components/ui/alert-dialog";
+import { resetBodyStylesAfterDialog, stopEventPropagation } from "@/utils/dialogHelpers";
 
 interface ContactTableProps {
   contacts: Contact[];
@@ -35,23 +46,6 @@ export const ContactTable = ({
   onDeleteContact,
   isProcessing
 }: ContactTableProps) => {
-  
-  // Função para garantir que o body não fique com pointer-events: none
-  const resetBodyStyles = () => {
-    if (document.body.style.pointerEvents === 'none') {
-      document.body.style.pointerEvents = '';
-    }
-    if (document.body.hasAttribute('data-scroll-locked')) {
-      document.body.removeAttribute('data-scroll-locked');
-    }
-  };
-
-  // Handler para prevenir a propagação de eventos
-  const handleMenuClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    resetBodyStyles();
-  };
-
   return (
     <div className="rounded-md border">
       <Table>
@@ -108,8 +102,8 @@ export const ContactTable = ({
                         variant="ghost" 
                         size="sm"
                         onClick={(e) => {
-                          e.stopPropagation();
-                          resetBodyStyles();
+                          stopEventPropagation(e);
+                          resetBodyStylesAfterDialog();
                           onViewSequences(contact);
                         }}
                       >
@@ -119,25 +113,34 @@ export const ContactTable = ({
                     )}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm" onClick={resetBodyStyles}>
+                        <Button variant="ghost" size="sm" onClick={() => resetBodyStylesAfterDialog()}>
                           <MoreVertical className="h-4 w-4" />
                           <span className="sr-only">Ações</span>
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" onClick={handleMenuClick}>
-                        <DropdownMenuItem onClick={() => onPrepareEdit(contact)}>
+                      <DropdownMenuContent align="end" onClick={stopEventPropagation}>
+                        <DropdownMenuItem onClick={() => {
+                          resetBodyStylesAfterDialog();
+                          onPrepareEdit(contact);
+                        }}>
                           <Edit className="h-4 w-4 mr-2" />
                           Editar
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-red-500">
+                            <DropdownMenuItem 
+                              onSelect={(e) => {
+                                e.preventDefault();
+                                resetBodyStylesAfterDialog();
+                              }} 
+                              className="text-red-500"
+                            >
                               <Trash2 className="h-4 w-4 mr-2" />
                               Excluir
                             </DropdownMenuItem>
                           </AlertDialogTrigger>
-                          <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                          <AlertDialogContent onClick={stopEventPropagation}>
                             <AlertDialogHeader>
                               <AlertDialogTitle>Excluir contato?</AlertDialogTitle>
                               <AlertDialogDescription>
@@ -146,9 +149,14 @@ export const ContactTable = ({
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
-                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogCancel onClick={() => resetBodyStylesAfterDialog()}>
+                                Cancelar
+                              </AlertDialogCancel>
                               <AlertDialogAction
-                                onClick={() => onDeleteContact(contact.id)}
+                                onClick={() => {
+                                  resetBodyStylesAfterDialog();
+                                  onDeleteContact(contact.id);
+                                }}
                                 className="bg-red-500 hover:bg-red-600"
                                 disabled={isProcessing}
                               >
