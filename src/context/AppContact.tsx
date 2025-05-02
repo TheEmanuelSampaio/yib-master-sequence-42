@@ -218,19 +218,21 @@ export const createContactFunctions = (): AppContactFunctions => {
         if (sequenceError) {
           console.error(`Erro ao obter instância da sequência: ${sequenceError.message}`);
         } else {
-          // Incrementar estatísticas diárias usando o método from e procedimento armazenado
+          // Incrementar estatísticas diárias usando upsert
           try {
+            const statsData = {
+              instance_id: sequenceData.instance_id,
+              date: new Date().toISOString().split('T')[0],
+              messages_scheduled: 1,
+              messages_sent: 0,
+              messages_failed: 0,
+              completed_sequences: 0,
+              new_contacts: 0
+            };
+            
             const { error: statsError } = await supabase
               .from('daily_stats')
-              .insert([{
-                instance_id: sequenceData.instance_id,
-                date: new Date().toISOString().split('T')[0], 
-                messages_scheduled: 1,
-                messages_sent: 0,
-                messages_failed: 0,
-                completed_sequences: 0,
-                new_contacts: 0
-              }], { upsert: true });
+              .upsert(statsData);
             
             if (statsError) {
               console.error(`[ESTATÍSTICAS] Erro ao incrementar estatísticas: ${statsError.message}`);
