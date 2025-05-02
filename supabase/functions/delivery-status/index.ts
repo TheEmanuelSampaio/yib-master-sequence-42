@@ -7,6 +7,8 @@ const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
 
 // Logs de inicialização
 console.log(`[INIT] Inicializando função delivery-status`);
+console.log(`[INIT] SUPABASE_URL definido: ${supabaseUrl ? 'SIM' : 'NÃO'}`);
+console.log(`[INIT] SUPABASE_ANON_KEY definido: ${supabaseAnonKey ? 'SIM' : 'NÃO'}`);
 
 Deno.serve(async (req) => {
   console.log(`[REQUEST] Método: ${req.method}, URL: ${req.url}`);
@@ -18,17 +20,20 @@ Deno.serve(async (req) => {
   }
 
   try {
+    console.log(`[CLIENT] Criando cliente Supabase...`);
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
     console.log(`[CLIENT] Cliente Supabase criado com sucesso`);
     
     // Parse the request body
+    console.log(`[PARSE] Iniciando parse do corpo da requisição...`);
     const body = await req.text();
     console.log(`[PARSE] Body recebido: ${body}`);
     
-    // Parse JSON data
+    // Tentando converter body para JSON
     let jsonData;
     try {
       jsonData = JSON.parse(body);
+      console.log(`[PARSE] JSON parseado com sucesso:`, jsonData);
     } catch (parseError) {
       console.error(`[PARSE] Erro ao parsear JSON: ${parseError.message}`);
       return new Response(
@@ -37,306 +42,271 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Extrair dados do payload
-    const { messageId, status, attempts = 1 } = jsonData;
+    const { data } = jsonData;
     
-    if (!messageId || !status) {
+    if (!data || !data.messageId || !data.status) {
+      console.error(`[VALIDATE] Dados obrigatórios ausentes:`, JSON.stringify({
+        temData: !!data,
+        temMessageId: data ? !!data.messageId : false,
+        temStatus: data ? !!data.status : false
+      }));
+      
       return new Response(
         JSON.stringify({ 
-          error: 'Payload incompleto', 
-          details: 'messageId e status são obrigatórios' 
+          error: 'Dados obrigatórios ausentes',
+          esperado: {
+            data: {
+              messageId: 'uuid da mensagem',
+              status: 'success ou failed',
+              attempts: 'opcional - número de tentativas'
+            }
+          },
+          recebido: data
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Verificar se a mensagem existe
-    const { data: message, error: messageError } = await supabase
-      .from('scheduled_messages')
-      .select(`
-        id,
-        contact_id,
-        sequence_id,
-        stage_id,
-        attempts
-      `)
-      .eq('id', messageId)
-      .single();
-
-    if (messageError) {
-      console.error(`[QUERY] Erro ao buscar mensagem: ${messageError.message}`);
-      return new Response(
-        JSON.stringify({ 
-          error: 'Mensagem não encontrada', 
-          details: messageError.message 
-        }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Processar status da mensagem
-    let newStatus = 'pending';
-    let responseData: any = { messageId };
+    const { messageId, status, attempts = 1 } = data;
+    const now = new Date().toISOString();
+    
+    // Atualizar status da mensagem
+    console.log(`[UPDATE] Atualizando status da mensagem ${messageId} para ${status === 'success' ? 'sent' : 'failed'}`);
+    
+    // Determinar qual status definir com base na resposta
+    let newStatus = 'pending'; // Valor padrão
+    let updateData = {};
     
     if (status === 'success') {
       newStatus = 'sent';
+      updateData = {
+        status: newStatus,
+        sent_at: now
+      };
+    } else {
+      // Se falhou e já tentou 3 vezes, marcar como erro persistente
+      if (attempts >= 3) {
+        newStatus = 'persistent_error';
+      } else {
+        newStatus = 'failed';
+      }
       
-      // Atualizar o status da mensagem para 'sent'
-      const { error: updateError } = await supabase
+      updateData = {
+        status: newStatus,
+        attempts: attempts
+      };
+    }
+    
+    const { error: updateError } = await supabase
+      .from('scheduled_messages')
+      .update(updateData)
+      .eq('id', messageId);
+    
+    if (updateError) {
+      console.error(`[UPDATE] Erro ao atualizar status: ${updateError.message}`);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Erro ao atualizar status da mensagem', 
+          details: updateError.message 
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    // Se foi um sucesso, podemos avançar o contato na sequência
+    if (status === 'success') {
+      console.log(`[SEQUENCE] Buscando informações da mensagem para avançar o contato na sequência`);
+      
+      // Primeiro, obter os dados da mensagem para saber qual sequência e contato
+      const { data: messageData, error: messageError } = await supabase
         .from('scheduled_messages')
-        .update({ 
-          status: newStatus,
-          sent_at: new Date().toISOString()
-        })
-        .eq('id', messageId);
-      
-      if (updateError) {
-        console.error(`[UPDATE] Erro ao atualizar status da mensagem: ${updateError.message}`);
-        return new Response(
-          JSON.stringify({ 
-            error: 'Erro ao atualizar status da mensagem', 
-            details: updateError.message 
-          }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      
-      // Atualizar estatísticas diárias
-      try {
-        // Obter a instância associada à sequência
-        const { data: sequenceData, error: seqError } = await supabase
-          .from('sequences')
-          .select('instance_id')
-          .eq('id', message.sequence_id)
-          .single();
-        
-        if (!seqError && sequenceData) {
-          // Atualizar estatísticas
-          const statsData = {
-            instance_id: sequenceData.instance_id,
-            date: new Date().toISOString().split('T')[0],
-            messages_sent: 1,
-            messages_scheduled: 0,
-            messages_failed: 0,
-            completed_sequences: 0,
-            new_contacts: 0
-          };
-          
-          await supabase
-            .from('daily_stats')
-            .upsert(statsData);
-        }
-      } catch (statsError) {
-        console.error(`[STATS] Erro ao atualizar estatísticas: ${statsError.message}`);
-      }
-      
-      // Buscar próximo estágio da sequência
-      const { data: currentStage, error: stageError } = await supabase
-        .from('sequence_stages')
-        .select('*')
-        .eq('id', message.stage_id)
+        .select('contact_id, sequence_id, stage_id')
+        .eq('id', messageId)
         .single();
       
-      if (stageError) {
-        console.error(`[STAGE] Erro ao buscar estágio atual: ${stageError.message}`);
-      } else {
-        // Buscar próximo estágio
-        const { data: nextStages, error: nextStageError } = await supabase
-          .from('sequence_stages')
-          .select('*')
-          .eq('sequence_id', message.sequence_id)
-          .gt('order_index', currentStage.order_index)
-          .order('order_index', { ascending: true })
-          .limit(1);
+      if (messageError) {
+        console.error(`[SEQUENCE] Erro ao buscar informações da mensagem: ${messageError.message}`);
+      } else if (messageData) {
+        const { contact_id, sequence_id, stage_id } = messageData;
         
-        if (nextStageError) {
-          console.error(`[STAGE] Erro ao buscar próximo estágio: ${nextStageError.message}`);
-        } else if (nextStages && nextStages.length > 0) {
-          // Existe próximo estágio
-          const nextStage = nextStages[0];
-          
-          // Atualizar a sequência de contato para o próximo estágio
-          const { data: contactSequence, error: contactSeqError } = await supabase
-            .from('contact_sequences')
-            .select('id')
-            .eq('contact_id', message.contact_id)
-            .eq('sequence_id', message.sequence_id)
-            .eq('status', 'active')
-            .single();
-          
-          if (contactSeqError) {
-            console.error(`[CONTACT-SEQ] Erro ao buscar sequência de contato: ${contactSeqError.message}`);
-          } else {
-            // Atualizar estágio atual
-            await supabase
-              .from('contact_sequences')
-              .update({ 
-                current_stage_id: nextStage.id,
-                current_stage_index: nextStage.order_index,
-                last_message_at: new Date().toISOString()
-              })
-              .eq('id', contactSequence.id);
+        // Buscar a sequência ativa do contato
+        const { data: contactSequence, error: sequenceError } = await supabase
+          .from('contact_sequences')
+          .select('id, current_stage_index, current_stage_id')
+          .eq('contact_id', contact_id)
+          .eq('sequence_id', sequence_id)
+          .eq('status', 'active')
+          .maybeSingle();
+        
+        if (sequenceError) {
+          console.error(`[SEQUENCE] Erro ao buscar sequência do contato: ${sequenceError.message}`);
+        } else if (contactSequence) {
+          // Marcar o estágio atual como concluído
+          const { error: progressError } = await supabase
+            .from('stage_progress')
+            .upsert({
+              contact_sequence_id: contactSequence.id,
+              stage_id: stage_id,
+              status: 'completed',
+              completed_at: now
+            }, { onConflict: 'contact_sequence_id,stage_id' });
             
-            // Adicionar progresso do estágio
-            await supabase
-              .from('stage_progress')
-              .insert([{
-                contact_sequence_id: contactSequence.id,
-                stage_id: nextStage.id,
-                status: 'pending'
-              }]);
-            
-            // Calcular o tempo de agendamento para o próximo estágio
-            const delayMs = calculateDelayMs(nextStage.delay, nextStage.delay_unit);
-            const scheduledTime = new Date(Date.now() + delayMs);
-            
-            // Agendar próxima mensagem
-            await supabase
-              .from('scheduled_messages')
-              .insert([{
-                contact_id: message.contact_id,
-                sequence_id: message.sequence_id,
-                stage_id: nextStage.id,
-                raw_scheduled_time: scheduledTime.toISOString(),
-                scheduled_time: scheduledTime.toISOString(),
-                status: 'pending'
-              }]);
-            
-            // Incluir informações do próximo estágio na resposta
-            responseData.nextStage = {
-              id: nextStage.id,
-              scheduledTime: scheduledTime.toISOString()
-            };
+          if (progressError) {
+            console.error(`[PROGRESS] Erro ao atualizar progresso do estágio: ${progressError.message}`);
           }
-        } else {
-          // Não há próximo estágio, completar a sequência
-          console.log(`[SEQUENCE] Sequência completada para contato ${message.contact_id}`);
           
-          const { data: contactSequence, error: contactSeqError } = await supabase
-            .from('contact_sequences')
-            .select('id')
-            .eq('contact_id', message.contact_id)
-            .eq('sequence_id', message.sequence_id)
-            .eq('status', 'active')
-            .single();
-          
-          if (!contactSeqError && contactSequence) {
-            // Marcar sequência como completa
-            await supabase
-              .from('contact_sequences')
-              .update({ 
-                status: 'completed',
-                completed_at: new Date().toISOString(),
-                last_message_at: new Date().toISOString()
-              })
-              .eq('id', contactSequence.id);
+          // Buscar o próximo estágio da sequência
+          const { data: stages, error: stagesError } = await supabase
+            .from('sequence_stages')
+            .select('id, order_index')
+            .eq('sequence_id', sequence_id)
+            .order('order_index', { ascending: true });
             
-            // Atualizar estatística de sequências completas
-            try {
-              const { data: sequenceData, error: seqError } = await supabase
-                .from('sequences')
-                .select('instance_id')
-                .eq('id', message.sequence_id)
-                .single();
-              
-              if (!seqError && sequenceData) {
-                // Atualizar estatísticas
-                const statsData = {
-                  instance_id: sequenceData.instance_id,
-                  date: new Date().toISOString().split('T')[0],
-                  completed_sequences: 1,
-                  messages_sent: 0,
-                  messages_scheduled: 0,
-                  messages_failed: 0,
-                  new_contacts: 0
-                };
+          if (stagesError) {
+            console.error(`[STAGES] Erro ao buscar estágios da sequência: ${stagesError.message}`);
+          } else if (stages && stages.length > 0) {
+            // Encontrar o índice do estágio atual
+            const currentIndex = contactSequence.current_stage_index;
+            const nextIndex = currentIndex + 1;
+            
+            // Verificar se há um próximo estágio
+            const nextStage = stages.find(s => s.order_index === nextIndex);
+            
+            if (nextStage) {
+              // Atualizar para o próximo estágio
+              const { error: updateSequenceError } = await supabase
+                .from('contact_sequences')
+                .update({
+                  current_stage_index: nextIndex,
+                  current_stage_id: nextStage.id,
+                  last_message_at: now
+                })
+                .eq('id', contactSequence.id);
                 
-                await supabase
-                  .from('daily_stats')
-                  .upsert(statsData);
+              if (updateSequenceError) {
+                console.error(`[SEQUENCE] Erro ao avançar contato na sequência: ${updateSequenceError.message}`);
+              } else {
+                console.log(`[SEQUENCE] Contato avançado para o estágio ${nextIndex}`);
+                
+                // Adicionar o novo estágio como pendente
+                const { error: newProgressError } = await supabase
+                  .from('stage_progress')
+                  .insert({
+                    contact_sequence_id: contactSequence.id,
+                    stage_id: nextStage.id,
+                    status: 'pending'
+                  });
+                  
+                if (newProgressError) {
+                  console.error(`[PROGRESS] Erro ao criar registro de progresso: ${newProgressError.message}`);
+                }
               }
-            } catch (statsError) {
-              console.error(`[STATS] Erro ao atualizar estatísticas: ${statsError.message}`);
+            } else {
+              // Se não há mais estágios, marcar a sequência como concluída
+              console.log(`[SEQUENCE] Nenhum próximo estágio encontrado. Marcando sequência como concluída.`);
+              
+              const { error: completeSequenceError } = await supabase
+                .from('contact_sequences')
+                .update({
+                  status: 'completed',
+                  completed_at: now,
+                  last_message_at: now
+                })
+                .eq('id', contactSequence.id);
+                
+              if (completeSequenceError) {
+                console.error(`[SEQUENCE] Erro ao marcar sequência como concluída: ${completeSequenceError.message}`);
+              } else {
+                console.log(`[SEQUENCE] Sequência marcada como concluída com sucesso`);
+                
+                // Atualizar estatísticas diárias
+                const today = new Date().toISOString().split('T')[0];
+                
+                // Obter a instância a partir da sequência
+                const { data: seqData } = await supabase
+                  .from('sequences')
+                  .select('instance_id')
+                  .eq('id', sequence_id)
+                  .single();
+                  
+                if (seqData) {
+                  // Incrementar contadores de estatísticas
+                  const { error: statsError } = await supabase.rpc('increment_daily_stats', {
+                    instance_id: seqData.instance_id,
+                    stat_date: today,
+                    completed_seqs: 1,
+                    msgs_sent: 0,
+                    msgs_failed: 0,
+                    msgs_scheduled: 0,
+                    new_contacts: 0
+                  });
+                  
+                  if (statsError) {
+                    console.error(`[STATS] Erro ao atualizar estatísticas: ${statsError.message}`);
+                  }
+                }
+              }
             }
           }
         }
       }
-
-    } else if (status === 'failed') {
-      // Falhou, mas pode tentar novamente
-      const currentAttempts = attempts || (message.attempts || 0) + 1;
-      
-      if (currentAttempts >= 3) {
-        // Muitas tentativas, marcar como erro persistente
-        newStatus = 'persistent_error';
-      } else {
-        // Manter como pendente para nova tentativa
-        newStatus = 'pending';
-      }
-      
-      // Atualizar o status da mensagem
-      const { error: updateError } = await supabase
-        .from('scheduled_messages')
-        .update({ 
-          status: newStatus,
-          attempts: currentAttempts
-        })
-        .eq('id', messageId);
-      
-      if (updateError) {
-        console.error(`[UPDATE] Erro ao atualizar status da mensagem: ${updateError.message}`);
-        return new Response(
-          JSON.stringify({ 
-            error: 'Erro ao atualizar status da mensagem', 
-            details: updateError.message 
-          }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      
-      // Se for erro persistente, atualizar as estatísticas
-      if (newStatus === 'persistent_error') {
-        try {
-          // Obter a instância associada à sequência
-          const { data: sequenceData, error: seqError } = await supabase
-            .from('sequences')
-            .select('instance_id')
-            .eq('id', message.sequence_id)
-            .single();
-          
-          if (!seqError && sequenceData) {
-            // Atualizar estatísticas
-            const statsData = {
-              instance_id: sequenceData.instance_id,
-              date: new Date().toISOString().split('T')[0],
-              messages_failed: 1,
-              messages_sent: 0,
-              messages_scheduled: 0,
-              completed_sequences: 0,
-              new_contacts: 0
-            };
-            
-            await supabase
-              .from('daily_stats')
-              .upsert(statsData);
-          }
-        } catch (statsError) {
-          console.error(`[STATS] Erro ao atualizar estatísticas: ${statsError.message}`);
-        }
-      }
     }
     
-    responseData.status = newStatus;
+    // Atualizar estatísticas diárias
+    const today = new Date().toISOString().split('T')[0];
     
+    // Primeiro, vamos obter a instância relacionada à mensagem
+    const { data: messageWithInstance } = await supabase
+      .from('scheduled_messages')
+      .select(`
+        sequences!inner(
+          instance_id
+        )
+      `)
+      .eq('id', messageId)
+      .single();
+      
+    if (messageWithInstance) {
+      const instanceId = messageWithInstance.sequences.instance_id;
+      
+      // Incrementar os contadores apropriados
+      let msgsSent = 0;
+      let msgsFailed = 0;
+      
+      if (status === 'success') {
+        msgsSent = 1;
+      } else {
+        msgsFailed = 1;
+      }
+      
+      const { error: statsError } = await supabase.rpc('increment_daily_stats', {
+        instance_id: instanceId,
+        stat_date: today,
+        completed_seqs: 0,
+        msgs_sent: msgsSent,
+        msgs_failed: msgsFailed,
+        msgs_scheduled: 0,
+        new_contacts: 0
+      });
+      
+      if (statsError) {
+        console.error(`[STATS] Erro ao atualizar estatísticas: ${statsError.message}`);
+      }
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: 'Status da mensagem atualizado com sucesso',
-        ...responseData
+        message: `Status da mensagem atualizado para ${newStatus}`,
+        messageId,
+        status: newStatus,
+        processedAt: now,
+        logs: [
+          { level: 'info', message: `[UPDATE] Status da mensagem ${messageId} atualizado para ${newStatus}` }
+        ]
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-
   } catch (error) {
     console.error(`[CRITICAL] Erro não tratado: ${error.message}`);
     console.error(`[CRITICAL] Stack: ${error.stack}`);
@@ -350,21 +320,3 @@ Deno.serve(async (req) => {
     );
   }
 });
-
-// Função auxiliar para calcular o atraso em milissegundos
-function calculateDelayMs(delay: number, unit: string): number {
-  const minute = 60 * 1000;
-  const hour = 60 * minute;
-  const day = 24 * hour;
-  
-  switch (unit) {
-    case 'minutes':
-      return delay * minute;
-    case 'hours':
-      return delay * hour;
-    case 'days':
-      return delay * day;
-    default:
-      return delay * minute; // Fallback para minutos
-  }
-}
