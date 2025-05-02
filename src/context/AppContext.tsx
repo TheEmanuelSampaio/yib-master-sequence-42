@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { supabase, UserWithEmail } from "@/integrations/supabase/client";
+import { supabase, UserWithEmail, isValidUUID, checkStagesInUse } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import {
   Instance,
@@ -929,23 +929,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         
         // Adicionar novas restrições locais
         const localRestrictions = update.timeRestrictions.filter(r => !r.isGlobal);
-        if (localRestrictions.length > 0) {
-          const localRestrictionsData = localRestrictions.map(r => ({
-            sequence_id: id,
-            name: r.name,
-            active: r.active,
-            days: r.days,
-            start_hour: r.startHour,
-            start_minute: r.startMinute,
-            end_hour: r.endHour,
-            end_minute: r.endMinute
-          }));
-          
-          const { error: localError } = await supabase
-            .from("sequence_local_restrictions")
-            .insert(localRestrictionsData);
-          
-          if (localError) throw localError;
+        if (localRestrictions.length > 0 && user) {
+          // Corrigido: precisamos passar cada restrição individual com o campo created_by
+          for (const restriction of localRestrictions) {
+            const { error: localError } = await supabase
+              .from("sequence_local_restrictions")
+              .insert({
+                sequence_id: id,
+                name: restriction.name,
+                active: restriction.active,
+                days: restriction.days,
+                start_hour: restriction.startHour,
+                start_minute: restriction.startMinute,
+                end_hour: restriction.endHour,
+                end_minute: restriction.endMinute,
+                created_by: user.id
+              });
+            
+            if (localError) throw localError;
+          }
         }
         
         // Adicionar novas restrições globais

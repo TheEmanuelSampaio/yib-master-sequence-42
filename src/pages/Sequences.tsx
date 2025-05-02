@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useApp } from '@/context/AppContext';
 import {
@@ -74,14 +73,14 @@ export default function Sequences() {
     if (isEditMode && currentSequence) {
       const result = await updateSequence(currentSequence.id, sequence);
       
-      if (result.success) {
+      if (result && result.success) {
         setIsEditMode(false);
         setCurrentSequence(null);
         toast.success("Sequência atualizada com sucesso");
         setHasUnsavedChanges(false);
       } else {
         // Exibir mensagem de erro específica
-        toast.error(result.error || "Erro ao atualizar sequência");
+        toast.error(result && result.error ? result.error : "Erro ao atualizar sequência");
         // Não fechamos o modo de edição aqui, permitindo que o usuário corrija o problema
       }
     } else {
