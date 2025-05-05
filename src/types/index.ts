@@ -1,3 +1,4 @@
+
 // User related types
 export interface User {
   id: string;
@@ -96,7 +97,7 @@ export interface ScheduledMessage {
   scheduledTime: string;
   scheduledAt: string;
   sentAt?: string;
-  status: "pending" | "processing" | "sent" | "failed" | "persistent_error";
+  status: "waiting" | "pending" | "processing" | "sent" | "failed" | "persistent_error";
   attempts?: number;
 }
 

@@ -1,6 +1,7 @@
+
 import { useState } from "react";
 import { useApp } from '@/context/AppContext';
-import { Search, Filter, Calendar, CheckCircle, XCircle, AlertCircle, MessageCircle, FileCode, Bot } from "lucide-react";
+import { Search, Filter, Calendar, CheckCircle, XCircle, AlertCircle, MessageCircle, FileCode, Bot, Clock, HourglassOff, XOctagon, Hourglass } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -43,7 +44,7 @@ import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
-type MessageStatus = 'pending' | 'processing' | 'sent' | 'failed' | 'persistent_error';
+type MessageStatus = 'waiting' | 'pending' | 'processing' | 'sent' | 'failed' | 'persistent_error';
 
 export default function Messages() {
   const { scheduledMessages, contacts, sequences } = useApp();
@@ -57,8 +58,17 @@ export default function Messages() {
     const sequence = sequences.find(s => s.id === message.sequenceId);
     const stage = sequence?.stages.find(s => s.id === message.stageId);
     
+    // Add waiting status if the scheduled time is in the future
+    let status = message.status;
+    if (status === 'pending') {
+      if (new Date(message.scheduledTime) > new Date()) {
+        status = 'waiting';
+      }
+    }
+    
     return {
       ...message,
+      status,
       contactName: contact?.name || "Desconhecido",
       contactPhone: contact?.phoneNumber || "",
       sequenceName: sequence?.name || "Desconhecida",
@@ -103,33 +113,45 @@ export default function Messages() {
   
   const StatusBadge = ({ status }: { status: string }) => {
     switch (status) {
-      case 'pending':
+      case 'waiting':
         return (
           <Badge variant="outline" className="bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-500/30">
+            <Hourglass className="h-3 w-3 mr-1" />
+            Aguardando
+          </Badge>
+        );
+      case 'pending':
+        return (
+          <Badge variant="outline" className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30">
+            <Clock className="h-3 w-3 mr-1" />
             Pendente
           </Badge>
         );
       case 'processing':
         return (
           <Badge variant="outline" className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30">
+            <Clock className="h-3 w-3 mr-1" />
             Processando
           </Badge>
         );
       case 'sent':
         return (
           <Badge variant="outline" className="bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30">
+            <CheckCircle className="h-3 w-3 mr-1" />
             Enviada
           </Badge>
         );
       case 'failed':
         return (
-          <Badge variant="outline" className="bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30">
+          <Badge variant="outline" className="bg-neutral-500/20 text-neutral-700 dark:text-neutral-400 border-neutral-500/30">
+            <HourglassOff className="h-3 w-3 mr-1" />
             Falhou
           </Badge>
         );
       case 'persistent_error':
         return (
-          <Badge variant="outline" className="bg-gray-500/20 text-gray-700 dark:text-gray-400 border-gray-500/30">
+          <Badge variant="outline" className="bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30">
+            <XOctagon className="h-3 w-3 mr-1" />
             Erro Persistente
           </Badge>
         );
@@ -202,12 +224,26 @@ export default function Messages() {
                 <div className="space-y-1">
                   <div className="flex items-center space-x-2">
                     <Checkbox 
+                      id="waiting" 
+                      checked={statusFilters.includes('waiting')} 
+                      onCheckedChange={() => handleToggleStatusFilter('waiting')}
+                    />
+                    <label htmlFor="waiting" className="text-sm">
+                      <Badge variant="outline" className="bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-500/30">
+                        <Hourglass className="h-3 w-3 mr-1" />
+                        Aguardando
+                      </Badge>
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
                       id="pending" 
                       checked={statusFilters.includes('pending')} 
                       onCheckedChange={() => handleToggleStatusFilter('pending')}
                     />
                     <label htmlFor="pending" className="text-sm">
-                      <Badge variant="outline" className="bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-500/30">
+                      <Badge variant="outline" className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30">
+                        <Clock className="h-3 w-3 mr-1" />
                         Pendente
                       </Badge>
                     </label>
@@ -220,6 +256,7 @@ export default function Messages() {
                     />
                     <label htmlFor="processing" className="text-sm">
                       <Badge variant="outline" className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30">
+                        <Clock className="h-3 w-3 mr-1" />
                         Processando
                       </Badge>
                     </label>
@@ -232,6 +269,7 @@ export default function Messages() {
                     />
                     <label htmlFor="sent" className="text-sm">
                       <Badge variant="outline" className="bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30">
+                        <CheckCircle className="h-3 w-3 mr-1" />
                         Enviada
                       </Badge>
                     </label>
@@ -243,7 +281,8 @@ export default function Messages() {
                       onCheckedChange={() => handleToggleStatusFilter('failed')}
                     />
                     <label htmlFor="failed" className="text-sm">
-                      <Badge variant="outline" className="bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30">
+                      <Badge variant="outline" className="bg-neutral-500/20 text-neutral-700 dark:text-neutral-400 border-neutral-500/30">
+                        <HourglassOff className="h-3 w-3 mr-1" />
                         Falhou
                       </Badge>
                     </label>
@@ -255,7 +294,8 @@ export default function Messages() {
                       onCheckedChange={() => handleToggleStatusFilter('persistent_error')}
                     />
                     <label htmlFor="persistent_error" className="text-sm">
-                      <Badge variant="outline" className="bg-gray-500/20 text-gray-700 dark:text-gray-400 border-gray-500/30">
+                      <Badge variant="outline" className="bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30">
+                        <XOctagon className="h-3 w-3 mr-1" />
                         Erro Persistente
                       </Badge>
                     </label>
@@ -393,7 +433,7 @@ export default function Messages() {
               <div>
                 <h4 className="text-sm font-medium mb-1">Agendada para</h4>
                 <div className="text-sm">
-                  {formatDate(selectedMessage?.scheduledTime || "")}
+                  {selectedMessage?.scheduledTime ? formatDate(selectedMessage?.scheduledTime) : ""}
                 </div>
                 {selectedMessage?.sentAt && (
                   <div className="mt-1 text-sm">
@@ -435,7 +475,7 @@ export default function Messages() {
                   </div>
                 ) : (
                   <div className="whitespace-pre-line">
-                    {selectedMessage?.content.replace(/\$\{name\}/g, selectedMessage?.contactName)}
+                    {selectedMessage?.content?.replace(/\$\{name\}/g, selectedMessage?.contactName)}
                   </div>
                 )}
               </div>
