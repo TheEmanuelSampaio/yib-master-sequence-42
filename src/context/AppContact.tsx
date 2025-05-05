@@ -124,6 +124,7 @@ export const createContactFunctions = (): AppContactFunctions => {
   }): Promise<{ success: boolean; error?: string }> => {
     try {
       const updateData: any = {};
+      let stageData: any = null; // Declare stageData at the function scope level
       
       if (data.currentStageId) {
         updateData.current_stage_id = data.currentStageId;
@@ -145,13 +146,16 @@ export const createContactFunctions = (): AppContactFunctions => {
       // Obter informações sobre o estágio de destino
       if (data.currentStageId) {
         // Obter informações do estágio selecionado
-        const { data: stageData, error: stageError } = await supabase
+        const { data: fetchedStageData, error: stageError } = await supabase
           .from('sequence_stages')
           .select('id, order_index, delay, delay_unit')
           .eq('id', data.currentStageId)
           .single();
         
         if (stageError) throw new Error(`Erro ao obter dados do estágio: ${stageError.message}`);
+        
+        // Assign the fetched data to our function-scoped variable
+        stageData = fetchedStageData;
         
         // Agora atualizamos também o current_stage_index com base no estágio selecionado
         updateData.current_stage_index = stageData.order_index;
@@ -220,7 +224,7 @@ export const createContactFunctions = (): AppContactFunctions => {
       if (error) throw new Error(`Erro ao atualizar sequência do contato: ${error.message}`);
       
       // Se estamos atualizando o estágio, também precisamos atualizar as mensagens agendadas
-      if (data.currentStageId) {
+      if (data.currentStageId && stageData) { // Check if stageData exists
         // Deletar mensagens agendadas pendentes para este contato nesta sequência
         const { error: deleteError } = await supabase
           .from('scheduled_messages')
