@@ -235,10 +235,22 @@ Deno.serve(async (req) => {
         );
       }
       
-      // Encontrar o índice do estágio atual
-      const currentStageIndex = contactSequence.current_stage_index;
-      const nextIndex = currentStageIndex + 1;
-      console.log(`[SEQUENCE] Índice atual: ${currentStageIndex}, próximo índice: ${nextIndex}`);
+      // Encontrar o estágio atual na lista de estágios
+      const currentStage = stages.find(s => s.id === stage_id);
+      if (!currentStage) {
+        console.error(`[STAGES] Estágio atual ${stage_id} não encontrado na lista de estágios da sequência`);
+        return new Response(
+          JSON.stringify({ 
+            error: 'Estágio atual não encontrado na sequência', 
+            details: `O estágio ${stage_id} não foi encontrado na lista de estágios da sequência ${sequence_id}`
+          }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      // Encontrar o próximo estágio com base no índice
+      const nextIndex = currentStage.order_index + 1;
+      console.log(`[SEQUENCE] Índice atual: ${currentStage.order_index}, próximo índice: ${nextIndex}`);
       
       // Encontrar o próximo estágio com base no índice
       const nextStage = stages.find(s => s.order_index === nextIndex);
@@ -358,9 +370,7 @@ Deno.serve(async (req) => {
             // Incrementar estatísticas para mensagens agendadas
             if (instanceId) {
               try {
-                await updateDailyStats(supabase, instanceId, today, {
-                  messages_scheduled: 1
-                });
+                await updateDailyStats(supabase, instanceId, today, 'messages_scheduled');
               } catch (statsError) {
                 console.error(`[STATS] Erro ao incrementar estatísticas de agendamento: ${statsError}`);
               }
@@ -406,9 +416,7 @@ Deno.serve(async (req) => {
           // Incrementar estatísticas para sequências concluídas
           if (instanceId) {
             try {
-              await updateDailyStats(supabase, instanceId, today, {
-                completed_sequences: 1
-              });
+              await updateDailyStats(supabase, instanceId, today, 'completed_sequences');
             } catch (statsError) {
               console.error(`[STATS] Erro ao incrementar estatísticas de sequências concluídas: ${statsError}`);
             }
@@ -437,11 +445,8 @@ Deno.serve(async (req) => {
           .single();
           
         if (messageWithInstance?.instance_id) {
-          const statsData = status === 'success' 
-            ? { messages_sent: 1 } 
-            : { messages_failed: 1 };
-          
-          await updateDailyStats(supabase, messageWithInstance.instance_id, now.split('T')[0], statsData);
+          const statField = status === 'success' ? 'messages_sent' : 'messages_failed';
+          await updateDailyStats(supabase, messageWithInstance.instance_id, now.split('T')[0], statField);
         }
       } catch (statsError) {
         console.error(`[STATS] Erro ao processar estatísticas: ${statsError}`);
@@ -500,59 +505,61 @@ function calculateDelayMs(delay: number, unit: string): number {
 }
 
 // Função auxiliar para atualizar estatísticas diárias
-async function updateDailyStats(supabase, instanceId: string, date: string, stats: Record<string, number>) {
-  // Primeiro verificar se já existe um registro para esta data e instância
-  const { data: existingStats, error: queryError } = await supabase
-    .from('daily_stats')
-    .select('id')
-    .eq('instance_id', instanceId)
-    .eq('date', date)
-    .single();
-  
-  if (queryError && queryError.code !== 'PGRST116') { // PGRST116 = no rows returned
-    console.error(`[STATS] Erro ao verificar estatísticas existentes: ${queryError.message}`);
-    throw queryError;
-  }
-  
-  if (existingStats) {
-    // Se existe, fazer update incrementando os valores
-    const updates = {};
-    for (const [key, value] of Object.entries(stats)) {
-      updates[key] = supabase.rpc('increment', { 
-        x: value, 
-        column_name: key,
-        row_id: existingStats.id,
-        table_name: 'daily_stats'
-      });
+async function updateDailyStats(supabase, instanceId: string, date: string, fieldToIncrement: string) {
+  try {
+    // Primeiro verificar se já existe um registro para esta data e instância
+    const { data: existingStats, error: queryError } = await supabase
+      .from('daily_stats')
+      .select('*')
+      .eq('instance_id', instanceId)
+      .eq('date', date)
+      .maybeSingle();
+    
+    if (queryError && queryError.code !== 'PGRST116') { // PGRST116 = no rows returned
+      console.error(`[STATS] Erro ao verificar estatísticas existentes: ${queryError.message}`);
+      throw queryError;
     }
     
-    // Executar os updates
-    for (const [key, promise] of Object.entries(updates)) {
-      try {
-        await promise;
-      } catch (updateError) {
-        console.error(`[STATS] Erro ao atualizar estatística ${key}: ${updateError.message}`);
+    if (existingStats) {
+      // Se existe, fazer update incrementando o valor
+      const updateData = {};
+      updateData[fieldToIncrement] = existingStats[fieldToIncrement] + 1;
+      
+      const { error: updateError } = await supabase
+        .from('daily_stats')
+        .update(updateData)
+        .eq('id', existingStats.id);
+        
+      if (updateError) {
+        console.error(`[STATS] Erro ao atualizar estatística ${fieldToIncrement}: ${updateError.message}`);
+        throw updateError;
+      }
+    } else {
+      // Se não existe, criar um novo registro
+      const newStats = {
+        instance_id: instanceId,
+        date: date,
+        completed_sequences: 0,
+        messages_sent: 0,
+        messages_failed: 0,
+        messages_scheduled: 0,
+        new_contacts: 0
+      };
+      
+      // Incrementar o campo específico
+      newStats[fieldToIncrement] = 1;
+      
+      const { error: insertError } = await supabase
+        .from('daily_stats')
+        .insert([newStats]);
+      
+      if (insertError) {
+        console.error(`[STATS] Erro ao inserir estatísticas: ${insertError.message}`);
+        throw insertError;
       }
     }
-  } else {
-    // Se não existe, criar um novo registro
-    const newStats = {
-      instance_id: instanceId,
-      date: date,
-      completed_sequences: stats.completed_sequences || 0,
-      messages_sent: stats.messages_sent || 0,
-      messages_failed: stats.messages_failed || 0,
-      messages_scheduled: stats.messages_scheduled || 0,
-      new_contacts: stats.new_contacts || 0
-    };
-    
-    const { error: insertError } = await supabase
-      .from('daily_stats')
-      .insert([newStats]);
-    
-    if (insertError) {
-      console.error(`[STATS] Erro ao inserir estatísticas: ${insertError.message}`);
-      throw insertError;
-    }
+  } catch (error) {
+    console.error(`[STATS] Erro ao processar estatísticas: ${error}`);
+    throw error;
   }
 }

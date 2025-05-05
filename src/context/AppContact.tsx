@@ -82,18 +82,7 @@ export const createContactFunctions = (): AppContactFunctions => {
   // Remover um contato de uma sequência
   const removeFromSequence = async (contactSequenceId: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      // Atualizar o status para "removed" e definir removed_at
-      const { error } = await supabase
-        .from('contact_sequences')
-        .update({
-          status: 'removed',
-          removed_at: new Date().toISOString()
-        })
-        .eq('id', contactSequenceId);
-
-      if (error) throw new Error(`Erro ao remover contato da sequência: ${error.message}`);
-      
-      // Remover mensagens agendadas para esta sequência
+      // Obter dados da sequência do contato para fazer operações relacionadas
       const { data: seqData, error: seqError } = await supabase
         .from('contact_sequences')
         .select('contact_id, sequence_id')
@@ -110,6 +99,17 @@ export const createContactFunctions = (): AppContactFunctions => {
         .eq('sequence_id', seqData.sequence_id);
         
       if (msgError) throw new Error(`Erro ao remover mensagens agendadas: ${msgError.message}`);
+      
+      // Atualizar o status para "removed" e definir removed_at
+      const { error } = await supabase
+        .from('contact_sequences')
+        .update({
+          status: 'removed',
+          removed_at: new Date().toISOString()
+        })
+        .eq('id', contactSequenceId);
+
+      if (error) throw new Error(`Erro ao remover contato da sequência: ${error.message}`);
       
       return { success: true };
     } catch (error) {
@@ -220,22 +220,44 @@ export const createContactFunctions = (): AppContactFunctions => {
         } else {
           // Incrementar estatísticas diárias usando upsert
           try {
-            const statsData = {
-              instance_id: sequenceData.instance_id,
-              date: new Date().toISOString().split('T')[0],
-              messages_scheduled: 1,
-              messages_sent: 0,
-              messages_failed: 0,
-              completed_sequences: 0,
-              new_contacts: 0
-            };
-            
-            const { error: statsError } = await supabase
+            // Verificar se já existe um registro para este dia e instância
+            const today = new Date().toISOString().split('T')[0];
+            const { data: existingStats } = await supabase
               .from('daily_stats')
-              .upsert(statsData);
-            
-            if (statsError) {
-              console.error(`[ESTATÍSTICAS] Erro ao incrementar estatísticas: ${statsError.message}`);
+              .select('*')
+              .eq('instance_id', sequenceData.instance_id)
+              .eq('date', today)
+              .maybeSingle();
+              
+            if (existingStats) {
+              // Se existe, fazer update
+              const { error: updateError } = await supabase
+                .from('daily_stats')
+                .update({
+                  messages_scheduled: existingStats.messages_scheduled + 1
+                })
+                .eq('id', existingStats.id);
+                
+              if (updateError) {
+                console.error(`[ESTATÍSTICAS] Erro ao atualizar estatísticas: ${updateError.message}`);
+              }
+            } else {
+              // Se não existe, criar um novo
+              const { error: insertError } = await supabase
+                .from('daily_stats')
+                .insert([{
+                  instance_id: sequenceData.instance_id,
+                  date: today,
+                  messages_scheduled: 1,
+                  messages_sent: 0,
+                  messages_failed: 0,
+                  completed_sequences: 0,
+                  new_contacts: 0
+                }]);
+                
+              if (insertError) {
+                console.error(`[ESTATÍSTICAS] Erro ao inserir estatísticas: ${insertError.message}`);
+              }
             }
           } catch (statsError) {
             console.error(`[ESTATÍSTICAS] Erro ao incrementar estatísticas: ${statsError}`);

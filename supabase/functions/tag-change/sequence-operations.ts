@@ -84,8 +84,8 @@ export async function processSequences(
     for (const sequence of sequences) {
       sequencesProcessed++;
       try {
-        // Verificar se o contato já está em alguma sequência
-        const { data: existingContactSequence, error: existingContactError } = await supabase
+        // Verificar se o contato já está em alguma sequência ativa ou pausada
+        const { data: existingActiveContactSequence, error: existingActiveError } = await supabase
           .from('contact_sequences')
           .select('*')
           .eq('contact_id', contactId)
@@ -93,14 +93,28 @@ export async function processSequences(
           .in('status', ['active', 'paused'])
           .limit(1);
         
-        if (existingContactError) {
-          console.error(`[5. SEQUÊNCIAS] Erro ao verificar se contato já está na sequência: ${JSON.stringify(existingContactError)}`);
+        if (existingActiveError) {
+          console.error(`[5. SEQUÊNCIAS] Erro ao verificar se contato já está na sequência: ${JSON.stringify(existingActiveError)}`);
           continue;
         }
         
-        if (existingContactSequence && existingContactSequence.length > 0) {
-          console.log(`[5. SEQUÊNCIAS] Contato já está na sequência ${sequence.name}, status: ${existingContactSequence[0].status}`);
+        if (existingActiveContactSequence && existingActiveContactSequence.length > 0) {
+          console.log(`[5. SEQUÊNCIAS] Contato já está na sequência ${sequence.name}, status: ${existingActiveContactSequence[0].status}`);
           sequencesSkipped++;
+          continue;
+        }
+        
+        // Verificar se o contato já esteve nesta sequência e foi removido
+        const { data: existingRemovedContactSequence, error: existingRemovedError } = await supabase
+          .from('contact_sequences')
+          .select('*')
+          .eq('contact_id', contactId)
+          .eq('sequence_id', sequence.id)
+          .eq('status', 'removed')
+          .limit(1);
+        
+        if (existingRemovedError) {
+          console.error(`[5. SEQUÊNCIAS] Erro ao verificar se contato já esteve na sequência: ${JSON.stringify(existingRemovedError)}`);
           continue;
         }
         
@@ -128,32 +142,74 @@ export async function processSequences(
           }
           
           const firstStage = stages[0];
+          const now = new Date().toISOString();
+          let contactSequenceId = '';
           
-          // Adicionar contato à sequência
-          const { data: newContactSequence, error: insertError } = await supabase
-            .from('contact_sequences')
-            .insert([{
-              contact_id: contactId,
-              sequence_id: sequence.id,
-              current_stage_index: 0,
-              current_stage_id: firstStage.id,
-              status: 'active'
-            }])
-            .select();
-          
-          if (insertError) {
-            console.error(`[5. SEQUÊNCIAS] Erro ao adicionar contato à sequência: ${JSON.stringify(insertError)}`);
-            continue;
+          // Se o contato já esteve nesta sequência e foi removido, reativar a sequência
+          if (existingRemovedContactSequence && existingRemovedContactSequence.length > 0) {
+            console.log(`[5. SEQUÊNCIAS] Contato já esteve nesta sequência antes e foi removido. Reativando...`);
+            
+            const { data: updatedSequence, error: updateError } = await supabase
+              .from('contact_sequences')
+              .update({
+                current_stage_index: 0,
+                current_stage_id: firstStage.id,
+                status: 'active',
+                started_at: now,
+                removed_at: null,
+                completed_at: null
+              })
+              .eq('id', existingRemovedContactSequence[0].id)
+              .select();
+            
+            if (updateError) {
+              console.error(`[5. SEQUÊNCIAS] Erro ao reativar sequência para o contato: ${JSON.stringify(updateError)}`);
+              continue;
+            }
+            
+            console.log(`[5. SEQUÊNCIAS] Contato reativado com sucesso na sequência ${sequence.name}`);
+            contactSequenceId = existingRemovedContactSequence[0].id;
+            sequencesAdded++;
+            
+            // Limpar registros antigos de stage_progress para este contact_sequence_id
+            const { error: deleteProgressError } = await supabase
+              .from('stage_progress')
+              .delete()
+              .eq('contact_sequence_id', contactSequenceId);
+            
+            if (deleteProgressError) {
+              console.error(`[5. SEQUÊNCIAS] Erro ao limpar progresso de estágios antigos: ${JSON.stringify(deleteProgressError)}`);
+              // Continue mesmo com erro para tentar completar o processo
+            }
+          } else {
+            // Adicionar contato à sequência como novo registro
+            const { data: newContactSequence, error: insertError } = await supabase
+              .from('contact_sequences')
+              .insert([{
+                contact_id: contactId,
+                sequence_id: sequence.id,
+                current_stage_index: 0,
+                current_stage_id: firstStage.id,
+                status: 'active',
+                started_at: now
+              }])
+              .select();
+            
+            if (insertError) {
+              console.error(`[5. SEQUÊNCIAS] Erro ao adicionar contato à sequência: ${JSON.stringify(insertError)}`);
+              continue;
+            }
+            
+            console.log(`[5. SEQUÊNCIAS] Contato adicionado com sucesso à sequência ${sequence.name}`);
+            contactSequenceId = newContactSequence[0].id;
+            sequencesAdded++;
           }
-          
-          console.log(`[5. SEQUÊNCIAS] Contato adicionado com sucesso à sequência ${sequence.name}`);
-          sequencesAdded++;
           
           // Adicionar registro de progresso do estágio
           const { error: progressError } = await supabase
             .from('stage_progress')
             .insert([{
-              contact_sequence_id: newContactSequence[0].id,
+              contact_sequence_id: contactSequenceId,
               stage_id: firstStage.id,
               status: 'pending'
             }]);
@@ -188,11 +244,38 @@ export async function processSequences(
           
           // Incrementar estatísticas diárias
           try {
-            await supabase.rpc('increment_daily_stats', { 
-              instance_id: instance.id, 
-              stat_date: new Date().toISOString().split('T')[0],
-              messages_scheduled: 1 
-            });
+            const today = new Date().toISOString().split('T')[0];
+            
+            // Verificar se já existe um registro para este dia e instância
+            const { data: existingStats } = await supabase
+              .from('daily_stats')
+              .select('*')
+              .eq('instance_id', instance.id)
+              .eq('date', today)
+              .single();
+            
+            if (existingStats) {
+              // Se existe, fazer update
+              await supabase
+                .from('daily_stats')
+                .update({
+                  messages_scheduled: existingStats.messages_scheduled + 1
+                })
+                .eq('id', existingStats.id);
+            } else {
+              // Se não existe, criar um novo
+              await supabase
+                .from('daily_stats')
+                .insert([{
+                  instance_id: instance.id,
+                  date: today,
+                  messages_scheduled: 1,
+                  messages_sent: 0,
+                  messages_failed: 0,
+                  completed_sequences: 0,
+                  new_contacts: 0
+                }]);
+            }
           } catch (statsError) {
             console.error(`[ESTATÍSTICAS] Erro ao incrementar estatísticas: ${JSON.stringify(statsError)}`);
           }
