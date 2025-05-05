@@ -100,10 +100,10 @@ export const createContactFunctions = (): AppContactFunctions => {
         
       if (msgError) throw new Error(`Erro ao remover mensagens agendadas: ${msgError.message}`);
       
-      // Atualizar o status na tabela stage_progress para "skipped" onde o status for "pending"
+      // Atualizar o status na tabela stage_progress para "removed" onde o status for "pending"
       const { error: progError } = await supabase
         .from('stage_progress')
-        .update({ status: 'skipped' })
+        .update({ status: 'removed' })
         .eq('contact_sequence_id', contactSequenceId)
         .eq('status', 'pending');
         
