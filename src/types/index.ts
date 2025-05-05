@@ -116,7 +116,7 @@ export interface ContactSequence {
 
 export interface StageProgress {
   stageId: string;
-  status: "pending" | "completed" | "skipped";
+  status: "pending" | "completed" | "skipped" | "removed";
   completedAt?: string;
 }
 

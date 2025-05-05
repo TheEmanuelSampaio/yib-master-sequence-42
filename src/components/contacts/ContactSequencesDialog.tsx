@@ -156,7 +156,7 @@ export const ContactSequencesDialog = ({
                               <div className="flex items-center gap-2">
                                 {formatContactSequenceStatus(contactSequence.status)}
                                 
-                                {/* Opções de gestão para todas as sequências, não apenas as ativas */}
+                                {/* Opções de gestão para sequências ativas */}
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild onClick={() => resetBodyStylesAfterDialog()}>
                                     <Button variant="ghost" size="icon">
