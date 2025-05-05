@@ -1,7 +1,6 @@
-
 import { useState } from "react";
 import { useApp } from '@/context/AppContext';
-import { Search, Filter, Calendar, CheckCircle, XCircle, AlertCircle, MessageCircle, FileCode, Bot, Clock, HourglassOff, XOctagon, Hourglass } from "lucide-react";
+import { Search, Filter, Calendar, CheckCircle, XCircle, AlertCircle, MessageCircle, FileCode, Bot, Clock, Hourglass, XOctagon } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -144,7 +143,7 @@ export default function Messages() {
       case 'failed':
         return (
           <Badge variant="outline" className="bg-neutral-500/20 text-neutral-700 dark:text-neutral-400 border-neutral-500/30">
-            <HourglassOff className="h-3 w-3 mr-1" />
+            <Hourglass className="h-3 w-3 mr-1" />
             Falhou
           </Badge>
         );
@@ -282,7 +281,7 @@ export default function Messages() {
                     />
                     <label htmlFor="failed" className="text-sm">
                       <Badge variant="outline" className="bg-neutral-500/20 text-neutral-700 dark:text-neutral-400 border-neutral-500/30">
-                        <HourglassOff className="h-3 w-3 mr-1" />
+                        <Hourglass className="h-3 w-3 mr-1" />
                         Falhou
                       </Badge>
                     </label>
