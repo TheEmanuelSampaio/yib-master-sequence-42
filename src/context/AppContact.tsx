@@ -1,4 +1,3 @@
-
 import { createContext, useContext } from 'react';
 import { Contact, ContactSequence } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
@@ -137,11 +136,80 @@ export const createContactFunctions = (): AppContactFunctions => {
       // Obter contato_id e sequence_id para atualizar mensagens agendadas
       const { data: seqData, error: seqError } = await supabase
         .from('contact_sequences')
-        .select('contact_id, sequence_id')
+        .select('contact_id, sequence_id, current_stage_id, current_stage_index')
         .eq('id', contactSequenceId)
         .single();
       
       if (seqError) throw new Error(`Erro ao obter dados da sequência: ${seqError.message}`);
+
+      // Obter informações sobre o estágio de destino
+      if (data.currentStageId) {
+        // Obter informações do estágio selecionado
+        const { data: stageData, error: stageError } = await supabase
+          .from('sequence_stages')
+          .select('id, order_index')
+          .eq('id', data.currentStageId)
+          .single();
+        
+        if (stageError) throw new Error(`Erro ao obter dados do estágio: ${stageError.message}`);
+        
+        // Agora atualizamos também o current_stage_index com base no estágio selecionado
+        updateData.current_stage_index = stageData.order_index;
+        
+        // Verificar se estamos pulando estágios
+        if (seqData.current_stage_id !== data.currentStageId) {
+          // Obter todos os estágios da sequência para determinar quais foram pulados
+          const { data: allStages, error: allStagesError } = await supabase
+            .from('sequence_stages')
+            .select('id, order_index')
+            .eq('sequence_id', seqData.sequence_id)
+            .order('order_index', { ascending: true });
+          
+          if (allStagesError) throw new Error(`Erro ao obter estágios da sequência: ${allStagesError.message}`);
+          
+          // Encontrar índices dos estágios atual e de destino
+          const currentStageInfo = allStages.find(s => s.id === seqData.current_stage_id);
+          const targetStageInfo = allStages.find(s => s.id === data.currentStageId);
+          
+          if (currentStageInfo && targetStageInfo && targetStageInfo.order_index > currentStageInfo.order_index) {
+            // Identificar estágios que serão pulados (entre o atual e o destino)
+            const skippedStages = allStages.filter(s => 
+              s.order_index > currentStageInfo.order_index && 
+              s.order_index < targetStageInfo.order_index
+            );
+            
+            // Marcar os estágios pulados como "skipped" em stage_progress
+            for (const stage of skippedStages) {
+              // Verificar se já existe um registro para este estágio
+              const { data: existingProgress } = await supabase
+                .from('stage_progress')
+                .select('id, status')
+                .eq('contact_sequence_id', contactSequenceId)
+                .eq('stage_id', stage.id)
+                .maybeSingle();
+              
+              if (existingProgress) {
+                // Atualizar para skipped se não estiver completed
+                if (existingProgress.status !== 'completed') {
+                  await supabase
+                    .from('stage_progress')
+                    .update({ status: 'skipped' })
+                    .eq('id', existingProgress.id);
+                }
+              } else {
+                // Inserir novo registro como skipped
+                await supabase
+                  .from('stage_progress')
+                  .insert({
+                    contact_sequence_id: contactSequenceId,
+                    stage_id: stage.id,
+                    status: 'skipped'
+                  });
+              }
+            }
+          }
+        }
+      }
 
       // Atualizar o estágio na tabela contact_sequences
       const { error } = await supabase
@@ -166,15 +234,6 @@ export const createContactFunctions = (): AppContactFunctions => {
           // Continuamos mesmo com erro para tentar a atualização
         }
 
-        // Obter informações do estágio selecionado para criar nova mensagem agendada
-        const { data: stageData, error: stageError } = await supabase
-          .from('sequence_stages')
-          .select('*')
-          .eq('id', data.currentStageId)
-          .single();
-        
-        if (stageError) throw new Error(`Erro ao obter dados do estágio: ${stageError.message}`);
-        
         // Adicionar registro de progresso do estágio
         const { error: progressError } = await supabase
           .from('stage_progress')
