@@ -147,7 +147,7 @@ export const createContactFunctions = (): AppContactFunctions => {
         // Obter informações do estágio selecionado
         const { data: stageData, error: stageError } = await supabase
           .from('sequence_stages')
-          .select('id, order_index')
+          .select('id, order_index, delay, delay_unit')
           .eq('id', data.currentStageId)
           .single();
         
@@ -247,7 +247,7 @@ export const createContactFunctions = (): AppContactFunctions => {
           console.error(`Erro ao adicionar progresso do estágio: ${progressError.message}`);
         }
         
-        // Calcular o tempo de agendamento da mensagem
+        // Calcular o tempo de agendamento da mensagem usando os dados do estágio obtidos
         const delayMs = calculateDelayMs(stageData.delay, stageData.delay_unit);
         const scheduledTime = new Date(Date.now() + delayMs);
         
