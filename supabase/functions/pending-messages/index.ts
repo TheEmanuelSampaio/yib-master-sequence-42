@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Pegar mensagens pendentes com horário de envio menor que o horário atual
+    // Pegar mensagens pendentes com horário de envio menor ou igual que o horário atual
     console.log(`[QUERY] Buscando mensagens pendentes...`);
     const now = new Date();
     const { data: pendingMessages, error: messagesError } = await supabase
@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
         )
       `)
       .eq('status', 'pending')
-      .lt('scheduled_time', now.toISOString())
+      .lte('scheduled_time', now.toISOString()) // Alterado para menor ou igual
       .order('scheduled_time', { ascending: true })
       .limit(10); // Limitar a 10 mensagens por vez para evitar sobrecarga
 
