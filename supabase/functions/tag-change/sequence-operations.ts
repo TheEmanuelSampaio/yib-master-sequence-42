@@ -104,21 +104,6 @@ export async function processSequences(
           continue;
         }
         
-        // Verificar se o contato já esteve nesta sequência e foi removido
-        const { data: existingRemovedContactSequence, error: existingRemovedError } = await supabase
-          .from('contact_sequences')
-          .select('*')
-          .eq('contact_id', contactId)
-          .eq('sequence_id', sequence.id)
-          .eq('status', 'removed')
-          .order('removed_at', { ascending: false })
-          .limit(1);
-        
-        if (existingRemovedError) {
-          console.error(`[5. SEQUÊNCIAS] Erro ao verificar se contato já esteve na sequência: ${JSON.stringify(existingRemovedError)}`);
-          continue;
-        }
-        
         // Verificar condições de início da sequência
         const matchesStartCondition = checkCondition(tags, sequence.start_condition_tags, sequence.start_condition_type);
         console.log(`[5. SEQUÊNCIAS] Verificando condição de início para sequência ${sequence.name}: ${matchesStartCondition ? 'ATENDE' : 'NÃO ATENDE'}`);
@@ -146,8 +131,7 @@ export async function processSequences(
           const now = new Date().toISOString();
           let contactSequenceId = '';
           
-          // Criar uma nova entrada, independentemente se o contato já esteve nesta sequência antes
-          // O histórico de sequências removidas permanecerá no banco de dados
+          // Criar uma nova entrada para o contato na sequência
           const { data: newContactSequence, error: insertError } = await supabase
             .from('contact_sequences')
             .insert([{
@@ -165,7 +149,7 @@ export async function processSequences(
             continue;
           }
           
-          console.log(`[5. SEQUÊNCIAS] Contato adicionado com sucesso à sequência ${sequence.name}`);
+          console.log(`[5. SEQUÊNCIAS] Contato adicionado com sucesso à sequência ${sequence.name}!`);
           contactSequenceId = newContactSequence[0].id;
           sequencesAdded++;
           

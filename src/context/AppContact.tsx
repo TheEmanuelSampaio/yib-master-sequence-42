@@ -1,3 +1,4 @@
+
 import { createContext, useContext } from 'react';
 import { Contact, ContactSequence } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
@@ -84,7 +85,7 @@ export const createContactFunctions = (): AppContactFunctions => {
       // Obter dados da sequência do contato para fazer operações relacionadas
       const { data: seqData, error: seqError } = await supabase
         .from('contact_sequences')
-        .select('contact_id, sequence_id')
+        .select('contact_id, sequence_id, current_stage_id')
         .eq('id', contactSequenceId)
         .single();
       
@@ -98,6 +99,15 @@ export const createContactFunctions = (): AppContactFunctions => {
         .eq('sequence_id', seqData.sequence_id);
         
       if (msgError) throw new Error(`Erro ao remover mensagens agendadas: ${msgError.message}`);
+      
+      // Atualizar o status na tabela stage_progress para "removed" onde o status for "pending"
+      const { error: progError } = await supabase
+        .from('stage_progress')
+        .update({ status: 'removed' })
+        .eq('contact_sequence_id', contactSequenceId)
+        .eq('status', 'pending');
+        
+      if (progError) throw new Error(`Erro ao atualizar progresso do estágio: ${progError.message}`);
       
       // Atualizar o status para "removed" e definir removed_at
       const { error } = await supabase
@@ -207,6 +217,36 @@ export const createContactFunctions = (): AppContactFunctions => {
                   .insert({
                     contact_sequence_id: contactSequenceId,
                     stage_id: stage.id,
+                    status: 'skipped'
+                  });
+              }
+            }
+            
+            // Também marcar o estágio atual como skipped se estamos movendo para um estágio posterior
+            if (seqData.current_stage_id) {
+              // Verificar se já existe um registro para o estágio atual
+              const { data: currentProgress } = await supabase
+                .from('stage_progress')
+                .select('id, status')
+                .eq('contact_sequence_id', contactSequenceId)
+                .eq('stage_id', seqData.current_stage_id)
+                .maybeSingle();
+                
+              if (currentProgress) {
+                // Atualizar para skipped se não estiver completed
+                if (currentProgress.status !== 'completed') {
+                  await supabase
+                    .from('stage_progress')
+                    .update({ status: 'skipped' })
+                    .eq('id', currentProgress.id);
+                }
+              } else {
+                // Inserir novo registro como skipped
+                await supabase
+                  .from('stage_progress')
+                  .insert({
+                    contact_sequence_id: contactSequenceId,
+                    stage_id: seqData.current_stage_id,
                     status: 'skipped'
                   });
               }
