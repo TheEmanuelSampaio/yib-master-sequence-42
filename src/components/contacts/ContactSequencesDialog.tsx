@@ -1,3 +1,4 @@
+
 import { Contact, ContactSequence, Sequence } from '@/types';
 import { User, Tag, CheckCircle2, Clock, AlertCircle, X, Move, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -96,7 +97,15 @@ export const ContactSequencesDialog = ({
   };
   
   const getContactSequences = (contactId: string) => {
-    return contactSequences.filter(seq => seq.contactId === contactId);
+    return contactSequences
+      .filter(seq => seq.contactId === contactId)
+      // Ordenar sequências com as mais recentes primeiro
+      .sort((a, b) => {
+        // Usar o campo mais recente disponível para cada sequência
+        const dateA = a.removedAt || a.completedAt || a.lastMessageAt || a.startedAt;
+        const dateB = b.removedAt || b.completedAt || b.lastMessageAt || b.startedAt;
+        return new Date(dateB).getTime() - new Date(dateA).getTime();
+      });
   };
   
   return (
@@ -147,62 +156,69 @@ export const ContactSequencesDialog = ({
                               <div className="flex items-center gap-2">
                                 {formatContactSequenceStatus(contactSequence.status)}
                                 
-                                {contactSequence.status === 'active' && (
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild onClick={() => resetBodyStylesAfterDialog()}>
-                                      <Button variant="ghost" size="icon">
-                                        <MoreVertical className="h-4 w-4" />
-                                      </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" onClick={stopEventPropagation}>
-                                      <DropdownMenuItem onClick={() => {
+                                {/* Opções de gestão para todas as sequências, não apenas as ativas */}
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild onClick={() => resetBodyStylesAfterDialog()}>
+                                    <Button variant="ghost" size="icon">
+                                      <MoreVertical className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end" onClick={stopEventPropagation}>
+                                    <DropdownMenuItem 
+                                      onClick={() => {
                                         resetBodyStylesAfterDialog();
                                         onPrepareStageChange(contactSequence);
-                                      }}>
-                                        <Move className="h-4 w-4 mr-2" />
-                                        Alterar estágio
-                                      </DropdownMenuItem>
-                                      <DropdownMenuSeparator />
-                                      <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                          <DropdownMenuItem 
-                                            onSelect={(e) => {
-                                              e.preventDefault();
-                                              resetBodyStylesAfterDialog();
-                                            }} 
-                                            className="text-red-500"
-                                          >
-                                            <X className="h-4 w-4 mr-2" />
-                                            Remover da sequência
-                                          </DropdownMenuItem>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent onClick={stopEventPropagation}>
-                                          <AlertDialogHeader>
-                                            <AlertDialogTitle>Remover contato da sequência?</AlertDialogTitle>
-                                            <AlertDialogDescription>
-                                              O contato será removido da sequência "{sequence.name}" e não receberá mais mensagens desta sequência.
-                                            </AlertDialogDescription>
-                                          </AlertDialogHeader>
-                                          <AlertDialogFooter>
-                                            <AlertDialogCancel onClick={() => resetBodyStylesAfterDialog()}>
-                                              Cancelar
-                                            </AlertDialogCancel>
-                                            <AlertDialogAction
-                                              onClick={() => {
+                                      }}
+                                      disabled={contactSequence.status !== 'active'}
+                                    >
+                                      <Move className="h-4 w-4 mr-2" />
+                                      Alterar estágio
+                                    </DropdownMenuItem>
+                                    
+                                    {contactSequence.status === 'active' && (
+                                      <>
+                                        <DropdownMenuSeparator />
+                                        <AlertDialog>
+                                          <AlertDialogTrigger asChild>
+                                            <DropdownMenuItem 
+                                              onSelect={(e) => {
+                                                e.preventDefault();
                                                 resetBodyStylesAfterDialog();
-                                                onRemoveFromSequence(contactSequence.id);
-                                              }}
-                                              className="bg-red-500 hover:bg-red-600"
-                                              disabled={isProcessing}
+                                              }} 
+                                              className="text-red-500"
                                             >
-                                              Remover
-                                            </AlertDialogAction>
-                                          </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                      </AlertDialog>
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
-                                )}
+                                              <X className="h-4 w-4 mr-2" />
+                                              Remover da sequência
+                                            </DropdownMenuItem>
+                                          </AlertDialogTrigger>
+                                          <AlertDialogContent onClick={stopEventPropagation}>
+                                            <AlertDialogHeader>
+                                              <AlertDialogTitle>Remover contato da sequência?</AlertDialogTitle>
+                                              <AlertDialogDescription>
+                                                O contato será removido da sequência "{sequence.name}" e não receberá mais mensagens desta sequência.
+                                              </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                              <AlertDialogCancel onClick={() => resetBodyStylesAfterDialog()}>
+                                                Cancelar
+                                              </AlertDialogCancel>
+                                              <AlertDialogAction
+                                                onClick={() => {
+                                                  resetBodyStylesAfterDialog();
+                                                  onRemoveFromSequence(contactSequence.id);
+                                                }}
+                                                className="bg-red-500 hover:bg-red-600"
+                                                disabled={isProcessing}
+                                              >
+                                                Remover
+                                              </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                          </AlertDialogContent>
+                                        </AlertDialog>
+                                      </>
+                                    )}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
                               </div>
                             </div>
                             <CardDescription>
@@ -230,6 +246,7 @@ export const ContactSequencesDialog = ({
                                         "flex items-start space-x-3 p-2 rounded-md",
                                         progress?.status === "completed" && "bg-green-500/10",
                                         progress?.status === "skipped" && "bg-gray-500/10",
+                                        progress?.status === "removed" && "bg-red-500/10",
                                         contactSequence.currentStageId === stage.id && "bg-blue-500/10 border border-blue-500/30"
                                       )}
                                     >
@@ -238,6 +255,8 @@ export const ContactSequencesDialog = ({
                                           <CheckCircle2 className="h-5 w-5 text-green-500" />
                                         ) : progress?.status === "skipped" ? (
                                           <AlertCircle className="h-5 w-5 text-gray-500" />
+                                        ) : progress?.status === "removed" ? (
+                                          <X className="h-5 w-5 text-red-500" />
                                         ) : contactSequence.currentStageId === stage.id ? (
                                           <Clock className="h-5 w-5 text-blue-500" />
                                         ) : (
@@ -249,7 +268,7 @@ export const ContactSequencesDialog = ({
                                       <div className="flex-1">
                                         <div className="flex items-center">
                                           <h6 className="font-medium text-sm">{stage.name}</h6>
-                                          {contactSequence.currentStageId === stage.id && (
+                                          {contactSequence.currentStageId === stage.id && contactSequence.status === 'active' && (
                                             <Badge variant="outline" className="ml-2 bg-blue-500/10 text-blue-700 dark:text-blue-400 text-xs">
                                               Atual
                                             </Badge>
@@ -258,7 +277,11 @@ export const ContactSequencesDialog = ({
                                         <p className="text-xs text-muted-foreground mt-0.5">
                                           {progress?.status === "completed" && progress.completedAt ? (
                                             `Enviado em ${new Date(progress.completedAt).toLocaleString('pt-BR')}`
-                                          ) : contactSequence.currentStageId === stage.id ? (
+                                          ) : progress?.status === "skipped" ? (
+                                            "Pulado"
+                                          ) : progress?.status === "removed" ? (
+                                            "Removido"
+                                          ) : contactSequence.currentStageId === stage.id && contactSequence.status === 'active' ? (
                                             "Aguardando envio"
                                           ) : (
                                             "Pendente"

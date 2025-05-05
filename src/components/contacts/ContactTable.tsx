@@ -1,185 +1,160 @@
 
-import { Contact, ContactSequence } from '@/types';
+import { Contact } from '@/types';
+import { User, Tag, Phone, Eye, Pencil, Trash2, CheckCircle2, Clock, AlertCircle } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MoreVertical, Edit, Trash2, Clock } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { 
-  AlertDialog, 
-  AlertDialogAction, 
-  AlertDialogCancel, 
-  AlertDialogContent, 
-  AlertDialogDescription, 
-  AlertDialogFooter, 
-  AlertDialogHeader, 
-  AlertDialogTitle, 
-  AlertDialogTrigger 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { resetBodyStylesAfterDialog, stopEventPropagation } from "@/utils/dialogHelpers";
+
+interface ContactSequenceDetails {
+  active: number;
+  completed: number;
+  removed: number;
+  total: number;
+}
 
 interface ContactTableProps {
   contacts: Contact[];
-  getContactSequenceDetails: (contactId: string) => {
-    active: number;
-    completed: number;
-    removed: number;
-    total: number;
-  };
+  getContactSequenceDetails: (contactId: string) => ContactSequenceDetails;
   onViewSequences: (contact: Contact) => void;
   onPrepareEdit: (contact: Contact) => void;
   onDeleteContact: (contactId: string) => void;
   isProcessing: boolean;
 }
 
-export const ContactTable = ({ 
-  contacts, 
+export const ContactTable = ({
+  contacts,
   getContactSequenceDetails,
-  onViewSequences, 
-  onPrepareEdit, 
+  onViewSequences,
+  onPrepareEdit,
   onDeleteContact,
-  isProcessing
+  isProcessing,
 }: ContactTableProps) => {
   return (
-    <div className="rounded-md border">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-[250px]">Nome</TableHead>
-            <TableHead>Telefone</TableHead>
-            <TableHead>Tags</TableHead>
-            <TableHead>Sequências</TableHead>
-            <TableHead></TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {contacts.length > 0 ? contacts.map(contact => {
-            const seqDetails = getContactSequenceDetails(contact.id);
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Contato</TableHead>
+          <TableHead>Telefone</TableHead>
+          <TableHead>Tags</TableHead>
+          <TableHead>Sequências</TableHead>
+          <TableHead className="text-right">Ações</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {contacts.length > 0 ? (
+          contacts.map(contact => {
+            const sequenceDetails = getContactSequenceDetails(contact.id);
             
             return (
               <TableRow key={contact.id}>
-                <TableCell className="font-medium">{contact.name}</TableCell>
-                <TableCell>{contact.phoneNumber}</TableCell>
+                <TableCell className="flex items-center space-x-2">
+                  <User className="h-4 w-4 text-muted-foreground" />
+                  <span>{contact.name}</span>
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center space-x-2">
+                    <Phone className="h-4 w-4 text-muted-foreground" />
+                    <span>{contact.phoneNumber}</span>
+                  </div>
+                </TableCell>
                 <TableCell>
                   <div className="flex flex-wrap gap-1">
                     {contact.tags.map(tag => (
-                      <Badge key={tag} variant="outline" className="text-xs py-0">
+                      <Badge key={tag} variant="outline" className="text-xs">
                         {tag}
                       </Badge>
                     ))}
                   </div>
                 </TableCell>
                 <TableCell>
-                  {seqDetails.total > 0 ? (
-                    <div className="flex items-center space-x-2">
-                      {seqDetails.active > 0 && (
-                        <Badge className="bg-green-600">
-                          {seqDetails.active} ativa{seqDetails.active > 1 && 's'}
-                        </Badge>
-                      )}
-                      {seqDetails.completed > 0 && (
-                        <Badge variant="outline" className="bg-blue-500/20 text-blue-700 dark:text-blue-400">
-                          {seqDetails.completed} concluída{seqDetails.completed > 1 && 's'}
-                        </Badge>
-                      )}
-                    </div>
-                  ) : (
-                    <span className="text-muted-foreground text-sm">
-                      Sem sequências
-                    </span>
-                  )}
+                  <div className="flex space-x-2">
+                    {sequenceDetails.active > 0 && (
+                      <Badge className="bg-green-600">
+                        <Clock className="h-3 w-3 mr-1" />
+                        {sequenceDetails.active} ativa{sequenceDetails.active !== 1 ? 's' : ''}
+                      </Badge>
+                    )}
+                    {sequenceDetails.completed > 0 && (
+                      <Badge variant="outline" className="bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-500/30">
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                        {sequenceDetails.completed} concluída{sequenceDetails.completed !== 1 ? 's' : ''}
+                      </Badge>
+                    )}
+                    {sequenceDetails.removed > 0 && (
+                      <Badge variant="outline" className="bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30">
+                        <AlertCircle className="h-3 w-3 mr-1" />
+                        {sequenceDetails.removed} removida{sequenceDetails.removed !== 1 ? 's' : ''}
+                      </Badge>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell className="text-right">
-                  <div className="flex items-center justify-end space-x-2">
-                    {seqDetails.active > 0 && (
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={(e) => {
-                          stopEventPropagation(e);
-                          resetBodyStylesAfterDialog();
-                          onViewSequences(contact);
-                        }}
-                      >
-                        <Clock className="h-4 w-4" />
-                        <span className="sr-only">Ver Sequências</span>
-                      </Button>
-                    )}
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm" onClick={() => resetBodyStylesAfterDialog()}>
-                          <MoreVertical className="h-4 w-4" />
-                          <span className="sr-only">Ações</span>
+                  <div className="flex justify-end space-x-1">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => onViewSequences(contact)}
+                      disabled={isProcessing}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => onPrepareEdit(contact)}
+                      disabled={isProcessing}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="outline" size="icon">
+                          <Trash2 className="h-4 w-4 text-red-500" />
                         </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" onClick={stopEventPropagation}>
-                        <DropdownMenuItem onClick={() => {
-                          resetBodyStylesAfterDialog();
-                          onPrepareEdit(contact);
-                        }}>
-                          <Edit className="h-4 w-4 mr-2" />
-                          Editar
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <DropdownMenuItem 
-                              onSelect={(e) => {
-                                e.preventDefault();
-                                resetBodyStylesAfterDialog();
-                              }} 
-                              className="text-red-500"
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Excluir
-                            </DropdownMenuItem>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent onClick={stopEventPropagation}>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Excluir contato?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Esta ação não pode ser desfeita. Isso excluirá permanentemente o 
-                                contato "{contact.name}" e removerá todos os dados associados a ele.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel onClick={() => resetBodyStylesAfterDialog()}>
-                                Cancelar
-                              </AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => {
-                                  resetBodyStylesAfterDialog();
-                                  onDeleteContact(contact.id);
-                                }}
-                                className="bg-red-500 hover:bg-red-600"
-                                disabled={isProcessing}
-                              >
-                                Excluir
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Excluir Contato?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Esta ação irá remover permanentemente o contato "{contact.name}" e todos os seus dados, incluindo o histórico de sequências.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => onDeleteContact(contact.id)}
+                            className="bg-red-500 hover:bg-red-600"
+                            disabled={isProcessing}
+                          >
+                            Excluir
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </TableCell>
               </TableRow>
             );
-          }) : (
-            <TableRow>
-              <TableCell colSpan={5} className="h-24 text-center">
-                Nenhum contato encontrado
-              </TableCell>
-            </TableRow>
-          )}
-        </TableBody>
-      </Table>
-    </div>
+          })
+        ) : (
+          <TableRow>
+            <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">
+              Nenhum contato encontrado.
+            </TableCell>
+          </TableRow>
+        )}
+      </TableBody>
+    </Table>
   );
 };
