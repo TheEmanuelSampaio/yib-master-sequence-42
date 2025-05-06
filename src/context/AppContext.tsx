@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { v4 as uuidv4 } from 'uuid';
@@ -14,7 +13,8 @@ import {
   DailyStats, 
   TagCondition,
   ConditionStructure,
-  TagGroup
+  TagGroup,
+  ScheduledMessage
 } from '@/types';
 import { toast } from 'sonner';
 import { isValidUUID } from '@/integrations/supabase/client';
@@ -30,6 +30,7 @@ interface AppContextType {
   tags: string[];
   timeRestrictions: TimeRestriction[];
   dailyStats: DailyStats[];
+  scheduledMessages: ScheduledMessage[];
   addTag: (tag: string) => void;
   setCurrentInstance: (instance: Instance | null) => void;
   addInstance: (instance: Omit<Instance, "id" | "createdAt" | "updatedAt" | "createdBy">) => Promise<{ success: boolean, error?: string }>;
@@ -42,6 +43,23 @@ interface AppContextType {
   updateTimeRestriction: (id: string, updates: Partial<Omit<TimeRestriction, "id" | "createdAt" | "createdBy">>) => Promise<{ success: boolean, error?: string }>;
   deleteTimeRestriction: (id: string) => Promise<{ success: boolean, error?: string }>;
   getContactSequences: (contactId: string) => ContactSequence[];
+  // Add missing methods for Contacts page
+  deleteContact: (id: string) => Promise<{ success: boolean, error?: string }>;
+  updateContact: (id: string, updates: Partial<Contact>) => Promise<{ success: boolean, error?: string }>;
+  removeFromSequence: (contactSequenceId: string) => Promise<{ success: boolean, error?: string }>;
+  updateContactSequence: (id: string, updates: Partial<ContactSequence>) => Promise<{ success: boolean, error?: string }>;
+  // Users management
+  users: User[];
+  addUser: (user: Partial<User>) => Promise<{ success: boolean, error?: string }>;
+  updateUser: (id: string, updates: Partial<User>) => Promise<{ success: boolean, error?: string }>;
+  deleteUser: (id: string) => Promise<{ success: boolean, error?: string }>;
+  // Client management
+  addClient: (client: Partial<Client>) => Promise<{ success: boolean, error?: string }>;
+  updateClient: (id: string, updates: Partial<Client>) => Promise<{ success: boolean, error?: string }>;
+  deleteClient: (id: string) => Promise<{ success: boolean, error?: string }>;
+  // Tag management
+  deleteTag: (tag: string) => Promise<{ success: boolean, error?: string }>;
+  // Refresh data
   refreshData: () => Promise<void>;
   isDataInitialized: boolean;
   isLoading: boolean;
@@ -58,6 +76,8 @@ const AppContext = createContext<AppContextType>({
   tags: [],
   timeRestrictions: [],
   dailyStats: [],
+  scheduledMessages: [],
+  users: [],
   addTag: () => {},
   setCurrentInstance: () => {},
   addInstance: async () => ({ success: false, error: 'Context not initialized' }),
@@ -70,6 +90,17 @@ const AppContext = createContext<AppContextType>({
   updateTimeRestriction: async () => ({ success: false, error: 'Context not initialized' }),
   deleteTimeRestriction: async () => ({ success: false, error: 'Context not initialized' }),
   getContactSequences: () => [],
+  deleteContact: async () => ({ success: false, error: 'Context not initialized' }),
+  updateContact: async () => ({ success: false, error: 'Context not initialized' }),
+  removeFromSequence: async () => ({ success: false, error: 'Context not initialized' }),
+  updateContactSequence: async () => ({ success: false, error: 'Context not initialized' }),
+  addUser: async () => ({ success: false, error: 'Context not initialized' }),
+  updateUser: async () => ({ success: false, error: 'Context not initialized' }),
+  deleteUser: async () => ({ success: false, error: 'Context not initialized' }),
+  addClient: async () => ({ success: false, error: 'Context not initialized' }),
+  updateClient: async () => ({ success: false, error: 'Context not initialized' }),
+  deleteClient: async () => ({ success: false, error: 'Context not initialized' }),
+  deleteTag: async () => ({ success: false, error: 'Context not initialized' }),
   refreshData: async () => {},
   isDataInitialized: false,
   isLoading: true,
@@ -124,6 +155,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [tags, setTags] = useState<string[]>([]);
   const [timeRestrictions, setTimeRestrictions] = useState<TimeRestriction[]>([]);
   const [dailyStats, setDailyStats] = useState<DailyStats[]>([]);
+  const [scheduledMessages, setScheduledMessages] = useState<ScheduledMessage[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [isDataInitialized, setIsDataInitialized] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -413,7 +446,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       
       // Fetch time restrictions for sequences
       const { data: timeRestrictionsData, error: timeRestrictionsError } = await supabase
-        .rpc('get_sequence_time_restrictions')
+        .from('sequence_local_restrictions')
         .select('*');
       
       const sequenceTimeRestrictions = new Map<string, TimeRestriction[]>();
@@ -520,12 +553,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           id: sequence.id,
           name: sequence.name,
           instanceId: sequence.instance_id,
-          type: sequence.type as "message" | "pattern" | "typebot", // Adding type property
+          type: sequence.type || "message", // Default to message if not specified
           startCondition,
           stopCondition,
           stages,
           timeRestrictions: restrictions,
-          status: sequence.status,
+          status: sequence.status as "active" | "inactive",
           createdAt: sequence.created_at,
           updatedAt: sequence.updated_at,
         };
@@ -559,7 +592,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           sequenceId: cs.sequence_id,
           currentStageIndex: cs.current_stage_index,
           currentStageId: cs.current_stage_id,
-          status: cs.status,
+          status: cs.status as "active" | "completed" | "paused" | "removed",
           startedAt: cs.started_at,
           lastMessageAt: cs.last_message_at,
           completedAt: cs.completed_at,
@@ -569,6 +602,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
       
       setContactSequences(mappedContactSequences);
+      
+      // Fetch scheduled messages
+      const { data: messagesData, error: messagesError } = await supabase
+        .from('scheduled_messages')
+        .select('*')
+        .order('scheduled_time', { ascending: true });
+      
+      if (messagesError) {
+        console.error('Error fetching scheduled messages:', messagesError);
+      } else if (messagesData) {
+        const mappedMessages: ScheduledMessage[] = messagesData.map(msg => ({
+          id: msg.id,
+          contactId: msg.contact_id,
+          sequenceId: msg.sequence_id,
+          stageId: msg.stage_id,
+          scheduledTime: msg.scheduled_time,
+          scheduledAt: msg.scheduled_at,
+          sentAt: msg.sent_at,
+          status: msg.status as "waiting" | "pending" | "processing" | "sent" | "failed" | "persistent_error",
+          attempts: msg.attempts || 0
+        }));
+        
+        setScheduledMessages(mappedMessages);
+      }
       
       // Fetch daily stats
       const { data: statsData, error: statsError } = await supabase
@@ -1310,6 +1367,255 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // New methods for contact management
+  const deleteContact = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('contacts')
+        .delete()
+        .eq('id', id);
+        
+      if (error) {
+        console.error('Error deleting contact:', error);
+        return { success: false, error: error.message };
+      }
+      
+      setContacts(prev => prev.filter(contact => contact.id !== id));
+      return { success: true };
+    } catch (error: any) {
+      console.error('Error deleting contact:', error);
+      return { success: false, error: error.message || 'Unknown error' };
+    }
+  };
+  
+  const updateContact = async (id: string, updates: Partial<Contact>) => {
+    try {
+      const { error } = await supabase
+        .from('contacts')
+        .update({
+          name: updates.name,
+          phone_number: updates.phoneNumber,
+          // Other fields as needed
+        })
+        .eq('id', id);
+        
+      if (error) {
+        console.error('Error updating contact:', error);
+        return { success: false, error: error.message };
+      }
+      
+      setContacts(prev => prev.map(contact => 
+        contact.id === id ? { ...contact, ...updates } : contact
+      ));
+      return { success: true };
+    } catch (error: any) {
+      console.error('Error updating contact:', error);
+      return { success: false, error: error.message || 'Unknown error' };
+    }
+  };
+  
+  const removeFromSequence = async (contactSequenceId: string) => {
+    try {
+      const { error } = await supabase
+        .from('contact_sequences')
+        .update({
+          status: 'removed',
+          removed_at: new Date().toISOString()
+        })
+        .eq('id', contactSequenceId);
+        
+      if (error) {
+        console.error('Error removing contact from sequence:', error);
+        return { success: false, error: error.message };
+      }
+      
+      setContactSequences(prev => prev.map(cs => 
+        cs.id === contactSequenceId 
+          ? { 
+              ...cs, 
+              status: 'removed', 
+              removedAt: new Date().toISOString() 
+            } 
+          : cs
+      ));
+      return { success: true };
+    } catch (error: any) {
+      console.error('Error removing contact from sequence:', error);
+      return { success: false, error: error.message || 'Unknown error' };
+    }
+  };
+  
+  const updateContactSequence = async (id: string, updates: Partial<ContactSequence>) => {
+    try {
+      const dbUpdates: any = {};
+      
+      if (updates.status !== undefined) dbUpdates.status = updates.status;
+      if (updates.currentStageIndex !== undefined) dbUpdates.current_stage_index = updates.currentStageIndex;
+      if (updates.currentStageId !== undefined) dbUpdates.current_stage_id = updates.currentStageId;
+      
+      const { error } = await supabase
+        .from('contact_sequences')
+        .update(dbUpdates)
+        .eq('id', id);
+        
+      if (error) {
+        console.error('Error updating contact sequence:', error);
+        return { success: false, error: error.message };
+      }
+      
+      setContactSequences(prev => prev.map(cs => 
+        cs.id === id ? { ...cs, ...updates } : cs
+      ));
+      return { success: true };
+    } catch (error: any) {
+      console.error('Error updating contact sequence:', error);
+      return { success: false, error: error.message || 'Unknown error' };
+    }
+  };
+  
+  // User management methods (stub implementations)
+  const addUser = async (user: Partial<User>) => {
+    // Implementation would be connected to auth system
+    return { success: false, error: 'Not implemented yet' };
+  };
+  
+  const updateUser = async (id: string, updates: Partial<User>) => {
+    // Implementation would be connected to auth system
+    return { success: false, error: 'Not implemented yet' };
+  };
+  
+  const deleteUser = async (id: string) => {
+    // Implementation would be connected to auth system
+    return { success: false, error: 'Not implemented yet' };
+  };
+  
+  // Client management methods
+  const addClient = async (client: Partial<Client>) => {
+    try {
+      if (!user) return { success: false, error: 'User not authenticated' };
+      
+      const { data, error } = await supabase
+        .from('clients')
+        .insert({
+          account_id: client.accountId,
+          account_name: client.accountName,
+          created_by: user.id,
+        })
+        .select();
+      
+      if (error) {
+        console.error('Error adding client:', error);
+        return { success: false, error: error.message };
+      }
+      
+      if (data && data.length > 0) {
+        const newClient: Client = {
+          id: data[0].id,
+          accountId: data[0].account_id,
+          accountName: data[0].account_name,
+          createdBy: data[0].created_by,
+          createdAt: data[0].created_at,
+          updatedAt: data[0].updated_at,
+          creator_account_name: user.accountName
+        };
+        
+        setClients(prev => [...prev, newClient]);
+        return { success: true };
+      }
+      
+      return { success: false, error: 'Failed to add client' };
+    } catch (error: any) {
+      console.error('Error adding client:', error);
+      return { success: false, error: error.message || 'Unknown error' };
+    }
+  };
+  
+  const updateClient = async (id: string, updates: Partial<Client>) => {
+    try {
+      if (!isValidUUID(id)) {
+        console.error('Invalid client ID:', id);
+        return { success: false, error: 'Invalid client ID' };
+      }
+      
+      const dbUpdates: any = {};
+      if (updates.accountName !== undefined) dbUpdates.account_name = updates.accountName;
+      if (updates.accountId !== undefined) dbUpdates.account_id = updates.accountId;
+      
+      const { error } = await supabase
+        .from('clients')
+        .update(dbUpdates)
+        .eq('id', id);
+      
+      if (error) {
+        console.error('Error updating client:', error);
+        return { success: false, error: error.message };
+      }
+      
+      setClients(prev => prev.map(client => 
+        client.id === id ? { ...client, ...updates, updatedAt: new Date().toISOString() } : client
+      ));
+      return { success: true };
+    } catch (error: any) {
+      console.error('Error updating client:', error);
+      return { success: false, error: error.message || 'Unknown error' };
+    }
+  };
+  
+  const deleteClient = async (id: string) => {
+    try {
+      if (!isValidUUID(id)) {
+        console.error('Invalid client ID:', id);
+        return { success: false, error: 'Invalid client ID' };
+      }
+      
+      const { error } = await supabase
+        .from('clients')
+        .delete()
+        .eq('id', id);
+      
+      if (error) {
+        console.error('Error deleting client:', error);
+        return { success: false, error: error.message };
+      }
+      
+      setClients(prev => prev.filter(client => client.id !== id));
+      return { success: true };
+    } catch (error: any) {
+      console.error('Error deleting client:', error);
+      return { success: false, error: error.message || 'Unknown error' };
+    }
+  };
+  
+  // Tag management
+  const deleteTag = async (tag: string) => {
+    try {
+      // This would delete the tag from all contacts
+      const { error } = await supabase
+        .from('contact_tags')
+        .delete()
+        .eq('tag_name', tag);
+      
+      if (error) {
+        console.error('Error deleting tag:', error);
+        return { success: false, error: error.message };
+      }
+      
+      // Update contacts in state
+      setContacts(prev => prev.map(contact => ({
+        ...contact,
+        tags: contact.tags.filter(t => t !== tag)
+      })));
+      
+      // Update tags list
+      setTags(prev => prev.filter(t => t !== tag));
+      
+      return { success: true };
+    } catch (error: any) {
+      console.error('Error deleting tag:', error);
+      return { success: false, error: error.message || 'Unknown error' };
+    }
+  };
+
   const getContactSequences = (contactId: string): ContactSequence[] => {
     return contactSequences.filter(cs => cs.contactId === contactId);
   };
@@ -1327,6 +1633,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         tags,
         timeRestrictions,
         dailyStats,
+        scheduledMessages,
+        users,
         addTag,
         setCurrentInstance,
         addInstance,
@@ -1339,6 +1647,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateTimeRestriction,
         deleteTimeRestriction,
         getContactSequences,
+        deleteContact,
+        updateContact,
+        removeFromSequence,
+        updateContactSequence,
+        addUser,
+        updateUser,
+        deleteUser,
+        addClient,
+        updateClient,
+        deleteClient,
+        deleteTag,
         refreshData,
         isDataInitialized,
         isLoading

@@ -1,3 +1,4 @@
+
 // User related types
 export interface User {
   id: string;
@@ -75,6 +76,7 @@ export interface SequenceStage {
   delay: number;
   delayUnit: "minutes" | "hours" | "days";
   orderIndex?: number;
+  sequenceId?: string;
 }
 
 export interface TimeRestriction {

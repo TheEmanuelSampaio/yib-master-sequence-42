@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useEffect } from 'react';
+import { ConditionStructure, TagGroup } from '@/types';
 
 export function SequenceOverview() {
   const { sequences, currentInstance, refreshData, isDataInitialized } = useApp();
@@ -36,6 +37,15 @@ export function SequenceOverview() {
       default:
         return <MessageCircle className="h-4 w-4" />;
     }
+  };
+
+  // Helper to get all tags from condition structure
+  const getAllTags = (condition: ConditionStructure): string[] => {
+    const allTags: string[] = [];
+    condition.groups.forEach(group => {
+      allTags.push(...group.tags);
+    });
+    return allTags;
   };
   
   return (
@@ -96,26 +106,26 @@ export function SequenceOverview() {
                     <div>
                       <p className="text-sm text-muted-foreground">Condições de Início</p>
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {sequence.startCondition.tags.map(tag => (
-                          <Badge key={tag} variant="secondary" className="bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30">
+                        {getAllTags(sequence.startCondition).map((tag, idx) => (
+                          <Badge key={`start-${idx}-${tag}`} variant="secondary" className="bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30">
                             {tag}
                           </Badge>
                         ))}
                         <Badge variant="secondary" className="bg-secondary text-secondary-foreground">
-                          {sequence.startCondition.type}
+                          {sequence.startCondition.operator}
                         </Badge>
                       </div>
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Condições de Parada</p>
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {sequence.stopCondition.tags.map(tag => (
-                          <Badge key={tag} variant="secondary" className="bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30">
+                        {getAllTags(sequence.stopCondition).map((tag, idx) => (
+                          <Badge key={`stop-${idx}-${tag}`} variant="secondary" className="bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30">
                             {tag}
                           </Badge>
                         ))}
                         <Badge variant="secondary" className="bg-secondary text-secondary-foreground">
-                          {sequence.stopCondition.type}
+                          {sequence.stopCondition.operator}
                         </Badge>
                       </div>
                     </div>

@@ -1,190 +1,181 @@
-import { Instance, Sequence, User, Contact, DailyStats, TimeRestriction, TagCondition } from '@/types';
+import { v4 as uuidv4 } from 'uuid';
+import { 
+  Client, 
+  Instance, 
+  User, 
+  Contact, 
+  Sequence, 
+  DailyStats, 
+  SequenceStage, 
+  TimeRestriction,
+  ContactSequence,
+  ConditionStructure,
+  StageProgress
+} from '@/types';
 
-// User mock data
-export const user: User = {
-  id: "user-1",
-  email: "john@example.com",
-  accountName: "John Doe",
-  role: "super_admin",
-  avatar: "/avatar.png"
-};
-
-// Instances mock data
-export const instances: Instance[] = [
+// Mock users
+export const mockUsers: User[] = [
   {
-    id: "instance-1",
-    name: "Principal",
-    evolutionApiUrl: "https://api.example.com/evolution",
-    apiKey: "api-key-1",
-    active: true,
-    clientId: "client-1",
-    createdBy: "user-1",
-    createdAt: "2023-12-01T10:00:00Z",
-    updatedAt: "2023-12-01T10:00:00Z"
+    id: '1',
+    email: 'admin@example.com',
+    accountName: 'Admin Account',
+    role: 'super_admin',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix'
   },
   {
-    id: "instance-2",
-    name: "Secundária",
-    evolutionApiUrl: "https://api2.example.com/evolution",
-    apiKey: "api-key-2",
-    active: true,
-    clientId: "client-2",
-    createdBy: "user-1",
-    createdAt: "2023-12-15T14:30:00Z",
-    updatedAt: "2023-12-15T14:30:00Z"
+    id: '2',
+    email: 'user@example.com',
+    accountName: 'User Account',
+    role: 'admin',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Lily'
   }
 ];
 
-// Tags mock data
-export const tags: string[] = [
-  "lead", "cliente", "interessado", "abandonou", "comprou", "orçamento", "novo", "retorno"
+// Mock clients
+export const mockClients: Client[] = [
+  {
+    id: '1',
+    accountId: 101,
+    accountName: 'Client A',
+    createdBy: '1',
+    createdAt: '2023-01-15T10:00:00Z',
+    updatedAt: '2023-01-15T10:00:00Z',
+    creator_account_name: 'Admin Account'
+  },
+  {
+    id: '2',
+    accountId: 102,
+    accountName: 'Client B',
+    createdBy: '1',
+    createdAt: '2023-02-20T14:30:00Z',
+    updatedAt: '2023-02-20T14:30:00Z',
+    creator_account_name: 'Admin Account'
+  }
 ];
 
-// Sequences mock data
-export const sequences: Sequence[] = [
+// Mock instances
+export const mockInstances: Instance[] = [
   {
-    id: "sequence-1",
-    instanceId: "instance-1",
-    name: "Follow-up Inicial",
+    id: '1',
+    name: 'Instance 1',
+    evolutionApiUrl: 'https://api1.example.com',
+    apiKey: 'api-key-1',
+    active: true,
+    clientId: '1',
+    createdBy: '1',
+    createdAt: '2023-03-10T09:15:00Z',
+    updatedAt: '2023-03-10T09:15:00Z',
+  },
+  {
+    id: '2',
+    name: 'Instance 2',
+    evolutionApiUrl: 'https://api2.example.com',
+    apiKey: 'api-key-2',
+    active: false,
+    clientId: '2',
+    createdBy: '1',
+    createdAt: '2023-04-05T16:20:00Z',
+    updatedAt: '2023-04-05T16:20:00Z',
+  }
+];
+
+// Mock sequences with new condition structure
+export const mockSequences: Sequence[] = [
+  {
+    id: '1',
+    instanceId: '1',
+    name: 'Welcome Sequence',
     type: "message",
     startCondition: {
-      type: "OR",
-      tags: ["lead", "interessado", "novo"]
-    } as TagCondition,
+      operator: "AND",
+      groups: [
+        {
+          id: uuidv4(),
+          operator: "OR",
+          tags: ['new-lead', 'website-visitor']
+        }
+      ]
+    },
     stopCondition: {
-      type: "OR",
-      tags: ["abandonou", "comprou"]
-    } as TagCondition,
+      operator: "OR",
+      groups: [
+        {
+          id: uuidv4(),
+          operator: "AND",
+          tags: ['converted', 'do-not-contact']
+        }
+      ]
+    },
     stages: [
       {
-        id: "stage-1",
-        name: "Boas-vindas",
-        type: "message",
-        content: "Olá {{nome}}, obrigado pelo interesse nos nossos produtos! Como posso ajudar?",
-        delay: 1,
-        delayUnit: "hours"
+        id: '101',
+        name: 'Welcome Message',
+        type: 'message',
+        content: 'Welcome to our service! We\'re glad to have you onboard.',
+        delay: 30,
+        delayUnit: 'minutes',
+        orderIndex: 0
       },
       {
-        id: "stage-2",
-        name: "Ofertas",
-        type: "message",
-        content: "Separei algumas ofertas especiais para você. Gostaria de conhecer?",
-        delay: 1,
-        delayUnit: "days"
-      },
-      {
-        id: "stage-3",
-        name: "Catálogo",
-        type: "pattern",
-        content: "[CATÁLOGO]",
+        id: '102',
+        name: 'Follow-up Message',
+        type: 'message',
+        content: 'How are you finding our service so far?',
         delay: 2,
-        delayUnit: "days"
+        delayUnit: 'days',
+        orderIndex: 1
       }
     ],
-    timeRestrictions: [
-      {
-        id: "restriction-1",
-        name: "Horário comercial",
-        active: true,
-        days: [1, 2, 3, 4, 5],
-        startHour: 8,
-        startMinute: 0,
-        endHour: 18,
-        endMinute: 0,
-        isGlobal: false
-      } as TimeRestriction
-    ],
-    status: "active",
-    createdAt: "2023-12-02T10:15:00Z",
-    updatedAt: "2023-12-10T16:45:00Z"
+    timeRestrictions: [],
+    status: 'active',
+    createdAt: '2023-05-12T08:45:00Z',
+    updatedAt: '2023-05-12T08:45:00Z'
   },
   {
-    id: "sequence-2",
-    instanceId: "instance-1",
-    name: "Recuperação de Leads",
-    type: "typebot",
+    id: '2',
+    instanceId: '1',
+    name: 'Re-engagement Sequence',
+    type: "pattern",
     startCondition: {
-      type: "AND",
-      tags: ["interessado", "orçamento"]
-    } as TagCondition,
+      operator: "OR",
+      groups: [
+        {
+          id: uuidv4(),
+          operator: "AND",
+          tags: ['inactive', '30-days']
+        }
+      ]
+    },
     stopCondition: {
-      type: "OR", 
-      tags: ["comprou", "abandonou"]
-    } as TagCondition,
+      operator: "OR",
+      groups: [
+        {
+          id: uuidv4(),
+          operator: "OR",
+          tags: ['engaged', 'unsubscribed']
+        }
+      ]
+    },
     stages: [
       {
-        id: "stage-1",
-        name: "Lembrete",
-        type: "message",
-        content: "Olá {{nome}}, ainda está interessado no orçamento que enviamos?",
-        delay: 2,
-        delayUnit: "days"
-      },
-      {
-        id: "stage-2",
-        name: "Desconto",
-        type: "message",
-        content: "Temos um desconto especial válido por mais 48h. Aproveite!",
-        delay: 2,
-        delayUnit: "days"
-      },
-      {
-        id: "stage-3",
-        name: "Typebot Retenção",
-        type: "typebot",
-        content: "url-do-typebot",
-        typebotStage: "retenção",
-        delay: 3,
-        delayUnit: "days"
+        id: '201',
+        name: 'Miss you message',
+        type: 'pattern',
+        content: 'We haven\'t seen you for a while! Here\'s what you\'ve been missing...',
+        delay: 0,
+        delayUnit: 'minutes',
+        orderIndex: 0
       }
     ],
-    timeRestrictions: [
-      {
-        id: "restriction-2",
-        name: "Dias úteis apenas",
-        active: true,
-        days: [1, 2, 3, 4, 5],
-        startHour: 9,
-        startMinute: 0,
-        endHour: 17,
-        endMinute: 0,
-        isGlobal: false
-      } as TimeRestriction
-    ],
-    status: "inactive",
-    createdAt: "2023-12-05T09:20:00Z",
-    updatedAt: "2023-12-12T11:30:00Z"
+    timeRestrictions: [],
+    status: 'inactive',
+    createdAt: '2023-06-18T11:30:00Z',
+    updatedAt: '2023-06-18T11:30:00Z'
   }
 ];
 
-// Global time restrictions
-export const globalTimeRestrictions: TimeRestriction[] = [
-  {
-    id: "global-1",
-    name: "Horário Comercial",
-    active: true,
-    days: [1, 2, 3, 4, 5],
-    startHour: 8,
-    startMinute: 0,
-    endHour: 18,
-    endMinute: 0,
-    isGlobal: true
-  },
-  {
-    id: "global-2",
-    name: "Sábado Meio Período",
-    active: true,
-    days: [6],
-    startHour: 9,
-    startMinute: 0,
-    endHour: 13,
-    endMinute: 0,
-    isGlobal: true
-  }
-];
-
-// Contacts mock data
-export const contacts: Contact[] = [
+// Mock contacts
+export const mockContacts: Contact[] = [
   {
     id: "16087",
     name: "Carlos Silva",
@@ -247,8 +238,54 @@ export const contacts: Contact[] = [
   }
 ];
 
-// Stats mock data
-export const stats: DailyStats[] = [
+// Mock time restrictions
+export const mockTimeRestrictions: TimeRestriction[] = [
+  {
+    id: "global-1",
+    name: "Horário Comercial",
+    active: true,
+    days: [1, 2, 3, 4, 5],
+    startHour: 8,
+    startMinute: 0,
+    endHour: 18,
+    endMinute: 0,
+    isGlobal: true
+  },
+  {
+    id: "global-2",
+    name: "Sábado Meio Período",
+    active: true,
+    days: [6],
+    startHour: 9,
+    startMinute: 0,
+    endHour: 13,
+    endMinute: 0,
+    isGlobal: true
+  }
+];
+
+// Mock contact sequences
+export const mockContactSequences: ContactSequence[] = [
+  {
+    contactId: "16087",
+    sequenceId: "1",
+    stageId: "101",
+    status: "active",
+    createdAt: "2023-12-01T10:00:00Z",
+    updatedAt: "2023-12-01T10:00:00Z"
+  },
+  {
+    contactId: "16088",
+    sequenceId: "2",
+    stageId: "201",
+    status: "inactive",
+    createdAt: "2023-12-01T11:00:00Z",
+    updatedAt: "2023-12-01T11:00:00Z"
+  }
+];
+
+// Mock daily stats
+export const mockDailyStats: DailyStats[] = [
   {
     date: "2023-12-01",
     instanceId: "instance-1",
