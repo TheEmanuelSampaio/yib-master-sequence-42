@@ -45,7 +45,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
     sequence?.status || "active"
   );
   const [typebotUrl, setTypebotUrl] = useState<string>(
-    sequence?.type === "typebot" && sequence.stages[0]?.content ? sequence.stages[0].content : ""
+    sequence?.type === "typebot" && stages[0]?.content ? stages[0].content : ""
   );
   const [typebotStageCount, setTypebotStageCount] = useState<number>(
     sequence?.type === "typebot" ? stages.length || 1 : 1
@@ -76,9 +76,10 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         ...prev,
         name: `Estágio ${nextStageNumber}`,
         typebotStage: `stg${nextStageNumber}`,
+        content: typebotUrl || ""
       }));
     }
-  }, [type, stages.length]);
+  }, [type, stages.length]); // Removed typebotUrl from dependencies to prevent updates when URL changes
   
   const [newRestriction, setNewRestriction] = useState<Omit<TimeRestriction, "id">>({
     name: "Nova restrição",
@@ -273,8 +274,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
       if (type === 'typebot') {
         const nextStageNumber = stages.length + 1;
         stageToAdd.typebotStage = `stg${nextStageNumber}`;
-        // Não vamos mais atualizar o conteúdo aqui, só na hora de salvar
-        stageToAdd.content = "";
+        stageToAdd.content = typebotUrl;
       }
       
       const stage: SequenceStage = {
@@ -291,7 +291,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         setNewStage({
           name: `Estágio ${nextStageNumber}`,
           type: type,
-          content: "",
+          content: typebotUrl,
           typebotStage: `stg${nextStageNumber}`,
           delay: 60,
           delayUnit: "minutes",
@@ -481,6 +481,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
     }
   };
   
+  // Update the handleSubmit function to update all typebot stage content with the current URL when saving
   const handleSubmit = () => {
     try {
       if (!name) {
@@ -510,10 +511,10 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         return;
       }
       
-      // Para sequências do tipo typebot, atualizar o conteúdo de todos os estágios na hora de salvar
-      let stagesToSubmit = [...stages];
+      // Update all typebot stage content with the current URL before saving
+      let finalStages = [...stages];
       if (type === 'typebot' && typebotUrl) {
-        stagesToSubmit = stages.map((stage, index) => ({
+        finalStages = stages.map((stage, index) => ({
           ...stage,
           content: typebotUrl,
           typebotStage: `stg${index + 1}`
@@ -526,7 +527,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         instanceId: currentInstance.id,
         startCondition,
         stopCondition,
-        stages: stagesToSubmit,
+        stages: finalStages,
         timeRestrictions,
         status,
       };

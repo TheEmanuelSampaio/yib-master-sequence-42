@@ -52,21 +52,6 @@ export function AddStageForm({ newStage, setNewStage, addStage, sequenceType, ne
         </div>
       )}
       
-      {sequenceType === "typebot" && (
-        <div className="space-y-2">
-          <Label htmlFor="stage-typebot">Estágio do Typebot</Label>
-          <Input
-            id="stage-typebot"
-            value={`stg${nextStageNumber}`}
-            disabled
-            className="bg-muted"
-          />
-          <p className="text-xs text-muted-foreground mt-1">
-            A URL do typebot será aplicada a todos os estágios ao salvar a sequência.
-          </p>
-        </div>
-      )}
-      
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="stage-delay">Atraso</Label>
