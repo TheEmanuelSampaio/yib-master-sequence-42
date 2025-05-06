@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useApp } from '@/context/AppContext';
 import {
@@ -70,11 +71,14 @@ export default function Sequences() {
   const inactiveSequences = instanceSequences.filter(seq => seq.status === 'inactive');
   
   const handleSaveSequence = async (sequence: Omit<Sequence, "id" | "createdAt" | "updatedAt">) => {
-    console.log("Tentando salvar sequência:", sequence);
+    console.log("Salvando sequência:", sequence);
+    console.log("Estágios sendo salvos:", sequence.stages);
+    
     try {
       if (isEditMode && currentSequence) {
         console.log("Modo de edição, atualizando sequência existente ID:", currentSequence.id);
-        console.log("Estágios sendo salvos:", sequence.stages.length, sequence.stages.map(s => s.id));
+        console.log("Número de estágios:", sequence.stages.length);
+        console.log("IDs dos estágios:", sequence.stages.map(s => s.id));
         
         await updateSequence(currentSequence.id, sequence);
         
@@ -82,21 +86,20 @@ export default function Sequences() {
         setCurrentSequence(null);
         toast.success("Sequência atualizada com sucesso");
         setHasUnsavedChanges(false);
-        console.log("Sequência atualizada com sucesso");
       } else {
         console.log("Modo de criação, adicionando nova sequência");
-        console.log("Estágios sendo salvos:", sequence.stages.length, sequence.stages.map(s => s.id));
+        console.log("Número de estágios:", sequence.stages.length);
+        console.log("IDs dos estágios:", sequence.stages.map(s => s.id));
         
         await addSequence(sequence);
         
         setIsCreateMode(false);
         toast.success("Sequência criada com sucesso");
         setHasUnsavedChanges(false);
-        console.log("Sequência criada com sucesso");
       }
     } catch (error) {
       console.error("Erro ao processar sequência:", error);
-      toast.error("Ocorreu um erro ao processar a sequência");
+      toast.error(`Ocorreu um erro ao processar a sequência: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     }
   };
   

@@ -1,5 +1,5 @@
 
-import React, { useEffect } from "react";
+import React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Clock, PlusCircle } from "lucide-react";
@@ -51,9 +51,10 @@ export function StagesSection({
   };
 
   // Função para lidar com a adição de um estágio
-  const handleAddStage = (e: React.MouseEvent) => {
-    e.preventDefault(); // Prevent default behavior
-    console.log("Tentando adicionar estágio. Novo estágio:", newStage);
+  const handleAddStage = (e?: React.MouseEvent) => {
+    if (e) e.preventDefault(); // Prevent default behavior when event provided
+    
+    console.log("[StagesSection] Tentando adicionar estágio. Novo estágio:", newStage);
     
     // Check if required fields are filled
     if (!newStage.name) {
@@ -66,11 +67,12 @@ export function StagesSection({
       return;
     }
     
+    console.log("[StagesSection] Todos os campos obrigatórios preenchidos, chamando addStage");
     addStage();
     
     // Verify if the stage was added correctly
     setTimeout(() => {
-      console.log("Estágios após adicionar:", stages);
+      console.log("[StagesSection] Estágios após adicionar:", stages);
     }, 100);
   };
 

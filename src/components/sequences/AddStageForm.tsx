@@ -32,8 +32,11 @@ export function AddStageForm({ newStage, setNewStage, addStage, sequenceType, ne
     }
     
     // Call the parent addStage function if validation passes
+    console.log("[AddStageForm] Chamando função addStage do parent");
     addStage(e);
   };
+
+  console.log("[AddStageForm] Estado atual do novo estágio:", newStage);
 
   return (
     <div className="space-y-4 pb-4">
@@ -42,7 +45,10 @@ export function AddStageForm({ newStage, setNewStage, addStage, sequenceType, ne
         <Input 
           id="stage-name" 
           value={newStage.name} 
-          onChange={(e) => setNewStage({ ...newStage, name: e.target.value })}
+          onChange={(e) => {
+            console.log("[AddStageForm] Atualizando nome do estágio:", e.target.value);
+            setNewStage({ ...newStage, name: e.target.value });
+          }}
           placeholder={`Ex: Estágio ${nextStageNumber}`}
         />
       </div>
@@ -55,7 +61,10 @@ export function AddStageForm({ newStage, setNewStage, addStage, sequenceType, ne
           <Textarea 
             id="stage-content" 
             value={newStage.content} 
-            onChange={(e) => setNewStage({ ...newStage, content: e.target.value })}
+            onChange={(e) => {
+              console.log("[AddStageForm] Atualizando conteúdo do estágio:", e.target.value);
+              setNewStage({ ...newStage, content: e.target.value });
+            }}
             rows={4}
             placeholder={
               sequenceType === "message" 
@@ -74,20 +83,26 @@ export function AddStageForm({ newStage, setNewStage, addStage, sequenceType, ne
             type="number" 
             min="1"
             value={newStage.delay} 
-            onChange={(e) => setNewStage({ 
-              ...newStage, 
-              delay: parseInt(e.target.value) || 60
-            })}
+            onChange={(e) => {
+              console.log("[AddStageForm] Atualizando delay do estágio:", e.target.value);
+              setNewStage({ 
+                ...newStage, 
+                delay: parseInt(e.target.value) || 60
+              });
+            }}
           />
         </div>
         <div className="space-y-2">
           <Label htmlFor="stage-delay-unit">Unidade</Label>
           <Select
             value={newStage.delayUnit}
-            onValueChange={(value) => setNewStage({ 
-              ...newStage, 
-              delayUnit: value as "minutes" | "hours" | "days" 
-            })}
+            onValueChange={(value) => {
+              console.log("[AddStageForm] Atualizando unidade de delay do estágio:", value);
+              setNewStage({ 
+                ...newStage, 
+                delayUnit: value as "minutes" | "hours" | "days" 
+              });
+            }}
           >
             <SelectTrigger id="stage-delay-unit">
               <SelectValue />
