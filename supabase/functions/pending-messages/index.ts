@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
         )
       `)
       .eq('status', 'pending')
-      .lte('scheduled_time', now.toISOString()) // Alterado para menor ou igual
+      .lte('scheduled_time', now.toISOString()) // Exato ou menor que o tempo atual
       .order('scheduled_time', { ascending: true })
       .limit(10); // Limitar a 10 mensagens por vez para evitar sobrecarga
 
@@ -185,7 +185,7 @@ Deno.serve(async (req) => {
         sequenceData: {
           instanceName: instance.name,
           sequenceName: sequence.name,
-          type: sequence.type,  // Agora usando o tipo da sequência, não do estágio
+          type: sequence.type,
           stage: {
             [`stg${stage.id}`]: {
               id: stage.id,

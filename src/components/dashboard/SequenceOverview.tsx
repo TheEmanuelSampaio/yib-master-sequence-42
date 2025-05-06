@@ -82,27 +82,41 @@ export function SequenceOverview() {
                     <div>
                       <p className="text-sm text-muted-foreground">Condições de Início</p>
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {sequence.startCondition.tags.map(tag => (
-                          <Badge key={tag} variant="secondary" className="bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30">
-                            {tag}
-                          </Badge>
+                        {sequence.startCondition.groups.map((group, groupIndex) => (
+                          <div key={`start-group-${groupIndex}`} className="flex flex-wrap gap-1 items-center">
+                            {group.tags.map(tag => (
+                              <Badge key={tag} variant="secondary" className="bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30">
+                                {tag}
+                              </Badge>
+                            ))}
+                            <Badge variant="secondary" className="bg-secondary text-secondary-foreground">
+                              {group.type}
+                            </Badge>
+                            {groupIndex < sequence.startCondition.groups.length - 1 && (
+                              <span className="text-xs font-medium mx-1">OU</span>
+                            )}
+                          </div>
                         ))}
-                        <Badge variant="secondary" className="bg-secondary text-secondary-foreground">
-                          {sequence.startCondition.type}
-                        </Badge>
                       </div>
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Condições de Parada</p>
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {sequence.stopCondition.tags.map(tag => (
-                          <Badge key={tag} variant="secondary" className="bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30">
-                            {tag}
-                          </Badge>
+                        {sequence.stopCondition.groups.map((group, groupIndex) => (
+                          <div key={`stop-group-${groupIndex}`} className="flex flex-wrap gap-1 items-center">
+                            {group.tags.map(tag => (
+                              <Badge key={tag} variant="secondary" className="bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30">
+                                {tag}
+                              </Badge>
+                            ))}
+                            <Badge variant="secondary" className="bg-secondary text-secondary-foreground">
+                              {group.type}
+                            </Badge>
+                            {groupIndex < sequence.stopCondition.groups.length - 1 && (
+                              <span className="text-xs font-medium mx-1">OU</span>
+                            )}
+                          </div>
                         ))}
-                        <Badge variant="secondary" className="bg-secondary text-secondary-foreground">
-                          {sequence.stopCondition.type}
-                        </Badge>
                       </div>
                     </div>
                   </div>
@@ -121,8 +135,8 @@ export function SequenceOverview() {
                           <div
                             className={cn(
                               "h-2 w-2 rounded-full",
-                              stage.type === 'message' ? 'bg-blue-500' : 
-                              stage.type === 'pattern' ? 'bg-purple-500' : 'bg-orange-500'
+                              sequence.type === 'message' ? 'bg-blue-500' : 
+                              sequence.type === 'pattern' ? 'bg-purple-500' : 'bg-orange-500'
                             )}
                           />
                           {index !== sequence.stages.length - 1 && (
