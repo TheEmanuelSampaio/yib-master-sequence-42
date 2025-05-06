@@ -80,13 +80,33 @@ export function StageItem({
               onChange={(e) => setLocalStage({ ...localStage, name: e.target.value })}
             />
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="edit-stage-type">Tipo do Conteúdo</Label>
+            <Select
+              value={localStage.type}
+              onValueChange={(value) => setLocalStage({ 
+                ...localStage, 
+                type: value as "message" | "pattern" | "typebot" 
+              })}
+            >
+              <SelectTrigger id="edit-stage-type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="message">Mensagem</SelectItem>
+                <SelectItem value="pattern">Pattern</SelectItem>
+                <SelectItem value="typebot">Typebot</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <div className="space-y-2">
           <Label htmlFor="edit-stage-content">
-            Conteúdo
+            {localStage.type === "message" ? "Mensagem" : 
+            localStage.type === "pattern" ? "Pattern" : "Link do Typebot"}
           </Label>
-          {stage.typebotStage ? (
+          {localStage.type === "typebot" ? (
             <div className="space-y-4">
               <Input 
                 id="edit-stage-content"
@@ -173,6 +193,21 @@ export function StageItem({
         <div>
           <h3 className="font-medium flex items-center">
             {stage.name}
+            <Badge 
+              variant="outline" 
+              className={cn(
+                "ml-2 flex items-center",
+                stage.type === "message" && "bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-500/30",
+                stage.type === "pattern" && "bg-purple-500/20 text-purple-700 dark:text-purple-400 border-purple-500/30",
+                stage.type === "typebot" && "bg-orange-500/20 text-orange-700 dark:text-orange-400 border-orange-500/30"
+              )}
+            >
+              {getStageIcon(stage.type)}
+              <span className="ml-1 capitalize">{stage.type}</span>
+              {stage.type === "typebot" && stage.typebotStage && (
+                <span className="ml-1">({stage.typebotStage})</span>
+              )}
+            </Badge>
           </h3>
           <p className="text-sm text-muted-foreground">
             Enviar após {stage.delay} {
@@ -216,7 +251,7 @@ export function StageItem({
       </div>
       
       <div className="bg-background/50 p-3 rounded-md border text-sm">
-        {stage.typebotStage ? (
+        {stage.type === "typebot" ? (
           <div className="flex items-center">
             <Bot className="h-4 w-4 mr-2 text-muted-foreground" />
             <a 

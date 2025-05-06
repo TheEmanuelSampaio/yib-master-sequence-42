@@ -1,7 +1,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useApp } from '@/context/AppContext';
-import { Check, Clock, Activity, Ban } from 'lucide-react';
+import { Check, Clock, Activity, Ban, MessageCircle, FileCode, Bot } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -23,6 +23,20 @@ export function SequenceOverview() {
     [];
 
   const activeSequences = instanceSequences.filter(seq => seq.status === 'active');
+  
+  // Helper function to get stage icon based on type
+  const getStageIcon = (type: string) => {
+    switch (type) {
+      case "message":
+        return <MessageCircle className="h-4 w-4" />;
+      case "pattern":
+        return <FileCode className="h-4 w-4" />;
+      case "typebot":
+        return <Bot className="h-4 w-4" />;
+      default:
+        return <MessageCircle className="h-4 w-4" />;
+    }
+  };
   
   return (
     <Card className="col-span-full">

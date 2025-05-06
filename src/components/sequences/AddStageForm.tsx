@@ -35,7 +35,8 @@ export function AddStageForm({ newStage, setNewStage, addStage, sequenceType }: 
               onValueChange={(value) => setNewStage({
                 ...newStage,
                 typebotStage: value,
-                content: value
+                content: value,
+                type: "typebot"
               })}
             >
               <SelectTrigger id="typebot-stage">
@@ -107,7 +108,7 @@ export function AddStageForm({ newStage, setNewStage, addStage, sequenceType }: 
         </div>
       </div>
       
-      <Button onClick={addStage}>Adicionar Estágio</Button>
+      <Button onClick={addStage} disabled={!newStage.name || !newStage.content}>Adicionar Estágio</Button>
     </div>
   );
 }

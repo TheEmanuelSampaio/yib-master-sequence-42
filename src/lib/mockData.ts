@@ -46,6 +46,7 @@ export const sequences: Sequence[] = [
     id: "sequence-1",
     instanceId: "instance-1",
     name: "Follow-up Inicial",
+    type: "message",
     startCondition: {
       type: "OR",
       tags: ["lead", "interessado", "novo"]
@@ -101,6 +102,7 @@ export const sequences: Sequence[] = [
     id: "sequence-2",
     instanceId: "instance-1",
     name: "Recuperação de Leads",
+    type: "typebot",
     startCondition: {
       type: "AND",
       tags: ["interessado", "orçamento"]

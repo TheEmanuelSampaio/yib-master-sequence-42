@@ -80,7 +80,7 @@ export function TimeRestrictionsSection({
                     restriction={restriction}
                     onRemove={onRemoveRestriction}
                     onUpdate={onUpdateRestriction}
-                    isGlobal={false}
+                    editable={true}
                     dayNames={dayNames}
                   />
                 ))}
@@ -90,7 +90,7 @@ export function TimeRestrictionsSection({
                     restriction={restriction}
                     onRemove={onRemoveRestriction}
                     onUpdate={() => {}} // Não é possível atualizar restrições globais
-                    isGlobal={true}
+                    editable={false}
                     dayNames={dayNames}
                   />
                 ))}
@@ -124,7 +124,9 @@ export function TimeRestrictionsSection({
                   restriction={restriction}
                   onRemove={() => {}}
                   onUpdate={() => {}}
-                  isGlobal={true}
+                  onSelect={() => onAddGlobalRestriction(restriction)}
+                  selected={isGlobalRestrictionSelected(restriction.id)}
+                  editable={false}
                   dayNames={dayNames}
                 />
               ))

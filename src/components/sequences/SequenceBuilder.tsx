@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { X, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -56,10 +55,19 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
   
   const [newStage, setNewStage] = useState<Omit<SequenceStage, "id">>({
     name: "",
+    type: type,
     content: "",
     delay: 60,
     delayUnit: "minutes",
   });
+  
+  // Update newStage.type when the sequence type changes
+  useEffect(() => {
+    setNewStage(prev => ({
+      ...prev,
+      type: type
+    }));
+  }, [type]);
   
   const [newRestriction, setNewRestriction] = useState<Omit<TimeRestriction, "id">>({
     name: "Nova restrição",
@@ -113,6 +121,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
             updatedStages.push({
               id: uuidv4(),
               name: `Estágio ${i + 1}`,
+              type: "typebot",
               content: typebotUrl,
               typebotStage: `stg${i + 1}`,
               delay: 60,
@@ -126,6 +135,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
           updatedStages.push({
             id: uuidv4(),
             name: `Estágio ${i + 1}`,
+            type: "typebot",
             content: typebotUrl,
             typebotStage: `stg${i + 1}`,
             delay: 60,
@@ -145,6 +155,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
     // Update new stage form to reference typebot URL
     setNewStage(prev => ({
       ...prev,
+      type: "typebot",
       content: url
     }));
     
@@ -225,6 +236,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
       // Reset form
       setNewStage({
         name: "",
+        type: type,
         content: "",
         delay: 60,
         delayUnit: "minutes",

@@ -17,6 +17,8 @@ export interface RestrictionItemProps {
   selected?: boolean;
   onSelect?: () => void;
   editable?: boolean;
+  isGlobal?: boolean;
+  dayNames: string[];
 }
 
 export function RestrictionItem({ 
@@ -25,10 +27,10 @@ export function RestrictionItem({
   onUpdate, 
   selected = false,
   onSelect,
-  editable = true 
+  editable = true,
+  isGlobal,
+  dayNames
 }: RestrictionItemProps) {
-  const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-  
   const formatTime = (hours: number, minutes: number) => {
     return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
   };
