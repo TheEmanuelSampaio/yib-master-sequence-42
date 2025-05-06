@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { ChevronUp, ChevronDown, Trash2, Edit, MessageCircle, FileCode, Bot, Save, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { SequenceStage } from "@/types";
+import { toast } from "sonner";
 
 interface StageItemProps {
   stage: SequenceStage;
@@ -49,6 +49,18 @@ export function StageItem({
   const handleUpdate = (e: React.MouseEvent) => {
     e.preventDefault();
     console.log("Atualizando estágio:", localStage);
+    
+    // Validate required fields
+    if (!localStage.name) {
+      toast.error("O nome do estágio é obrigatório");
+      return;
+    }
+    
+    if (localStage.type !== "typebot" && !localStage.content) {
+      toast.error("O conteúdo do estágio é obrigatório");
+      return;
+    }
+    
     onUpdate(localStage);
   };
 
@@ -62,6 +74,12 @@ export function StageItem({
     e.preventDefault();
     console.log("Removendo estágio:", stage.id);
     onRemove(stage.id);
+  };
+
+  const handleMove = (direction: "up" | "down") => (e: React.MouseEvent) => {
+    e.preventDefault();
+    console.log(`Movendo estágio ${stage.id} ${direction}`);
+    onMove(stage.id, direction);
   };
 
   const getStageIcon = (type: string) => {
@@ -202,10 +220,7 @@ export function StageItem({
           <Button
             variant="ghost"
             size="icon"
-            onClick={(e) => {
-              e.preventDefault();
-              onMove(stage.id, "up");
-            }}
+            onClick={handleMove("up")}
             disabled={isFirst}
           >
             <ChevronUp className="h-4 w-4" />
@@ -213,10 +228,7 @@ export function StageItem({
           <Button
             variant="ghost"
             size="icon"
-            onClick={(e) => {
-              e.preventDefault();
-              onMove(stage.id, "down");
-            }}
+            onClick={handleMove("down")}
             disabled={isLast}
           >
             <ChevronDown className="h-4 w-4" />

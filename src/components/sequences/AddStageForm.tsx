@@ -6,11 +6,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { SequenceStage } from "@/types";
+import { toast } from "sonner";
 
 interface AddStageFormProps {
   newStage: Omit<SequenceStage, "id">;
   setNewStage: (stage: Omit<SequenceStage, "id">) => void;
-  addStage: () => void;
+  addStage: (e?: React.MouseEvent) => void;
   sequenceType: "message" | "pattern" | "typebot";
   nextStageNumber: number;
 }
@@ -18,7 +19,20 @@ interface AddStageFormProps {
 export function AddStageForm({ newStage, setNewStage, addStage, sequenceType, nextStageNumber }: AddStageFormProps) {
   const handleAddStage = (e: React.MouseEvent) => {
     e.preventDefault(); // Prevenir comportamento padrão
-    addStage(); // Chamar função de adicionar estágio
+    
+    // Validate inputs before calling the function
+    if (!newStage.name) {
+      toast.error("O nome do estágio é obrigatório");
+      return;
+    }
+    
+    if (sequenceType !== "typebot" && !newStage.content) {
+      toast.error("O conteúdo do estágio é obrigatório");
+      return;
+    }
+    
+    // Call the parent addStage function if validation passes
+    addStage(e);
   };
 
   return (

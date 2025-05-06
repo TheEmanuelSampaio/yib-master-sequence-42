@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Clock, PlusCircle } from "lucide-react";
@@ -51,10 +51,24 @@ export function StagesSection({
   };
 
   // Função para lidar com a adição de um estágio
-  const handleAddStage = () => {
+  const handleAddStage = (e: React.MouseEvent) => {
+    e.preventDefault(); // Prevent default behavior
     console.log("Tentando adicionar estágio. Novo estágio:", newStage);
+    
+    // Check if required fields are filled
+    if (!newStage.name) {
+      toast.error("O nome do estágio é obrigatório");
+      return;
+    }
+    
+    if (sequenceType !== "typebot" && !newStage.content) {
+      toast.error("O conteúdo do estágio é obrigatório");
+      return;
+    }
+    
     addStage();
-    // Verificar se o estágio foi adicionado corretamente
+    
+    // Verify if the stage was added correctly
     setTimeout(() => {
       console.log("Estágios após adicionar:", stages);
     }, 100);

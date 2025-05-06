@@ -280,10 +280,15 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
   };
   
   const addStage = () => {
-    if (!newStage.name) return;
+    if (!newStage.name) {
+      toast.error("O nome do estágio é obrigatório");
+      return;
+    }
     
-    // Para typebot, não precisamos verificar o conteúdo se tiver uma URL
-    if (type !== 'typebot' && !newStage.content) return;
+    if (type !== 'typebot' && !newStage.content) {
+      toast.error("O conteúdo do estágio é obrigatório");
+      return;
+    }
     
     try {
       // Para typebot, usamos a URL e o número do estágio
@@ -302,10 +307,17 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         id: uuidv4(),
       };
       
-      setStages([...stages, stage]);
+      console.log("Adding stage:", stage);
+      // Use functional update to ensure we get the latest state
+      setStages(prevStages => {
+        const newStages = [...prevStages, stage];
+        console.log("New stages array:", newStages);
+        return newStages;
+      });
+      
       notifyChanges();
       
-      // Reset form com valor apropriado para o próximo estágio
+      // Reset form with appropriate values for the next stage
       if (type === 'typebot') {
         const nextStageNumber = stages.length + 2;
         setNewStage({
@@ -325,6 +337,8 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
           delayUnit: "minutes",
         });
       }
+      
+      toast.success("Estágio adicionado com sucesso");
     } catch (error) {
       console.error("Erro ao adicionar estágio:", error);
       toast.error("Erro ao adicionar estágio. Verifique o console para mais detalhes.");

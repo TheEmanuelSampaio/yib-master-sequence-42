@@ -74,9 +74,8 @@ export default function Sequences() {
     try {
       if (isEditMode && currentSequence) {
         console.log("Modo de edição, atualizando sequência existente ID:", currentSequence.id);
-        console.log("Estágios sendo salvos:", sequence.stages.length, sequence.stages);
+        console.log("Estágios sendo salvos:", sequence.stages.length, sequence.stages.map(s => s.id));
         
-        // Usando o tipo de retorno correto para updateSequence
         await updateSequence(currentSequence.id, sequence);
         
         setIsEditMode(false);
@@ -86,9 +85,8 @@ export default function Sequences() {
         console.log("Sequência atualizada com sucesso");
       } else {
         console.log("Modo de criação, adicionando nova sequência");
-        console.log("Estágios sendo salvos:", sequence.stages.length, sequence.stages);
+        console.log("Estágios sendo salvos:", sequence.stages.length, sequence.stages.map(s => s.id));
         
-        // Usando o tipo de retorno correto para addSequence
         await addSequence(sequence);
         
         setIsCreateMode(false);
