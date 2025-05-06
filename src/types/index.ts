@@ -39,9 +39,9 @@ export interface Sequence {
   id: string;
   instanceId: string;
   name: string;
-  type: "message" | "pattern" | "typebot"; // Adicionado tipo à interface Sequence
-  startCondition: TagCondition;
-  stopCondition: TagCondition;
+  type: "message" | "pattern" | "typebot";
+  startCondition: ComplexCondition;
+  stopCondition: ComplexCondition;
   stages: SequenceStage[];
   timeRestrictions: TimeRestriction[];
   status: "active" | "inactive";
@@ -52,6 +52,19 @@ export interface Sequence {
 export interface TagCondition {
   type: "AND" | "OR";
   tags: string[];
+}
+
+// Nova interface para grupos de condições mais complexas
+export interface ConditionGroup {
+  id?: string;
+  operator: "AND" | "OR";
+  tags: string[];
+}
+
+// Nova interface para condições complexas
+export interface ComplexCondition {
+  groups: ConditionGroup[];
+  operator: "AND" | "OR"; // Operador entre grupos
 }
 
 export interface SequenceStage {

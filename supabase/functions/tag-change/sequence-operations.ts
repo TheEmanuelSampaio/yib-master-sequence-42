@@ -1,4 +1,3 @@
-
 import { corsHeaders } from '../_shared/cors.ts';
 
 /**
@@ -104,12 +103,61 @@ export async function processSequences(
           continue;
         }
         
-        // Verificar condições de início da sequência
-        const matchesStartCondition = checkCondition(tags, sequence.start_condition_tags, sequence.start_condition_type);
+        // Buscar grupos de condições de início da sequência
+        const { data: startConditionGroups, error: startGroupsError } = await supabase
+          .from('sequence_condition_groups')
+          .select(`
+            id,
+            group_operator,
+            sequence_condition_tags (
+              tag_name
+            )
+          `)
+          .eq('sequence_id', sequence.id)
+          .eq('condition_type', 'start');
+        
+        if (startGroupsError) {
+          console.error(`[5. SEQUÊNCIAS] Erro ao buscar grupos de condições de início: ${JSON.stringify(startGroupsError)}`);
+          // Fallback para o método antigo usando as colunas diretamente na tabela sequences
+          console.log(`[5. SEQUÊNCIAS] Tentando usar método antigo para condições de início`);
+          if (sequence.start_condition_tags && sequence.start_condition_tags.length > 0) {
+            const matchesStartCondition = checkCondition(tags, sequence.start_condition_tags, sequence.start_condition_type);
+            console.log(`[5. SEQUÊNCIAS] Verificação antiga de condição de início: ${matchesStartCondition ? 'ATENDE' : 'NÃO ATENDE'}`);
+          }
+          continue;
+        }
+
+        // Buscar grupos de condições de parada da sequência
+        const { data: stopConditionGroups, error: stopGroupsError } = await supabase
+          .from('sequence_condition_groups')
+          .select(`
+            id,
+            group_operator,
+            sequence_condition_tags (
+              tag_name
+            )
+          `)
+          .eq('sequence_id', sequence.id)
+          .eq('condition_type', 'stop');
+        
+        if (stopGroupsError) {
+          console.error(`[5. SEQUÊNCIAS] Erro ao buscar grupos de condições de parada: ${JSON.stringify(stopGroupsError)}`);
+          // Fallback para o método antigo
+          continue;
+        }
+        
+        // Verificar condições complexas de início
+        const matchesStartCondition = startConditionGroups && startConditionGroups.length > 0 
+          ? checkComplexCondition(tags, startConditionGroups)
+          : checkCondition(tags, sequence.start_condition_tags || [], sequence.start_condition_type || 'AND');
+        
         console.log(`[5. SEQUÊNCIAS] Verificando condição de início para sequência ${sequence.name}: ${matchesStartCondition ? 'ATENDE' : 'NÃO ATENDE'}`);
         
-        // Verificar condições de parada da sequência
-        const matchesStopCondition = checkCondition(tags, sequence.stop_condition_tags, sequence.stop_condition_type);
+        // Verificar condições complexas de parada
+        const matchesStopCondition = stopConditionGroups && stopConditionGroups.length > 0
+          ? checkComplexCondition(tags, stopConditionGroups)
+          : checkCondition(tags, sequence.stop_condition_tags || [], sequence.stop_condition_type || 'OR');
+        
         console.log(`[5. SEQUÊNCIAS] Verificando condição de parada para sequência ${sequence.name}: ${matchesStopCondition ? 'ATENDE' : 'NÃO ATENDE'}`);
         
         // Se atende à condição de início e não atende à condição de parada, adicionar à sequência
@@ -172,7 +220,6 @@ export async function processSequences(
           const scheduledTime = new Date(Date.now() + delayMs);
           
           // Agendar a mensagem para o primeiro estágio
-          // MODIFICADO: Alterado o status de "waiting" para "pending"
           const { error: scheduleError } = await supabase
             .from('scheduled_messages')
             .insert([{
@@ -181,7 +228,7 @@ export async function processSequences(
               stage_id: firstStage.id,
               raw_scheduled_time: scheduledTime.toISOString(),
               scheduled_time: scheduledTime.toISOString(),
-              status: 'pending' // Alterado de 'waiting' para 'pending'
+              status: 'pending'
             }]);
           
           if (scheduleError) {
@@ -245,6 +292,43 @@ export async function processSequences(
     sequencesAdded,
     sequencesSkipped
   };
+}
+
+/**
+ * Verifica condições complexas com múltiplos grupos usando operadores AND/OR
+ */
+function checkComplexCondition(contactTags: string[], conditionGroups: any[]): boolean {
+  // Se não há grupos, não atende à condição
+  if (!conditionGroups || conditionGroups.length === 0) {
+    return false;
+  }
+  
+  // Se há apenas um grupo, verificar apenas esse grupo
+  if (conditionGroups.length === 1) {
+    const group = conditionGroups[0];
+    const groupTags = group.sequence_condition_tags.map((t: any) => t.tag_name);
+    return checkCondition(contactTags, groupTags, group.group_operator);
+  }
+  
+  // Se há múltiplos grupos, verificar cada um conforme o operador entre eles
+  // O operador do primeiro grupo é considerado o operador entre os grupos
+  const mainOperator = conditionGroups[0].group_operator;
+  
+  if (mainOperator === 'AND') {
+    // Todos os grupos devem atender
+    return conditionGroups.every(group => {
+      const groupTags = group.sequence_condition_tags.map((t: any) => t.tag_name);
+      const groupOperator = group.group_operator;
+      return checkCondition(contactTags, groupTags, groupOperator);
+    });
+  } else {
+    // Pelo menos um grupo deve atender
+    return conditionGroups.some(group => {
+      const groupTags = group.sequence_condition_tags.map((t: any) => t.tag_name);
+      const groupOperator = group.group_operator;
+      return checkCondition(contactTags, groupTags, groupOperator);
+    });
+  }
 }
 
 /**
