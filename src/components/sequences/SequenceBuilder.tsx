@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { X, Save } from "lucide-react";
+import { Save, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -69,6 +69,23 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
       type: type
     }));
     
+    // Limpar estágios quando o tipo da sequência mudar
+    if (stages.length > 0) {
+      // Perguntar ao usuário antes de limpar os estágios
+      toast.warning(
+        "Alterar o tipo da sequência irá limpar todos os estágios existentes.", 
+        {
+          action: {
+            label: "Continuar",
+            onClick: () => {
+              // Limpar os estágios
+              setStages([]);
+            }
+          }
+        }
+      );
+    }
+    
     // Para typebot, podemos pré-configurar o nome do estágio e o conteúdo
     if (type === 'typebot') {
       const nextStageNumber = stages.length + 1;
@@ -79,7 +96,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         content: typebotUrl || ""
       }));
     }
-  }, [type, stages.length, typebotUrl]);
+  }, [type]);
   
   const [newRestriction, setNewRestriction] = useState<Omit<TimeRestriction, "id">>({
     name: "Nova restrição",
@@ -565,7 +582,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
 
   return (
     <div className="space-y-6">
-      {/* Header with buttons - moved to the top */}
+      {/* Header with buttons - apenas um botão de cancelar */}
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold">Configuração da Sequência</h2>
         <div className="flex gap-2">
