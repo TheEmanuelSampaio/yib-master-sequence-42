@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { ChevronUp, ChevronDown, Trash2, Edit, MessageCircle, FileCode, Bot, Save, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -8,7 +9,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { SequenceStage } from "@/types";
-import { toast } from "sonner";
 
 interface StageItemProps {
   stage: SequenceStage;
@@ -39,47 +39,8 @@ export function StageItem({
 }: StageItemProps) {
   const [localStage, setLocalStage] = useState<SequenceStage>(stageToEdit || stage);
 
-  // Usar uma cópia local do estágio quando entrar no modo de edição
-  const handleEdit = () => {
-    console.log("Editando estágio:", stage);
-    setLocalStage({...stage});
-    onEdit(stage);
-  };
-
-  const handleUpdate = (e: React.MouseEvent) => {
-    e.preventDefault();
-    console.log("Atualizando estágio:", localStage);
-    
-    // Validate required fields
-    if (!localStage.name) {
-      toast.error("O nome do estágio é obrigatório");
-      return;
-    }
-    
-    if (localStage.type !== "typebot" && !localStage.content) {
-      toast.error("O conteúdo do estágio é obrigatório");
-      return;
-    }
-    
+  const handleUpdate = () => {
     onUpdate(localStage);
-  };
-
-  const handleCancel = (e: React.MouseEvent) => {
-    e.preventDefault();
-    console.log("Cancelando edição");
-    onCancel();
-  };
-
-  const handleRemove = (e: React.MouseEvent) => {
-    e.preventDefault();
-    console.log("Removendo estágio:", stage.id);
-    onRemove(stage.id);
-  };
-
-  const handleMove = (direction: "up" | "down") => (e: React.MouseEvent) => {
-    e.preventDefault();
-    console.log(`Movendo estágio ${stage.id} ${direction}`);
-    onMove(stage.id, direction);
   };
 
   const getStageIcon = (type: string) => {
@@ -101,7 +62,7 @@ export function StageItem({
         <div className="flex justify-between items-center mb-3">
           <h3 className="font-medium text-lg">Editando estágio</h3>
           <div className="flex space-x-1">
-            <Button variant="ghost" size="sm" onClick={handleCancel}>
+            <Button variant="ghost" size="sm" onClick={onCancel}>
               <X className="h-4 w-4" />
             </Button>
             <Button variant="ghost" size="sm" onClick={handleUpdate}>
@@ -138,7 +99,7 @@ export function StageItem({
             <Label htmlFor="edit-typebot-stage">Estágio do Typebot</Label>
             <Input
               id="edit-typebot-stage"
-              value={localStage.typebotStage || `stg${index + 1}`}
+              value={`stg${index + 1}`}
               disabled
               className="bg-muted"
             />
@@ -220,7 +181,7 @@ export function StageItem({
           <Button
             variant="ghost"
             size="icon"
-            onClick={handleMove("up")}
+            onClick={() => onMove(stage.id, "up")}
             disabled={isFirst}
           >
             <ChevronUp className="h-4 w-4" />
@@ -228,7 +189,7 @@ export function StageItem({
           <Button
             variant="ghost"
             size="icon"
-            onClick={handleMove("down")}
+            onClick={() => onMove(stage.id, "down")}
             disabled={isLast}
           >
             <ChevronDown className="h-4 w-4" />
@@ -236,14 +197,14 @@ export function StageItem({
           <Button
             variant="ghost"
             size="icon"
-            onClick={handleEdit}
+            onClick={() => onEdit(stage)}
           >
             <Edit className="h-4 w-4" />
           </Button>
           <Button
             variant="ghost"
             size="icon"
-            onClick={handleRemove}
+            onClick={() => onRemove(stage.id)}
           >
             <Trash2 className="h-4 w-4 text-red-500" />
           </Button>

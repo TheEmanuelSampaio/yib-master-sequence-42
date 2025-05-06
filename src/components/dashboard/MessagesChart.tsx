@@ -15,7 +15,7 @@ import {
 export function MessagesChart() {
   const { stats } = useApp();
 
-  // Ensure stats is an array before processing
+  // Ensure stats is an array before sorting
   const statsArray = Array.isArray(stats) ? stats : [];
   
   // Sort stats by date

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useApp } from '@/context/AppContext';
 import {
@@ -71,61 +70,47 @@ export default function Sequences() {
   const inactiveSequences = instanceSequences.filter(seq => seq.status === 'inactive');
   
   const handleSaveSequence = async (sequence: Omit<Sequence, "id" | "createdAt" | "updatedAt">) => {
-    console.log("Salvando sequência:", sequence);
-    console.log("Estágios sendo salvos:", sequence.stages);
-    
-    try {
-      if (isEditMode && currentSequence) {
-        console.log("Modo de edição, atualizando sequência existente ID:", currentSequence.id);
-        console.log("Número de estágios:", sequence.stages.length);
-        console.log("IDs dos estágios:", sequence.stages.map(s => s.id));
-        
-        await updateSequence(currentSequence.id, sequence);
-        
+    if (isEditMode && currentSequence) {
+      const result = await updateSequence(currentSequence.id, sequence);
+      
+      if (result.success) {
         setIsEditMode(false);
         setCurrentSequence(null);
         toast.success("Sequência atualizada com sucesso");
         setHasUnsavedChanges(false);
       } else {
-        console.log("Modo de criação, adicionando nova sequência");
-        console.log("Número de estágios:", sequence.stages.length);
-        console.log("IDs dos estágios:", sequence.stages.map(s => s.id));
-        
-        await addSequence(sequence);
-        
-        setIsCreateMode(false);
-        toast.success("Sequência criada com sucesso");
-        setHasUnsavedChanges(false);
+        // Exibir mensagem de erro específica
+        toast.error(result.error || "Erro ao atualizar sequência");
+        // Não fechamos o modo de edição aqui, permitindo que o usuário corrija o problema
       }
-    } catch (error) {
-      console.error("Erro ao processar sequência:", error);
-      toast.error(`Ocorreu um erro ao processar a sequência: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+    } else {
+      await addSequence(sequence);
+      setIsCreateMode(false);
+      toast.success("Sequência criada com sucesso");
+      setHasUnsavedChanges(false);
     }
   };
   
   const handleEditSequence = (sequence: Sequence) => {
-    console.log("Editando sequência:", sequence);
-    console.log("Estágios da sequência:", sequence.stages);
-    
     setCurrentSequence(sequence);
     setIsEditMode(true);
     setHasUnsavedChanges(false);
   };
   
-  const handleToggleStatus = async (sequence: Sequence) => {
-    try {
-      await updateSequence(sequence.id, {
-        status: sequence.status === 'active' ? 'inactive' : 'active'
-      });
-      toast.success(
-        sequence.status === 'active' 
-          ? "Sequência desativada com sucesso" 
-          : "Sequência ativada com sucesso"
-      );
-    } catch (error) {
-      console.error("Erro ao alterar status:", error);
-      toast.error("Erro ao alterar status da sequência");
-    }
+  const handleToggleStatus = (sequence: Sequence) => {
+    updateSequence(sequence.id, {
+      status: sequence.status === 'active' ? 'inactive' : 'active'
+    }).then(result => {
+      if (result.success) {
+        toast.success(
+          sequence.status === 'active' 
+            ? "Sequência desativada com sucesso" 
+            : "Sequência ativada com sucesso"
+        );
+      } else {
+        toast.error(result.error || "Erro ao alterar status da sequência");
+      }
+    });
   };
   
   const handleDeleteSequence = (id: string) => {

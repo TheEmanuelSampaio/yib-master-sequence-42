@@ -8,7 +8,6 @@ import { StageItem } from "./StageItem";
 import { AddStageForm } from "./AddStageForm";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { toast } from "sonner";
 
 interface StagesSectionProps {
   stages: SequenceStage[];
@@ -45,37 +44,6 @@ export function StagesSection({
   addStage,
   notifyChanges
 }: StagesSectionProps) {
-  // Função de debug para mostrar estágios no console
-  const handleDebugStages = () => {
-    console.log("Estágios atuais:", stages);
-  };
-
-  // Função para lidar com a adição de um estágio
-  const handleAddStage = (e?: React.MouseEvent) => {
-    if (e) e.preventDefault(); // Prevent default behavior when event provided
-    
-    console.log("[StagesSection] Tentando adicionar estágio. Novo estágio:", newStage);
-    
-    // Check if required fields are filled
-    if (!newStage.name) {
-      toast.error("O nome do estágio é obrigatório");
-      return;
-    }
-    
-    if (sequenceType !== "typebot" && !newStage.content) {
-      toast.error("O conteúdo do estágio é obrigatório");
-      return;
-    }
-    
-    console.log("[StagesSection] Todos os campos obrigatórios preenchidos, chamando addStage");
-    addStage();
-    
-    // Verify if the stage was added correctly
-    setTimeout(() => {
-      console.log("[StagesSection] Estágios após adicionar:", stages);
-    }, 100);
-  };
-
   return (
     <Card>
       <CardHeader>
@@ -131,15 +99,6 @@ export function StagesSection({
                 isLast={index === stages.length - 1}
               />
             ))}
-            <div className="flex justify-end">
-              <button 
-                onClick={handleDebugStages}
-                type="button" 
-                className="text-xs text-muted-foreground hover:underline"
-              >
-                Debug: Ver estágios no console
-              </button>
-            </div>
           </div>
         )}
         
@@ -156,7 +115,7 @@ export function StagesSection({
               <AddStageForm 
                 newStage={newStage}
                 setNewStage={setNewStage}
-                addStage={handleAddStage}
+                addStage={addStage}
                 sequenceType={sequenceType}
                 nextStageNumber={stages.length + 1}
               />

@@ -6,38 +6,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { SequenceStage } from "@/types";
-import { toast } from "sonner";
 
 interface AddStageFormProps {
   newStage: Omit<SequenceStage, "id">;
   setNewStage: (stage: Omit<SequenceStage, "id">) => void;
-  addStage: (e?: React.MouseEvent) => void;
+  addStage: () => void;
   sequenceType: "message" | "pattern" | "typebot";
   nextStageNumber: number;
 }
 
 export function AddStageForm({ newStage, setNewStage, addStage, sequenceType, nextStageNumber }: AddStageFormProps) {
-  const handleAddStage = (e: React.MouseEvent) => {
-    e.preventDefault(); // Prevenir comportamento padrão
-    
-    // Validate inputs before calling the function
-    if (!newStage.name) {
-      toast.error("O nome do estágio é obrigatório");
-      return;
-    }
-    
-    if (sequenceType !== "typebot" && !newStage.content) {
-      toast.error("O conteúdo do estágio é obrigatório");
-      return;
-    }
-    
-    // Call the parent addStage function if validation passes
-    console.log("[AddStageForm] Chamando função addStage do parent");
-    addStage(e);
-  };
-
-  console.log("[AddStageForm] Estado atual do novo estágio:", newStage);
-
   return (
     <div className="space-y-4 pb-4">
       <div className="space-y-2">
@@ -45,10 +23,7 @@ export function AddStageForm({ newStage, setNewStage, addStage, sequenceType, ne
         <Input 
           id="stage-name" 
           value={newStage.name} 
-          onChange={(e) => {
-            console.log("[AddStageForm] Atualizando nome do estágio:", e.target.value);
-            setNewStage({ ...newStage, name: e.target.value });
-          }}
+          onChange={(e) => setNewStage({ ...newStage, name: e.target.value })}
           placeholder={`Ex: Estágio ${nextStageNumber}`}
         />
       </div>
@@ -61,10 +36,7 @@ export function AddStageForm({ newStage, setNewStage, addStage, sequenceType, ne
           <Textarea 
             id="stage-content" 
             value={newStage.content} 
-            onChange={(e) => {
-              console.log("[AddStageForm] Atualizando conteúdo do estágio:", e.target.value);
-              setNewStage({ ...newStage, content: e.target.value });
-            }}
+            onChange={(e) => setNewStage({ ...newStage, content: e.target.value })}
             rows={4}
             placeholder={
               sequenceType === "message" 
@@ -83,26 +55,20 @@ export function AddStageForm({ newStage, setNewStage, addStage, sequenceType, ne
             type="number" 
             min="1"
             value={newStage.delay} 
-            onChange={(e) => {
-              console.log("[AddStageForm] Atualizando delay do estágio:", e.target.value);
-              setNewStage({ 
-                ...newStage, 
-                delay: parseInt(e.target.value) || 60
-              });
-            }}
+            onChange={(e) => setNewStage({ 
+              ...newStage, 
+              delay: parseInt(e.target.value) || 60
+            })}
           />
         </div>
         <div className="space-y-2">
           <Label htmlFor="stage-delay-unit">Unidade</Label>
           <Select
             value={newStage.delayUnit}
-            onValueChange={(value) => {
-              console.log("[AddStageForm] Atualizando unidade de delay do estágio:", value);
-              setNewStage({ 
-                ...newStage, 
-                delayUnit: value as "minutes" | "hours" | "days" 
-              });
-            }}
+            onValueChange={(value) => setNewStage({ 
+              ...newStage, 
+              delayUnit: value as "minutes" | "hours" | "days" 
+            })}
           >
             <SelectTrigger id="stage-delay-unit">
               <SelectValue />
@@ -117,7 +83,7 @@ export function AddStageForm({ newStage, setNewStage, addStage, sequenceType, ne
       </div>
       
       <Button 
-        onClick={handleAddStage}
+        onClick={addStage} 
         disabled={!newStage.name || (sequenceType !== "typebot" && !newStage.content)}
       >
         Adicionar Estágio
