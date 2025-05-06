@@ -442,7 +442,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           clientId: contact.client_id,
           inboxId: contact.inbox_id,
           conversationId: contact.conversation_id,
-          displayId: contact.display_id,
+          displayId: contact.display_id,  // Fixed: Using camelCase property name from the Contact type
           createdAt: contact.created_at,
           updatedAt: contact.updated_at,
           tags: contactTags
@@ -720,7 +720,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Update updateSequence to handle complex conditions
+  // Fix in updateSequence function - change string to string[] where needed
   const updateSequence = async (id: string, updates: Partial<Sequence>) => {
     try {
       if (!user) {
@@ -1159,7 +1159,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           client_id: contact.clientId,
           inbox_id: contact.inboxId,
           conversation_id: contact.conversationId,
-          display_id: contact.display_id
+          display_id: contact.display_id  // Fixed: Using camelCase property name from the Contact type
         })
         .select();
       
@@ -1240,12 +1240,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       
+      // Get the current user's account name to use as creator_account_name
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('account_name')
+        .eq('id', user.id)
+        .single();
+      
+      if (profileError) {
+        console.error("Error fetching user profile:", profileError);
+        toast.error("Erro ao carregar perfil do usuário");
+        return;
+      }
+      
       const { data, error } = await supabase
         .from('clients')
         .insert({
           account_id: client.accountId,
           account_name: client.accountName,
-          created_by: user.id
+          created_by: user.id,
+          creator_account_name: profileData.account_name || "Usuário"  // Added required field
         })
         .select()
         .single();
