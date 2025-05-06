@@ -140,8 +140,18 @@ export default function Sequences() {
     let groupCount = 0;
     let totalTagCount = 0;
     
+    // Verificação de segurança para evitar erro de undefined
+    if (!groups || !Array.isArray(groups)) {
+      return <span className="text-xs text-muted-foreground italic">Nenhuma</span>;
+    }
+    
     for (const group of groups) {
       if (groupCount >= MAX_TAGS_TO_SHOW) break;
+      
+      // Verificação de segurança para evitar erro se group.tags for undefined
+      if (!group || !group.tags || !Array.isArray(group.tags)) {
+        continue;
+      }
       
       const tagsToShow = group.tags.slice(0, MAX_TAGS_PER_GROUP);
       allTags = [...allTags, ...tagsToShow];
@@ -403,26 +413,26 @@ export default function Sequences() {
                   <div className="flex flex-col space-y-2">
                     <div>
                       <span className="text-xs text-muted-foreground">
-                        Início ({sequence.startCondition.groups.length > 1 
+                        Início ({sequence.startCondition.groups && sequence.startCondition.groups.length > 1 
                           ? `${sequence.startCondition.groups.length} grupos (${sequence.startCondition.operator})` 
-                          : `${sequence.startCondition.groups[0]?.operator || "AND"}`}):
+                          : `${sequence.startCondition.groups && sequence.startCondition.groups[0]?.operator || "AND"}`}):
                       </span>
                       <div className="flex flex-wrap gap-1 mt-1">
                         {renderConditionTags(
-                          sequence.startCondition.groups, 
+                          sequence.startCondition.groups || [], 
                           "bg-green-500/10 text-green-700 dark:text-green-400"
                         )}
                       </div>
                     </div>
                     <div>
                       <span className="text-xs text-muted-foreground">
-                        Parada ({sequence.stopCondition.groups.length > 1 
+                        Parada ({sequence.stopCondition.groups && sequence.stopCondition.groups.length > 1 
                           ? `${sequence.stopCondition.groups.length} grupos (${sequence.stopCondition.operator})` 
-                          : `${sequence.stopCondition.groups[0]?.operator || "OR"}`}):
+                          : `${sequence.stopCondition.groups && sequence.stopCondition.groups[0]?.operator || "OR"}`}):
                       </span>
                       <div className="flex flex-wrap gap-1 mt-1">
                         {renderConditionTags(
-                          sequence.stopCondition.groups, 
+                          sequence.stopCondition.groups || [], 
                           "bg-red-500/10 text-red-700 dark:text-red-400"
                         )}
                       </div>
