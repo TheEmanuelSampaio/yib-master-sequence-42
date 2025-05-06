@@ -526,13 +526,28 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         return;
       }
       
+      // Atualizar todos os estágios typebot com a URL atual antes de salvar
+      let stagesToSave = stages;
+      if (type === 'typebot' && typebotUrl) {
+        stagesToSave = stages.map((stage, index) => {
+          if (stage.type === 'typebot') {
+            return {
+              ...stage,
+              content: typebotUrl,
+              typebotStage: `stg${index + 1}`
+            };
+          }
+          return stage;
+        });
+      }
+      
       const newSequence: Omit<Sequence, "id" | "createdAt" | "updatedAt"> = {
         name,
         type,
         instanceId: currentInstance.id,
         startCondition,
         stopCondition,
-        stages,
+        stages: stagesToSave,
         timeRestrictions,
         status,
       };
