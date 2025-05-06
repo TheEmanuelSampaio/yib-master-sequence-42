@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useApp } from '@/context/AppContext';
 import { Search, Filter, Calendar, CheckCircle, XCircle, AlertCircle, MessageCircle, FileCode, Bot, Clock, Hourglass, XOctagon } from "lucide-react";
@@ -172,32 +173,6 @@ export default function Messages() {
     }
   };
   
-  const getMessageTypeIcon = (sequenceType: string) => {
-    switch (sequenceType) {
-      case "message":
-        return <MessageCircle className="h-4 w-4" />;
-      case "pattern":
-        return <FileCode className="h-4 w-4" />;
-      case "typebot":
-        return <Bot className="h-4 w-4" />;
-      default:
-        return <MessageCircle className="h-4 w-4" />;
-    }
-  };
-
-  const getMessageTypeBadgeClass = (sequenceType: string) => {
-    switch (sequenceType) {
-      case "message":
-        return "bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-500/30";
-      case "pattern":
-        return "bg-purple-500/20 text-purple-700 dark:text-purple-400 border-purple-500/30";
-      case "typebot":
-        return "bg-orange-500/20 text-orange-700 dark:text-orange-400 border-orange-500/30";
-      default:
-        return "";
-    }
-  };
-
   const handleViewMessage = (message: any) => {
     setSelectedMessage(message);
     setShowMessageContent(true);
@@ -511,3 +486,4 @@ export default function Messages() {
     </div>
   );
 }
+

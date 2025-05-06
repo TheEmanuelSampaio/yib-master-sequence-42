@@ -6,7 +6,6 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useEffect } from 'react';
-import { TagConditionGroup } from '@/types';
 
 export function SequenceOverview() {
   const { sequences, currentInstance, refreshData, isDataInitialized } = useApp();
@@ -69,64 +68,41 @@ export function SequenceOverview() {
                       />
                       <h3 className="font-medium">{sequence.name}</h3>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className={cn(
-                        "text-xs",
-                        sequence.type === "message" ? "bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-500/30" :
-                        sequence.type === "pattern" ? "bg-purple-500/20 text-purple-700 dark:text-purple-400 border-purple-500/30" :
-                        "bg-orange-500/20 text-orange-700 dark:text-orange-400 border-orange-500/30"
-                      )}>
-                        {sequence.type.charAt(0).toUpperCase() + sequence.type.slice(1)}
-                      </Badge>
-                      <Badge variant={sequence.status === 'active' ? 'default' : 'outline'}>
-                        {sequence.status === 'active' ? (
-                          <Activity className="h-3 w-3 mr-1" />
-                        ) : (
-                          <Ban className="h-3 w-3 mr-1" />
-                        )}
-                        {sequence.status === 'active' ? 'Ativa' : 'Inativa'}
-                      </Badge>
-                    </div>
+                    <Badge variant={sequence.status === 'active' ? 'default' : 'outline'}>
+                      {sequence.status === 'active' ? (
+                        <Activity className="h-3 w-3 mr-1" />
+                      ) : (
+                        <Ban className="h-3 w-3 mr-1" />
+                      )}
+                      {sequence.status === 'active' ? 'Ativa' : 'Inativa'}
+                    </Badge>
                   </div>
                   
                   <div className="grid grid-cols-2 gap-4 mt-2">
                     <div>
                       <p className="text-sm text-muted-foreground">Condições de Início</p>
-                      <div className="space-y-1 mt-1">
-                        {sequence.startCondition.groups.map((group: TagConditionGroup, groupIndex) => (
-                          <div key={groupIndex} className="flex flex-wrap gap-1">
-                            {group.tags.map((tag, tagIndex) => (
-                              <Badge key={tag + tagIndex} variant="secondary" className="bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30">
-                                {tag}
-                                {tagIndex < group.tags.length - 1 && <span className="ml-1 text-xs">&</span>}
-                              </Badge>
-                            ))}
-                            {groupIndex < sequence.startCondition.groups.length - 1 && (
-                              <span className="text-xs self-center font-medium">OU</span>
-                            )}
-                          </div>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {sequence.startCondition.tags.map(tag => (
+                          <Badge key={tag} variant="secondary" className="bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30">
+                            {tag}
+                          </Badge>
                         ))}
+                        <Badge variant="secondary" className="bg-secondary text-secondary-foreground">
+                          {sequence.startCondition.type}
+                        </Badge>
                       </div>
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Condições de Parada</p>
-                      <div className="space-y-1 mt-1">
-                        {sequence.stopCondition.groups.map((group: TagConditionGroup, groupIndex) => (
-                          <div key={groupIndex} className="flex flex-wrap gap-1">
-                            {group.tags.map((tag, tagIndex) => (
-                              <Badge key={tag + tagIndex} variant="secondary" className="bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30">
-                                {tag}
-                                {tagIndex < group.tags.length - 1 && <span className="ml-1 text-xs">&</span>}
-                              </Badge>
-                            ))}
-                            {groupIndex < sequence.stopCondition.groups.length - 1 && (
-                              <span className="text-xs self-center font-medium">OU</span>
-                            )}
-                          </div>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {sequence.stopCondition.tags.map(tag => (
+                          <Badge key={tag} variant="secondary" className="bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30">
+                            {tag}
+                          </Badge>
                         ))}
-                        {sequence.stopCondition.groups.length === 0 && (
-                          <span className="text-xs text-muted-foreground italic">Nenhuma</span>
-                        )}
+                        <Badge variant="secondary" className="bg-secondary text-secondary-foreground">
+                          {sequence.stopCondition.type}
+                        </Badge>
                       </div>
                     </div>
                   </div>
@@ -145,8 +121,8 @@ export function SequenceOverview() {
                           <div
                             className={cn(
                               "h-2 w-2 rounded-full",
-                              sequence.type === 'message' ? 'bg-blue-500' : 
-                              sequence.type === 'pattern' ? 'bg-purple-500' : 'bg-orange-500'
+                              stage.type === 'message' ? 'bg-blue-500' : 
+                              stage.type === 'pattern' ? 'bg-purple-500' : 'bg-orange-500'
                             )}
                           />
                           {index !== sequence.stages.length - 1 && (

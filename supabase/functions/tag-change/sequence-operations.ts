@@ -1,4 +1,3 @@
-
 import { corsHeaders } from '../_shared/cors.ts';
 
 /**
@@ -103,20 +102,13 @@ export async function processSequences(
           sequencesSkipped++;
           continue;
         }
-
-        // Converter formato antigo para o novo, se necessário
-        const startGroups = sequence.start_condition_groups || 
-                           [{ type: "AND", tags: sequence.start_condition_tags || [] }];
         
-        const stopGroups = sequence.stop_condition_groups || 
-                          [{ type: "AND", tags: sequence.stop_condition_tags || [] }];
-
-        // Verificar condições de início da sequência (complexo)
-        const matchesStartCondition = checkComplexCondition(tags, startGroups);
+        // Verificar condições de início da sequência
+        const matchesStartCondition = checkCondition(tags, sequence.start_condition_tags, sequence.start_condition_type);
         console.log(`[5. SEQUÊNCIAS] Verificando condição de início para sequência ${sequence.name}: ${matchesStartCondition ? 'ATENDE' : 'NÃO ATENDE'}`);
         
-        // Verificar condições de parada da sequência (complexo)
-        const matchesStopCondition = checkComplexCondition(tags, stopGroups);
+        // Verificar condições de parada da sequência
+        const matchesStopCondition = checkCondition(tags, sequence.stop_condition_tags, sequence.stop_condition_type);
         console.log(`[5. SEQUÊNCIAS] Verificando condição de parada para sequência ${sequence.name}: ${matchesStopCondition ? 'ATENDE' : 'NÃO ATENDE'}`);
         
         // Se atende à condição de início e não atende à condição de parada, adicionar à sequência
@@ -187,7 +179,7 @@ export async function processSequences(
               stage_id: firstStage.id,
               raw_scheduled_time: scheduledTime.toISOString(),
               scheduled_time: scheduledTime.toISOString(),
-              status: 'waiting'
+              status: 'pending'
             }]);
           
           if (scheduleError) {
@@ -254,31 +246,7 @@ export async function processSequences(
 }
 
 /**
- * Verifica se as tags do contato atendem a condições complexas
- * A condição é satisfeita se pelo menos um dos grupos é satisfeito (OR entre grupos)
- * Cada grupo é satisfeito se todas as tags do grupo são encontradas nas tags do contato (AND dentro do grupo)
- */
-function checkComplexCondition(contactTags: string[], groups: any[]): boolean {
-  // Se não há grupos ou o array está vazio, retorna false
-  if (!groups || groups.length === 0) {
-    return false;
-  }
-  
-  // Para cada grupo, verificar se todas as tags do grupo estão nas tags do contato
-  // Precisa apenas de um grupo satisfeito para retornar true (OR entre grupos)
-  return groups.some(group => {
-    if (!group.tags || group.tags.length === 0) {
-      return false;
-    }
-    
-    // Todas as tags do grupo devem existir nas tags do contato (AND dentro do grupo)
-    return group.tags.every((tag: string) => contactTags.includes(tag));
-  });
-}
-
-/**
- * Verifica se as tags do contato atendem a uma condição simples (AND/OR)
- * Mantido para compatibilidade com formato antigo
+ * Verifica se as tags do contato atendem a uma condição (AND/OR)
  */
 function checkCondition(contactTags: string[], conditionTags: string[], conditionType: string): boolean {
   if (!conditionTags || conditionTags.length === 0) {

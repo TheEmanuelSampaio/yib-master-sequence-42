@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { ChevronUp, ChevronDown, Trash2, Edit, Save, X } from "lucide-react";
+import { ChevronUp, ChevronDown, Trash2, Edit, MessageCircle, FileCode, Bot, Save, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +12,6 @@ import { SequenceStage } from "@/types";
 
 interface StageItemProps {
   stage: SequenceStage;
-  sequenceType: "message" | "pattern" | "typebot";
   index: number;
   isEditing: boolean;
   stageToEdit: SequenceStage | null;
@@ -27,7 +26,6 @@ interface StageItemProps {
 
 export function StageItem({
   stage,
-  sequenceType,
   index,
   isEditing,
   stageToEdit,
@@ -48,13 +46,13 @@ export function StageItem({
   const getStageIcon = (type: string) => {
     switch (type) {
       case "message":
-        return "Mensagem";
+        return <MessageCircle className="h-4 w-4" />;
       case "pattern":
-        return "Pattern";
+        return <FileCode className="h-4 w-4" />;
       case "typebot":
-        return "Typebot";
+        return <Bot className="h-4 w-4" />;
       default:
-        return "Mensagem";
+        return <MessageCircle className="h-4 w-4" />;
     }
   };
 
@@ -73,21 +71,42 @@ export function StageItem({
           </div>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="edit-stage-name">Nome do Estágio</Label>
-          <Input 
-            id="edit-stage-name" 
-            value={localStage.name}
-            onChange={(e) => setLocalStage({ ...localStage, name: e.target.value })}
-          />
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="edit-stage-name">Nome do Estágio</Label>
+            <Input 
+              id="edit-stage-name" 
+              value={localStage.name}
+              onChange={(e) => setLocalStage({ ...localStage, name: e.target.value })}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="edit-stage-type">Tipo do Conteúdo</Label>
+            <Select
+              value={localStage.type}
+              onValueChange={(value) => setLocalStage({ 
+                ...localStage, 
+                type: value as "message" | "pattern" | "typebot" 
+              })}
+            >
+              <SelectTrigger id="edit-stage-type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="message">Mensagem</SelectItem>
+                <SelectItem value="pattern">Pattern</SelectItem>
+                <SelectItem value="typebot">Typebot</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <div className="space-y-2">
           <Label htmlFor="edit-stage-content">
-            {sequenceType === "message" ? "Mensagem" : 
-            sequenceType === "pattern" ? "Pattern" : "Link do Typebot"}
+            {localStage.type === "message" ? "Mensagem" : 
+            localStage.type === "pattern" ? "Pattern" : "Link do Typebot"}
           </Label>
-          {sequenceType === "typebot" ? (
+          {localStage.type === "typebot" ? (
             <div className="space-y-4">
               <Input 
                 id="edit-stage-content"
@@ -178,13 +197,14 @@ export function StageItem({
               variant="outline" 
               className={cn(
                 "ml-2 flex items-center",
-                sequenceType === "message" && "bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-500/30",
-                sequenceType === "pattern" && "bg-purple-500/20 text-purple-700 dark:text-purple-400 border-purple-500/30",
-                sequenceType === "typebot" && "bg-orange-500/20 text-orange-700 dark:text-orange-400 border-orange-500/30"
+                stage.type === "message" && "bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-500/30",
+                stage.type === "pattern" && "bg-purple-500/20 text-purple-700 dark:text-purple-400 border-purple-500/30",
+                stage.type === "typebot" && "bg-orange-500/20 text-orange-700 dark:text-orange-400 border-orange-500/30"
               )}
             >
-              <span className="ml-1 capitalize">{getStageIcon(sequenceType)}</span>
-              {sequenceType === "typebot" && stage.typebotStage && (
+              {getStageIcon(stage.type)}
+              <span className="ml-1 capitalize">{stage.type}</span>
+              {stage.type === "typebot" && stage.typebotStage && (
                 <span className="ml-1">({stage.typebotStage})</span>
               )}
             </Badge>
@@ -231,8 +251,9 @@ export function StageItem({
       </div>
       
       <div className="bg-background/50 p-3 rounded-md border text-sm">
-        {sequenceType === "typebot" ? (
+        {stage.type === "typebot" ? (
           <div className="flex items-center">
+            <Bot className="h-4 w-4 mr-2 text-muted-foreground" />
             <a 
               href={stage.content} 
               target="_blank" 
