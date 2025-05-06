@@ -390,15 +390,24 @@ export default function Sequences() {
                     Estágios ({sequence.stages.length})
                   </div>
                   <div className="flex items-center mt-1">
-                    <Badge variant="outline" className={cn(
-                      "flex items-center px-1.5 text-xs",
-                      sequence.type === "message" && "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/30",
-                      sequence.type === "pattern" && "bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/30",
-                      sequence.type === "typebot" && "bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/30"
-                    )}>
-                      {getStageIcon(sequence.type)}
-                      <span className="ml-1 capitalize">{sequence.type}</span>
-                    </Badge>
+                    {sequence.stages.map((stage, idx) => (
+                      <div 
+                        key={stage.id}
+                        className="flex items-center"
+                      >
+                        <Badge variant="outline" className={cn(
+                          "flex items-center px-1.5 text-xs",
+                          stage.type === "message" && "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/30",
+                          stage.type === "pattern" && "bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/30",
+                          stage.type === "typebot" && "bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/30"
+                        )}>
+                          {getStageIcon(stage.type)}
+                        </Badge>
+                        {idx < sequence.stages.length - 1 && (
+                          <div className="h-px w-4 bg-border" />
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </div>
                 

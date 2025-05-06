@@ -35,7 +35,6 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
   const { tags, currentInstance, timeRestrictions: globalTimeRestrictions, addTag } = useApp();
   
   const [name, setName] = useState(sequence?.name || "");
-  const [sequenceType, setSequenceType] = useState<"message" | "pattern" | "typebot">(sequence?.type || "message");
   const [startCondition, setStartCondition] = useState<TagCondition>(
     sequence?.startCondition || { type: "AND", tags: [] }
   );
@@ -57,13 +56,11 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
   
   const [newStage, setNewStage] = useState<Omit<SequenceStage, "id">>({
     name: "",
+    type: "message",
     content: "",
     delay: 60,
     delayUnit: "minutes",
   });
-
-  const [typebotUrl, setTypebotUrl] = useState("");
-  const [typebotStagesCount, setTypebotStagesCount] = useState(1);
   
   const [newRestriction, setNewRestriction] = useState<Omit<TimeRestriction, "id">>({
     name: "Nova restrição",
@@ -75,7 +72,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
     endMinute: 0,
     isGlobal: false, // Por padrão, novas restrições são locais
   });
-  
+
   const [showTagDialog, setShowTagDialog] = useState(false);
   const [showGlobalRestrictionsDialog, setShowGlobalRestrictionsDialog] = useState(false);
   const [editingStageId, setEditingStageId] = useState<string | null>(null);
@@ -156,59 +153,8 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
     notifyChanges();
   };
   
-  // Função especial para adicionar estágios de typebot
-  const addTypebotStages = () => {
-    if (!typebotUrl && stages.length === 0) {
-      toast.error("Por favor, informe a URL do typebot");
-      return;
-    }
-
-    if (typebotStagesCount < 1) {
-      toast.error("O número de estágios deve ser pelo menos 1");
-      return;
-    }
-
-    try {
-      const newStages: SequenceStage[] = [];
-      const existingStageCount = stages.length;
-      const url = existingStageCount > 0 ? stages[0].content : typebotUrl;
-      
-      for (let i = 0; i < typebotStagesCount; i++) {
-        const stageNumber = existingStageCount + i + 1;
-        newStages.push({
-          id: uuidv4(),
-          name: `Estágio ${stageNumber}`,
-          content: i === 0 && existingStageCount === 0 ? typebotUrl : url,
-          typebotStage: `stg${stageNumber}`,
-          delay: i === 0 && existingStageCount === 0 ? 30 : 24,
-          delayUnit: i === 0 && existingStageCount === 0 ? "minutes" : "hours",
-        });
-      }
-      
-      setStages([...stages, ...newStages]);
-      notifyChanges();
-      
-      // Reset form
-      setTypebotUrl("");
-      setTypebotStagesCount(1);
-      
-    } catch (error) {
-      console.error("Erro ao adicionar estágio:", error);
-      toast.error("Erro ao adicionar estágio. Verifique o console para mais detalhes.");
-    }
-  };
-  
   const addStage = () => {
-    // Se for uma sequência do tipo typebot, usamos o método especial
-    if (sequenceType === "typebot") {
-      addTypebotStages();
-      return;
-    }
-    
-    if (!newStage.name || !newStage.content) {
-      toast.error("Preencha o nome e o conteúdo do estágio");
-      return;
-    }
+    if (!newStage.name || !newStage.content) return;
     
     try {
       const stage: SequenceStage = {
@@ -222,6 +168,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
       // Reset form
       setNewStage({
         name: "",
+        type: "message",
         content: "",
         delay: 60,
         delayUnit: "minutes",
@@ -433,7 +380,6 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
       
       const newSequence: Omit<Sequence, "id" | "createdAt" | "updatedAt"> = {
         name,
-        type: sequenceType,
         instanceId: currentInstance.id,
         startCondition,
         stopCondition,
@@ -479,7 +425,6 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
     
     return (
       name !== sequence.name ||
-      sequenceType !== sequence.type ||
       JSON.stringify(startCondition) !== JSON.stringify(sequence.startCondition) ||
       JSON.stringify(stopCondition) !== JSON.stringify(sequence.stopCondition) ||
       JSON.stringify(stages) !== JSON.stringify(sequence.stages) ||
@@ -516,20 +461,6 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
       });
     } else {
       onCancel();
-    }
-  };
-
-  // Função que retorna o ícone apropriado para o tipo de sequência
-  const getTypeIcon = (type: "message" | "pattern" | "typebot") => {
-    switch (type) {
-      case "message":
-        return <MessageCircle className="h-4 w-4 mr-2" />;
-      case "pattern":
-        return <FileCode className="h-4 w-4 mr-2" />;
-      case "typebot":
-        return <Bot className="h-4 w-4 mr-2" />;
-      default:
-        return <MessageCircle className="h-4 w-4 mr-2" />;
     }
   };
 
@@ -588,40 +519,6 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
                     }} 
                     placeholder="Ex: Sequência de Boas-vindas"
                   />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="type">Tipo da Sequência</Label>
-                  <Select
-                    value={sequenceType}
-                    onValueChange={(value: "message" | "pattern" | "typebot") => {
-                      // Se mudar para typebot e já houver estágios, perguntar se quer limpar
-                      if (value === "typebot" && stages.length > 0) {
-                        const confirmed = window.confirm("Mudar para o tipo typebot irá limpar os estágios existentes. Deseja continuar?");
-                        if (!confirmed) return;
-                        setStages([]);
-                      }
-                      
-                      setSequenceType(value);
-                      notifyChanges();
-                    }}
-                  >
-                    <SelectTrigger id="type">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="message">Mensagem</SelectItem>
-                      <SelectItem value="pattern">Pattern</SelectItem>
-                      <SelectItem value="typebot">Typebot</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {sequenceType === "message" 
-                      ? "Envio de mensagens de texto simples"
-                      : sequenceType === "pattern"
-                      ? "Formato avançado para envio de mídia e mensagens complexas"
-                      : "Integração com fluxos do Typebot"}
-                  </p>
                 </div>
                 
                 <div className="space-y-2">
@@ -857,10 +754,9 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
                 <div className="space-y-4">
                   {stages.map((stage, index) => (
                     <StageItem 
-                      key={`${stage.id}-${index}`}
+                      key={stage.id}
                       stage={stage}
                       index={index}
-                      sequenceType={sequenceType}
                       isEditing={editingStageId === stage.id}
                       stageToEdit={stageToEdit}
                       onEdit={startEditingStage}
@@ -889,113 +785,123 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
                   </AccordionTrigger>
                   <AccordionContent>
                     <div className="space-y-4 pb-4">
-                      {sequenceType === "typebot" ? (
-                        /* Interface específica para typebot */
-                        <div className="space-y-4">
-                          {stages.length === 0 && (
-                            <div className="space-y-2">
-                              <Label htmlFor="typebot-url">URL do Typebot</Label>
-                              <Input 
-                                id="typebot-url" 
-                                value={typebotUrl} 
-                                onChange={(e) => setTypebotUrl(e.target.value)}
-                                placeholder="https://typebot.io/seu-bot"
-                              />
-                            </div>
-                          )}
-                          
-                          <div className="space-y-2">
-                            <Label htmlFor="typebot-stages">Número de Estágios</Label>
-                            <Input 
-                              id="typebot-stages" 
-                              type="number" 
-                              min="1" 
-                              value={typebotStagesCount} 
-                              onChange={(e) => setTypebotStagesCount(parseInt(e.target.value) || 1)}
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              Cada estágio representa um ponto no fluxo do typebot (stg1, stg2, etc)
-                            </p>
-                          </div>
-                          
-                          <Button onClick={addTypebotStages}>
-                            {stages.length === 0 ? "Adicionar Estágios" : "Adicionar Mais Estágios"}
-                          </Button>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="stage-name">Nome do Estágio</Label>
+                          <Input 
+                            id="stage-name" 
+                            value={newStage.name} 
+                            onChange={(e) => setNewStage({ ...newStage, name: e.target.value })}
+                            placeholder="Ex: Boas-vindas"
+                          />
                         </div>
-                      ) : (
-                        /* Interface para message e pattern */
-                        <div>
-                          <div className="grid grid-cols-1 gap-4">
-                            <div className="space-y-2">
-                              <Label htmlFor="stage-name">Nome do Estágio</Label>
-                              <Input 
-                                id="stage-name" 
-                                value={newStage.name} 
-                                onChange={(e) => setNewStage({ ...newStage, name: e.target.value })}
-                                placeholder="Ex: Mensagem de Boas-vindas"
-                              />
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label htmlFor="stage-content">
-                                {sequenceType === "message" ? "Mensagem" : "Pattern"}
-                              </Label>
-                              <Textarea 
-                                id="stage-content" 
-                                value={newStage.content} 
-                                onChange={(e) => setNewStage({ ...newStage, content: e.target.value })}
-                                rows={4}
-                                placeholder={sequenceType === "message" 
-                                  ? "Digite sua mensagem aqui..." 
-                                  : "Cole seu pattern aqui..."}
-                              />
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="space-y-2">
-                                <Label htmlFor="stage-delay">Atraso</Label>
-                                <Input 
-                                  id="stage-delay" 
-                                  type="number" 
-                                  min="1"
-                                  value={newStage.delay} 
-                                  onChange={(e) => setNewStage({
-                                    ...newStage,
-                                    delay: parseInt(e.target.value) || 60
-                                  })}
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor="stage-delay-unit">Unidade</Label>
-                                <Select
-                                  value={newStage.delayUnit}
-                                  onValueChange={(value) => setNewStage({
-                                    ...newStage,
-                                    delayUnit: value as "minutes" | "hours" | "days"
-                                  })}
-                                >
-                                  <SelectTrigger id="stage-delay-unit">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="minutes">Minutos</SelectItem>
-                                    <SelectItem value="hours">Horas</SelectItem>
-                                    <SelectItem value="days">Dias</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                            </div>
-                          </div>
-                          
-                          <Button 
-                            onClick={addStage} 
-                            className="mt-4"
-                            disabled={!newStage.name || !newStage.content}
+                        <div className="space-y-2">
+                          <Label htmlFor="stage-type">Tipo do Conteúdo</Label>
+                          <Select
+                            value={newStage.type}
+                            onValueChange={(value) => setNewStage({ 
+                              ...newStage, 
+                              type: value as "message" | "pattern" | "typebot" 
+                            })}
                           >
-                            Adicionar Estágio
-                          </Button>
+                            <SelectTrigger id="stage-type">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="message">Mensagem</SelectItem>
+                              <SelectItem value="pattern">Pattern</SelectItem>
+                              <SelectItem value="typebot">Typebot</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
-                      )}
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="stage-content">
+                          {newStage.type === "message" ? "Mensagem" : 
+                          newStage.type === "pattern" ? "Pattern" : "Link do Typebot"}
+                        </Label>
+                        {newStage.type === "typebot" ? (
+                          <div className="space-y-4">
+                            <Input 
+                              id="stage-content" 
+                              value={newStage.content} 
+                              onChange={(e) => setNewStage({ ...newStage, content: e.target.value })}
+                              placeholder="https://typebot.io/seu-bot"
+                            />
+                            <div className="space-y-2">
+                              <Label htmlFor="typebot-stage">Estágio do Typebot</Label>
+                              <Select
+                                value={newStage.typebotStage || "stg1"}
+                                onValueChange={(value) => setNewStage({
+                                  ...newStage,
+                                  typebotStage: value
+                                })}
+                              >
+                                <SelectTrigger id="typebot-stage">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="stg1">Estágio 1</SelectItem>
+                                  <SelectItem value="stg2">Estágio 2</SelectItem>
+                                  <SelectItem value="stg3">Estágio 3</SelectItem>
+                                  <SelectItem value="stg4">Estágio 4</SelectItem>
+                                  <SelectItem value="stg5">Estágio 5</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        ) : (
+                          <Textarea 
+                            id="stage-content" 
+                            value={newStage.content} 
+                            onChange={(e) => setNewStage({ ...newStage, content: e.target.value })}
+                            rows={4}
+                            placeholder={
+                              newStage.type === "message" 
+                                ? "Digite sua mensagem. Use ${name} para incluir o nome do contato."
+                                : "IMAGE::https://example.com/produto-xyz.jpg||TEXT::Confira todos os detalhes!"
+                            }
+                          />
+                        )}
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="stage-delay">Atraso</Label>
+                          <Input 
+                            id="stage-delay" 
+                            type="number" 
+                            min="1"
+                            value={newStage.delay} 
+                            onChange={(e) => setNewStage({ 
+                              ...newStage, 
+                              delay: parseInt(e.target.value) || 60
+                            })}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="stage-delay-unit">Unidade</Label>
+                          <Select
+                            value={newStage.delayUnit}
+                            onValueChange={(value) => setNewStage({ 
+                              ...newStage, 
+                              delayUnit: value as "minutes" | "hours" | "days" 
+                            })}
+                          >
+                            <SelectTrigger id="stage-delay-unit">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="minutes">Minutos</SelectItem>
+                              <SelectItem value="hours">Horas</SelectItem>
+                              <SelectItem value="days">Dias</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      
+                      <Button onClick={addStage}>Adicionar Estágio</Button>
                     </div>
                   </AccordionContent>
                 </AccordionItem>
@@ -1005,251 +911,44 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         </TabsContent>
         
         <TabsContent value="restrictions" className="pt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Restrições de Horário</CardTitle>
-              <CardDescription>
-                Defina horários nos quais as mensagens não devem ser enviadas
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Global Restrictions */}
-              <div>
-                <div className="flex justify-between items-center mb-3">
-                  <h3 className="text-lg font-medium">Restrições Globais</h3>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => setShowGlobalRestrictionsDialog(true)}
-                    disabled={availableGlobalRestrictions.length === 0}
-                  >
-                    <PlusCircle className="h-4 w-4 mr-2" />
-                    Adicionar
-                  </Button>
+          <div className="space-y-8">
+            {/* Restrições Locais */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <div>
+                  <CardTitle>Restrições de Horário</CardTitle>
+                  <CardDescription>
+                    Define quando as mensagens não serão enviadas
+                  </CardDescription>
                 </div>
-
-                {globalRestrictions.length === 0 ? (
-                  <div className="text-center py-4 text-muted-foreground text-sm border rounded-md">
-                    Nenhuma restrição global selecionada
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {globalRestrictions.map(restriction => (
-                      <RestrictionItem
-                        key={restriction.id}
-                        restriction={restriction}
-                        onRemove={removeTimeRestriction}
-                        onUpdate={() => {}} // Global restrictions cannot be updated
-                        isGlobal={true}
-                        dayNames={dayNames}
-                      />
-                    ))}
-                  </div>
-                )}
-
-                {/* Dialog for adding global restrictions */}
-                <Dialog open={showGlobalRestrictionsDialog} onOpenChange={setShowGlobalRestrictionsDialog}>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Adicionar Restrições Globais</DialogTitle>
-                      <DialogDescription>
-                        Selecione restrições globais para adicionar a esta sequência
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 max-h-96 overflow-y-auto">
-                      {availableGlobalRestrictions.length === 0 ? (
-                        <div className="text-center py-6 text-muted-foreground">
-                          Todas as restrições globais já foram adicionadas
-                        </div>
-                      ) : (
-                        availableGlobalRestrictions.map(restriction => (
-                          <div 
-                            key={restriction.id}
-                            className="flex justify-between items-center p-3 border rounded-md"
-                          >
-                            <div>
-                              <p className="font-medium">{restriction.name}</p>
-                              <p className="text-sm text-muted-foreground">
-                                {restriction.days.map(d => dayNames[d]).join(", ")}{" "}
-                                {formatTime(restriction.startHour, restriction.startMinute)} - {formatTime(restriction.endHour, restriction.endMinute)}
-                              </p>
-                            </div>
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => {
-                                addGlobalRestriction(restriction);
-                                setShowGlobalRestrictionsDialog(false);
-                              }}
-                            >
-                              <PlusCircle className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setShowGlobalRestrictionsDialog(false)}>
-                        Fechar
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </div>
-
-              <Separator />
-
-              {/* Local Restrictions */}
-              <div>
-                <div className="flex justify-between items-center mb-3">
-                  <h3 className="text-lg font-medium">Restrições Específicas</h3>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => setShowAddRestrictionDialog(true)}
-                  >
-                    <PlusCircle className="h-4 w-4 mr-2" />
-                    Adicionar
-                  </Button>
-                </div>
-
-                {localRestrictions.length === 0 ? (
-                  <div className="text-center py-4 text-muted-foreground text-sm border rounded-md">
-                    Nenhuma restrição específica criada
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {localRestrictions.map(restriction => (
-                      <RestrictionItem
-                        key={restriction.id}
-                        restriction={restriction}
-                        onRemove={removeTimeRestriction}
-                        onUpdate={updateLocalRestriction}
-                        isGlobal={false}
-                        dayNames={dayNames}
-                      />
-                    ))}
-                  </div>
-                )}
-
-                {/* Dialog for adding local restrictions */}
                 <Dialog open={showAddRestrictionDialog} onOpenChange={setShowAddRestrictionDialog}>
+                  <DialogTrigger asChild>
+                    <Button>
+                      <PlusCircle className="h-4 w-4 mr-2" />
+                      Nova Restrição
+                    </Button>
+                  </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
-                      <DialogTitle>Nova Restrição de Horário</DialogTitle>
+                      <DialogTitle>Adicionar Restrição Local</DialogTitle>
                       <DialogDescription>
-                        Crie uma nova restrição específica para esta sequência
+                        Restrições locais são específicas desta sequência
                       </DialogDescription>
                     </DialogHeader>
                     
                     <div className="space-y-4">
                       <div className="space-y-2">
                         <Label htmlFor="restriction-name">Nome da Restrição</Label>
-                        <Input
-                          id="restriction-name"
-                          value={newRestriction.name}
+                        <Input 
+                          id="restriction-name" 
+                          value={newRestriction.name} 
                           onChange={(e) => setNewRestriction({ ...newRestriction, name: e.target.value })}
+                          placeholder="Ex: Horário noturno"
                         />
                       </div>
-                      
-                      <div className="space-y-2">
-                        <Label>Dias da Semana</Label>
-                        <div className="flex flex-wrap gap-2">
-                          {dayNames.map((day, index) => (
-                            <Badge
-                              key={index}
-                              variant="outline"
-                              className={cn(
-                                "cursor-pointer",
-                                newRestriction.days.includes(index) 
-                                  ? "bg-primary text-primary-foreground" 
-                                  : "bg-background"
-                              )}
-                              onClick={() => {
-                                if (newRestriction.days.includes(index)) {
-                                  setNewRestriction({
-                                    ...newRestriction,
-                                    days: newRestriction.days.filter(d => d !== index)
-                                  });
-                                } else {
-                                  setNewRestriction({
-                                    ...newRestriction,
-                                    days: [...newRestriction.days, index]
-                                  });
-                                }
-                              }}
-                            >
-                              {day}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="start-time">Horário de Início</Label>
-                          <div className="flex items-center space-x-2">
-                            <Input
-                              id="start-time-hour"
-                              type="number"
-                              min="0"
-                              max="23"
-                              value={newRestriction.startHour}
-                              onChange={(e) => setNewRestriction({
-                                ...newRestriction,
-                                startHour: parseInt(e.target.value) || 0
-                              })}
-                              className="w-20"
-                            />
-                            <span>:</span>
-                            <Input
-                              id="start-time-minute"
-                              type="number"
-                              min="0"
-                              max="59"
-                              value={newRestriction.startMinute}
-                              onChange={(e) => setNewRestriction({
-                                ...newRestriction,
-                                startMinute: parseInt(e.target.value) || 0
-                              })}
-                              className="w-20"
-                            />
-                          </div>
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <Label htmlFor="end-time">Horário de Término</Label>
-                          <div className="flex items-center space-x-2">
-                            <Input
-                              id="end-time-hour"
-                              type="number"
-                              min="0"
-                              max="23"
-                              value={newRestriction.endHour}
-                              onChange={(e) => setNewRestriction({
-                                ...newRestriction,
-                                endHour: parseInt(e.target.value) || 0
-                              })}
-                              className="w-20"
-                            />
-                            <span>:</span>
-                            <Input
-                              id="end-time-minute"
-                              type="number"
-                              min="0"
-                              max="59"
-                              value={newRestriction.endMinute}
-                              onChange={(e) => setNewRestriction({
-                                ...newRestriction,
-                                endMinute: parseInt(e.target.value) || 0
-                              })}
-                              className="w-20"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      
+                    
                       <div className="flex items-center space-x-2">
+                        <Label htmlFor="restriction-active">Ativa</Label>
                         <Switch
                           id="restriction-active"
                           checked={newRestriction.active}
@@ -1258,23 +957,204 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
                             active: checked
                           })}
                         />
-                        <Label htmlFor="restriction-active">Restrição ativa</Label>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label>Dias da Semana</Label>
+                        <ToggleGroup 
+                          type="multiple" 
+                          variant="outline"
+                          className="justify-start"
+                          value={newRestriction.days.map(d => d.toString())}
+                          onValueChange={(value) => {
+                            if (value.length > 0) {
+                              setNewRestriction({
+                                ...newRestriction,
+                                days: value.map(v => parseInt(v))
+                              });
+                            }
+                          }}
+                        >
+                          {[
+                            { value: "0", label: "Dom" },
+                            { value: "1", label: "Seg" },
+                            { value: "2", label: "Ter" },
+                            { value: "3", label: "Qua" },
+                            { value: "4", label: "Qui" },
+                            { value: "5", label: "Sex" },
+                            { value: "6", label: "Sáb" }
+                          ].map(day => (
+                            <ToggleGroupItem 
+                              key={day.value} 
+                              value={day.value} 
+                              aria-label={dayNames[parseInt(day.value)]}
+                              className="px-3"
+                            >
+                              {day.label}
+                            </ToggleGroupItem>
+                          ))}
+                        </ToggleGroup>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label>Horário de Início</Label>
+                          <div className="flex mt-2 space-x-2">
+                            <Select
+                              value={newRestriction.startHour.toString()}
+                              onValueChange={(value) => 
+                                setNewRestriction({
+                                  ...newRestriction,
+                                  startHour: parseInt(value),
+                                })
+                              }
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {Array.from({ length: 24 }, (_, i) => (
+                                  <SelectItem key={`start-hour-${i}`} value={i.toString()}>
+                                    {i.toString().padStart(2, "0")}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <span className="flex items-center">:</span>
+                            <Select
+                              value={newRestriction.startMinute.toString()}
+                              onValueChange={(value) => 
+                                setNewRestriction({
+                                  ...newRestriction,
+                                  startMinute: parseInt(value),
+                                })
+                              }
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {[0, 15, 30, 45].map((minute) => (
+                                  <SelectItem key={`start-min-${minute}`} value={minute.toString()}>
+                                    {minute.toString().padStart(2, "0")}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <div>
+                          <Label>Horário de Fim</Label>
+                          <div className="flex mt-2 space-x-2">
+                            <Select
+                              value={newRestriction.endHour.toString()}
+                              onValueChange={(value) => 
+                                setNewRestriction({
+                                  ...newRestriction,
+                                  endHour: parseInt(value),
+                                })
+                              }
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {Array.from({ length: 24 }, (_, i) => (
+                                  <SelectItem key={`end-hour-${i}`} value={i.toString()}>
+                                    {i.toString().padStart(2, "0")}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <span className="flex items-center">:</span>
+                            <Select
+                              value={newRestriction.endMinute.toString()}
+                              onValueChange={(value) => 
+                                setNewRestriction({
+                                  ...newRestriction,
+                                  endMinute: parseInt(value),
+                                })
+                              }
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {[0, 15, 30, 45].map((minute) => (
+                                  <SelectItem key={`end-min-${minute}`} value={minute.toString()}>
+                                    {minute.toString().padStart(2, "0")}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
                       </div>
                     </div>
                     
                     <DialogFooter>
-                      <Button variant="outline" onClick={() => setShowAddRestrictionDialog(false)}>
-                        Cancelar
-                      </Button>
-                      <Button onClick={addLocalRestriction}>
-                        Adicionar
-                      </Button>
+                      <Button variant="outline" onClick={() => setShowAddRestrictionDialog(false)}>Cancelar</Button>
+                      <Button onClick={addLocalRestriction}>Adicionar</Button>
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>
-              </div>
-            </CardContent>
-          </Card>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {/* Restrições locais e globais selecionadas */}
+                  {timeRestrictions.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground border rounded-md">
+                      Nenhuma restrição configurada
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {timeRestrictions.map(restriction => (
+                        <RestrictionItem
+                          key={restriction.id}
+                          restriction={restriction}
+                          onRemove={removeTimeRestriction}
+                          onUpdate={!restriction.isGlobal ? updateLocalRestriction : undefined}
+                          selected={restriction.isGlobal}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+            
+            {/* Restrições Globais */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center">
+                  <Lock className="h-4 w-4 mr-2 text-blue-500" />
+                  <CardTitle>Restrições Globais</CardTitle>
+                </div>
+                <CardDescription>
+                  Restrições de horário disponíveis para todas as sequências
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {availableGlobalRestrictions.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground border rounded-md">
+                      Não há restrições globais disponíveis
+                    </div>
+                  ) : (
+                    availableGlobalRestrictions.map(restriction => (
+                      <RestrictionItem
+                        key={restriction.id}
+                        restriction={restriction}
+                        onRemove={() => {}}
+                        selected={isGlobalRestrictionSelected(restriction.id)}
+                        onSelect={() => addGlobalRestriction(restriction)}
+                      />
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>
