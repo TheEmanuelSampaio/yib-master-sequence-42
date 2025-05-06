@@ -147,6 +147,29 @@ Deno.serve(async (req) => {
       tagsByContact[tag.contact_id].push(tag.tag_name);
     });
 
+    // Recuperar a lista completa de estágios para cada sequência para calcular o número do estágio
+    const sequenceIds = [...new Set(pendingMessages.map(msg => msg.sequences.id))];
+    const stagesBySequence = {};
+    
+    for (const sequenceId of sequenceIds) {
+      const { data: stages, error: stagesError } = await supabase
+        .from('sequence_stages')
+        .select('id')
+        .eq('sequence_id', sequenceId)
+        .order('created_at', { ascending: true });
+        
+      if (stagesError) {
+        console.error(`[STAGES] Erro ao buscar estágios da sequência ${sequenceId}: ${stagesError.message}`);
+        continue;
+      }
+      
+      // Criar um mapa de ID do estágio para seu número na sequência (começando do 1)
+      stagesBySequence[sequenceId] = {};
+      stages?.forEach((stage, index) => {
+        stagesBySequence[sequenceId][stage.id] = index + 1;
+      });
+    }
+
     // Formatar mensagens no formato esperado pelo N8N
     const formattedMessages = pendingMessages.map(msg => {
       const contact = msg.contacts;
@@ -157,8 +180,12 @@ Deno.serve(async (req) => {
       // Obter tags do contato, se existirem
       const contactTagsList = tagsByContact[contact.id] || [];
       
+      // Calcular o número do estágio (começando do 1)
+      const stageNumber = stagesBySequence[sequence.id]?.[stage.id] || 1;
+      
       return {
         id: msg.id,
+        stageNumber: stageNumber, // Adicionar o número do estágio no payload
         chatwootData: {
           accountData: {
             accountId: contact.client_id,
@@ -187,7 +214,7 @@ Deno.serve(async (req) => {
           sequenceName: sequence.name,
           type: stage.type,
           stage: {
-            [`stg${stage.id}`]: {
+            [`stg${stageNumber}`]: {
               id: stage.id,
               content: stage.content,
               rawScheduledTime: msg.raw_scheduled_time,
