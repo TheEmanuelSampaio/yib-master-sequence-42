@@ -39,6 +39,7 @@ export interface Sequence {
   id: string;
   instanceId: string;
   name: string;
+  type: "message" | "pattern" | "typebot";
   startCondition: TagCondition;
   stopCondition: TagCondition;
   stages: SequenceStage[];
@@ -56,7 +57,6 @@ export interface TagCondition {
 export interface SequenceStage {
   id: string;
   name: string;
-  type: "message" | "pattern" | "typebot";
   content: string;
   typebotStage?: string;
   delay: number;

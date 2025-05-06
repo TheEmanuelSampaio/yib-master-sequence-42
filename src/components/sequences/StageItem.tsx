@@ -22,6 +22,7 @@ interface StageItemProps {
   onMove: (id: string, direction: "up" | "down") => void;
   isFirst: boolean;
   isLast: boolean;
+  sequenceType: "message" | "pattern" | "typebot";
 }
 
 export function StageItem({
@@ -35,7 +36,8 @@ export function StageItem({
   onRemove,
   onMove,
   isFirst,
-  isLast
+  isLast,
+  sequenceType
 }: StageItemProps) {
   const [localStage, setLocalStage] = useState<SequenceStage>(stageToEdit || stage);
 
@@ -71,68 +73,38 @@ export function StageItem({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="edit-stage-name">Nome do Estágio</Label>
-            <Input 
-              id="edit-stage-name" 
-              value={localStage.name}
-              onChange={(e) => setLocalStage({ ...localStage, name: e.target.value })}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="edit-stage-type">Tipo do Conteúdo</Label>
-            <Select
-              value={localStage.type}
-              onValueChange={(value) => setLocalStage({ 
-                ...localStage, 
-                type: value as "message" | "pattern" | "typebot" 
-              })}
-            >
-              <SelectTrigger id="edit-stage-type">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="message">Mensagem</SelectItem>
-                <SelectItem value="pattern">Pattern</SelectItem>
-                <SelectItem value="typebot">Typebot</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="space-y-2">
+          <Label htmlFor="edit-stage-name">Nome do Estágio</Label>
+          <Input 
+            id="edit-stage-name" 
+            value={localStage.name}
+            onChange={(e) => setLocalStage({ ...localStage, name: e.target.value })}
+          />
         </div>
 
         <div className="space-y-2">
           <Label htmlFor="edit-stage-content">
-            {localStage.type === "message" ? "Mensagem" : 
-            localStage.type === "pattern" ? "Pattern" : "Link do Typebot"}
+            {sequenceType === "message" ? "Mensagem" : 
+            sequenceType === "pattern" ? "Pattern" : "Link do Typebot"}
           </Label>
-          {localStage.type === "typebot" ? (
+          {sequenceType === "typebot" ? (
             <div className="space-y-4">
-              <Input 
-                id="edit-stage-content"
-                value={localStage.content}
-                onChange={(e) => setLocalStage({ ...localStage, content: e.target.value })}
-              />
+              {index === 0 && (
+                <Input 
+                  id="edit-stage-content"
+                  value={localStage.content}
+                  onChange={(e) => setLocalStage({ ...localStage, content: e.target.value })}
+                  placeholder="https://typebot.io/seu-bot"
+                />
+              )}
               <div className="space-y-2">
                 <Label htmlFor="edit-typebot-stage">Estágio do Typebot</Label>
-                <Select
-                  value={localStage.typebotStage || "stg1"}
-                  onValueChange={(value) => setLocalStage({
-                    ...localStage,
-                    typebotStage: value
-                  })}
-                >
-                  <SelectTrigger id="edit-typebot-stage">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="stg1">Estágio 1</SelectItem>
-                    <SelectItem value="stg2">Estágio 2</SelectItem>
-                    <SelectItem value="stg3">Estágio 3</SelectItem>
-                    <SelectItem value="stg4">Estágio 4</SelectItem>
-                    <SelectItem value="stg5">Estágio 5</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Input 
+                  id="edit-typebot-stage"
+                  value={localStage.typebotStage || `stg${index + 1}`}
+                  readOnly
+                  disabled
+                />
               </div>
             </div>
           ) : (
@@ -197,14 +169,14 @@ export function StageItem({
               variant="outline" 
               className={cn(
                 "ml-2 flex items-center",
-                stage.type === "message" && "bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-500/30",
-                stage.type === "pattern" && "bg-purple-500/20 text-purple-700 dark:text-purple-400 border-purple-500/30",
-                stage.type === "typebot" && "bg-orange-500/20 text-orange-700 dark:text-orange-400 border-orange-500/30"
+                sequenceType === "message" && "bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-500/30",
+                sequenceType === "pattern" && "bg-purple-500/20 text-purple-700 dark:text-purple-400 border-purple-500/30",
+                sequenceType === "typebot" && "bg-orange-500/20 text-orange-700 dark:text-orange-400 border-orange-500/30"
               )}
             >
-              {getStageIcon(stage.type)}
-              <span className="ml-1 capitalize">{stage.type}</span>
-              {stage.type === "typebot" && stage.typebotStage && (
+              {getStageIcon(sequenceType)}
+              <span className="ml-1 capitalize">{sequenceType}</span>
+              {sequenceType === "typebot" && stage.typebotStage && (
                 <span className="ml-1">({stage.typebotStage})</span>
               )}
             </Badge>
@@ -251,17 +223,21 @@ export function StageItem({
       </div>
       
       <div className="bg-background/50 p-3 rounded-md border text-sm">
-        {stage.type === "typebot" ? (
+        {sequenceType === "typebot" ? (
           <div className="flex items-center">
             <Bot className="h-4 w-4 mr-2 text-muted-foreground" />
-            <a 
-              href={stage.content} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-blue-500 hover:underline"
-            >
-              {stage.content}
-            </a>
+            {index === 0 ? (
+              <a 
+                href={stage.content} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-blue-500 hover:underline"
+              >
+                {stage.content}
+              </a>
+            ) : (
+              <span>Continuar fluxo: estágio {index + 1}</span>
+            )}
           </div>
         ) : (
           <div className="whitespace-pre-line">{stage.content}</div>
