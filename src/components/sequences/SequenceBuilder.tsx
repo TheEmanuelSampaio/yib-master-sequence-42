@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from "react";
-import { X, Save } from "lucide-react";
+import { Save, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -69,7 +69,18 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
       ...prev,
       type: type
     }));
-  }, [type]);
+    
+    // Para typebot, podemos pré-configurar o nome do estágio e o conteúdo
+    if (type === 'typebot') {
+      const nextStageNumber = stages.length + 1;
+      setNewStage(prev => ({
+        ...prev,
+        name: `Estágio ${nextStageNumber}`,
+        typebotStage: `stg${nextStageNumber}`,
+        content: typebotUrl || ""
+      }));
+    }
+  }, [type, stages.length, typebotUrl]);
   
   const [newRestriction, setNewRestriction] = useState<Omit<TimeRestriction, "id">>({
     name: "Nova restrição",
@@ -87,6 +98,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
   const [editingStageId, setEditingStageId] = useState<string | null>(null);
   const [stageToEdit, setStageToEdit] = useState<SequenceStage | null>(null);
   const [showAddRestrictionDialog, setShowAddRestrictionDialog] = useState(false);
+  const [currentTab, setCurrentTab] = useState("basic");
   
   // Define dayNames for use throughout the component
   const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -102,38 +114,97 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
       onChangesMade();
     }
   };
-  
-  // Update content for typebot stages
-  useEffect(() => {
-    if (type === 'typebot' && typebotUrl) {
-      // Create new stages based on typebotStageCount
-      let updatedStages: SequenceStage[] = [];
+
+  // Função para lidar com a mudança de tipo da sequência
+  const handleTypeChange = (newType: "message" | "pattern" | "typebot") => {
+    console.log(`Mudando tipo da sequência para: ${newType}`);
+    
+    // Preservar IDs, mas limpar conteúdos dos estágios
+    if (stages.length > 0) {
+      const updatedStages = stages.map(stage => {
+        // Manter o ID e alguns campos básicos, mas limpar o conteúdo específico
+        return {
+          id: stage.id,
+          name: stage.name,
+          type: newType, // Atualizar para o novo tipo
+          content: "", // Limpar o conteúdo
+          delay: stage.delay,
+          delayUnit: stage.delayUnit,
+          typebotStage: newType === 'typebot' ? `stg${stages.indexOf(stage) + 1}` : undefined
+        };
+      });
       
-      // Keep existing stages if they're valid
-      if (stages.length > 0 && stages[0].content === typebotUrl) {
-        updatedStages = [...stages];
+      // Se mudar para typebot, preencher alguns campos necessários
+      if (newType === 'typebot') {
+        // Ajustar o número de estágios para o typebot
+        let finalStages = [...updatedStages];
         
-        // Adjust the number of stages
-        if (updatedStages.length > typebotStageCount) {
-          // Remove extra stages
-          updatedStages = updatedStages.slice(0, typebotStageCount);
-        } else if (updatedStages.length < typebotStageCount) {
-          // Add new stages
-          for (let i = updatedStages.length; i < typebotStageCount; i++) {
-            updatedStages.push({
+        // Ajustar para o número correto de estágios do typebot
+        if (finalStages.length > typebotStageCount) {
+          // Reduzir o número de estágios
+          finalStages = finalStages.slice(0, typebotStageCount);
+        } else if (finalStages.length < typebotStageCount) {
+          // Adicionar estágios extras se necessário
+          for (let i = finalStages.length; i < typebotStageCount; i++) {
+            finalStages.push({
               id: uuidv4(),
               name: `Estágio ${i + 1}`,
               type: "typebot",
-              content: typebotUrl,
+              content: "",
               typebotStage: `stg${i + 1}`,
               delay: 60,
               delayUnit: "minutes",
             });
           }
         }
+        
+        // Atualizar conteúdo com URL do typebot, se disponível
+        if (typebotUrl) {
+          finalStages = finalStages.map(stage => ({
+            ...stage,
+            content: typebotUrl
+          }));
+        }
+        
+        setStages(finalStages);
       } else {
-        // Create all new stages
-        for (let i = 0; i < typebotStageCount; i++) {
+        // Para outros tipos, apenas limpar os conteúdos
+        setStages(updatedStages);
+      }
+      
+      console.log("Estágios resetados com sucesso, mantendo IDs.");
+      notifyChanges();
+    }
+    
+    // Atualizar novo tipo
+    setType(newType);
+  };
+  
+  // Update content for typebot stages
+  useEffect(() => {
+    if (type === 'typebot' && typebotUrl) {
+      // Se a URL do typebot mudou, atualizar em todos os estágios
+      if (stages.length > 0 && stages.some(s => s.type === 'typebot' && s.content !== typebotUrl)) {
+        const updatedStages = stages.map(stage => {
+          if (stage.type === 'typebot') {
+            return {...stage, content: typebotUrl};
+          }
+          return stage;
+        });
+        setStages(updatedStages);
+      }
+      
+      // Create new stages based on typebotStageCount
+      let updatedStages: SequenceStage[] = [...stages];
+      
+      // Adjust the number of stages
+      if (updatedStages.length > typebotStageCount) {
+        // Remove extra stages
+        updatedStages = updatedStages.slice(0, typebotStageCount);
+        setStages(updatedStages);
+      } else if (updatedStages.length < typebotStageCount) {
+        // Add new stages
+        for (let i = updatedStages.length; i < typebotStageCount; i++) {
           updatedStages.push({
             id: uuidv4(),
             name: `Estágio ${i + 1}`,
@@ -144,25 +215,10 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
             delayUnit: "minutes",
           });
         }
+        setStages(updatedStages);
       }
-      
-      setStages(updatedStages);
     }
-  }, [typebotUrl, typebotStageCount, type]);
-  
-  // Handle typebot URL changes
-  const handleTypebotUrlChange = (url: string) => {
-    setTypebotUrl(url);
-    
-    // Update new stage form to reference typebot URL
-    setNewStage(prev => ({
-      ...prev,
-      type: "typebot",
-      content: url
-    }));
-    
-    notifyChanges();
-  };
+  }, [typebotUrl, typebotStageCount, type, stages]);
   
   const addTagToCondition = (target: "start" | "stop", tag: string) => {
     if (!tag) return;
@@ -224,25 +280,51 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
   };
   
   const addStage = () => {
-    if (!newStage.name || !newStage.content) return;
+    if (!newStage.name) return;
+    
+    // Para typebot, não precisamos verificar o conteúdo se tiver uma URL
+    if (type !== 'typebot' && !newStage.content) return;
     
     try {
+      // Para typebot, usamos a URL e o número do estágio
+      const stageToAdd: Omit<SequenceStage, "id"> = {
+        ...newStage
+      };
+      
+      if (type === 'typebot') {
+        const nextStageNumber = stages.length + 1;
+        stageToAdd.typebotStage = `stg${nextStageNumber}`;
+        stageToAdd.content = typebotUrl;
+      }
+      
       const stage: SequenceStage = {
-        ...newStage,
+        ...stageToAdd,
         id: uuidv4(),
       };
       
       setStages([...stages, stage]);
       notifyChanges();
       
-      // Reset form
-      setNewStage({
-        name: "",
-        type: type,
-        content: "",
-        delay: 60,
-        delayUnit: "minutes",
-      });
+      // Reset form com valor apropriado para o próximo estágio
+      if (type === 'typebot') {
+        const nextStageNumber = stages.length + 2;
+        setNewStage({
+          name: `Estágio ${nextStageNumber}`,
+          type: type,
+          content: typebotUrl,
+          typebotStage: `stg${nextStageNumber}`,
+          delay: 60,
+          delayUnit: "minutes",
+        });
+      } else {
+        setNewStage({
+          name: "",
+          type: type,
+          content: "",
+          delay: 60,
+          delayUnit: "minutes",
+        });
+      }
     } catch (error) {
       console.error("Erro ao adicionar estágio:", error);
       toast.error("Erro ao adicionar estágio. Verifique o console para mais detalhes.");
@@ -529,11 +611,14 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
 
   return (
     <div className="space-y-6">
-      {/* Header with buttons - moved to the top */}
+      {/* Header com botões - apenas botão de salvar */}
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold">Configuração da Sequência</h2>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={handleCancel}>
+          <Button 
+            variant="outline" 
+            onClick={handleCancel}
+          >
             <X className="h-4 w-4 mr-1" />
             Cancelar
           </Button>
@@ -549,7 +634,11 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         </div>
       </div>
 
-      <Tabs defaultValue="basic">
+      <Tabs 
+        defaultValue="basic"
+        value={currentTab}
+        onValueChange={setCurrentTab}
+      >
         <TabsList className="w-full">
           <TabsTrigger value="basic" className="flex-1">Informações Básicas</TabsTrigger>
           <TabsTrigger value="stages" className="flex-1">
@@ -575,22 +664,8 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
               typebotStageCount={typebotStageCount}
               setTypebotStageCount={setTypebotStageCount}
               notifyChanges={notifyChanges}
+              onTypeChange={handleTypeChange}
             />
-
-            {type === "typebot" && (
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  URL do Typebot
-                </label>
-                <input
-                  type="url"
-                  value={typebotUrl}
-                  onChange={(e) => handleTypebotUrlChange(e.target.value)}
-                  placeholder="https://typebot.io/your-bot"
-                  className="w-full px-3 py-2 border rounded-md"
-                />
-              </div>
-            )}
 
             <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
               {/* Start Condition */}
@@ -639,6 +714,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
             stageToEdit={stageToEdit}
             sequenceType={type}
             typebotUrl={typebotUrl}
+            setTypebotUrl={setTypebotUrl}
             onEdit={startEditingStage}
             onUpdate={updateStage}
             onCancel={() => {
@@ -650,6 +726,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
             newStage={newStage}
             setNewStage={setNewStage}
             addStage={addStage}
+            notifyChanges={notifyChanges}
           />
         </TabsContent>
         

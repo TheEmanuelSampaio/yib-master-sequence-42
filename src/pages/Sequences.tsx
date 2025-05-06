@@ -152,17 +152,14 @@ export default function Sequences() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold tracking-tight">Nova Sequência</h1>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={handleGoBack}>
-              <X className="h-4 w-4 mr-1" />
-              Cancelar
-            </Button>
-          </div>
         </div>
         
         <SequenceBuilder 
           onSave={handleSaveSequence}
-          onCancel={handleGoBack}
+          onCancel={() => {
+            setIsCreateMode(false);
+            setHasUnsavedChanges(false);
+          }}
           onChangesMade={() => setHasUnsavedChanges(true)}
         />
       </div>
@@ -174,18 +171,16 @@ export default function Sequences() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold tracking-tight">Editar Sequência</h1>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={handleGoBack}>
-              <X className="h-4 w-4 mr-1" />
-              Cancelar
-            </Button>
-          </div>
         </div>
         
         <SequenceBuilder 
           sequence={currentSequence}
           onSave={handleSaveSequence}
-          onCancel={handleGoBack}
+          onCancel={() => {
+            setIsEditMode(false);
+            setCurrentSequence(null);
+            setHasUnsavedChanges(false);
+          }}
           onChangesMade={() => setHasUnsavedChanges(true)}
         />
       </div>

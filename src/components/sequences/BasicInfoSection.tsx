@@ -1,10 +1,11 @@
 
-import React from "react";
+import React, { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 interface BasicInfoSectionProps {
   name: string;
@@ -16,6 +17,7 @@ interface BasicInfoSectionProps {
   typebotStageCount: number;
   setTypebotStageCount: (count: number) => void;
   notifyChanges: () => void;
+  onTypeChange: (newType: "message" | "pattern" | "typebot") => void;
 }
 
 export function BasicInfoSection({ 
@@ -27,92 +29,136 @@ export function BasicInfoSection({
   setType, 
   typebotStageCount, 
   setTypebotStageCount,
-  notifyChanges 
+  notifyChanges,
+  onTypeChange 
 }: BasicInfoSectionProps) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Informações Básicas</CardTitle>
-        <CardDescription>Configure os detalhes principais da sequência</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="name">Nome da Sequência</Label>
-          <Input 
-            id="name" 
-            value={name} 
-            onChange={(e) => {
-              setName(e.target.value);
-              notifyChanges();
-            }} 
-            placeholder="Ex: Sequência de Boas-vindas"
-          />
-        </div>
+  const [showTypeChangeAlert, setShowTypeChangeAlert] = useState(false);
+  const [pendingType, setPendingType] = useState<"message" | "pattern" | "typebot" | null>(null);
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="type">Tipo da Sequência</Label>
-            <Select
-              value={type}
-              onValueChange={(value) => {
-                setType(value as "message" | "pattern" | "typebot");
-                notifyChanges();
-              }}
-            >
-              <SelectTrigger id="type">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="message">Mensagem</SelectItem>
-                <SelectItem value="pattern">Pattern</SelectItem>
-                <SelectItem value="typebot">Typebot</SelectItem>
-              </SelectContent>
-            </Select>
+  const handleTypeChange = (newType: "message" | "pattern" | "typebot") => {
+    if (newType !== type) {
+      setPendingType(newType);
+      setShowTypeChangeAlert(true);
+    }
+  };
+
+  const confirmTypeChange = () => {
+    if (pendingType) {
+      onTypeChange(pendingType);
+      setType(pendingType);
+      notifyChanges();
+      setShowTypeChangeAlert(false);
+      setPendingType(null);
+    }
+  };
+
+  const cancelTypeChange = () => {
+    setShowTypeChangeAlert(false);
+    setPendingType(null);
+  };
+
+  return (
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle>Informações Básicas</CardTitle>
+          <CardDescription>Configure os detalhes principais da sequência</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Nome da Sequência</Label>
+              <Input 
+                id="name" 
+                value={name} 
+                onChange={(e) => {
+                  setName(e.target.value);
+                  notifyChanges();
+                }} 
+                placeholder="Ex: Sequência de Boas-vindas"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="type">Tipo da Sequência</Label>
+              <Select
+                value={type}
+                onValueChange={(value) => {
+                  handleTypeChange(value as "message" | "pattern" | "typebot");
+                }}
+              >
+                <SelectTrigger id="type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="message">Mensagem</SelectItem>
+                  <SelectItem value="pattern">Pattern</SelectItem>
+                  <SelectItem value="typebot">Typebot</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           
           {type === "typebot" && (
             <div className="space-y-2">
-              <Label htmlFor="typebot-stage-count">Número de Estágios</Label>
-              <Select
-                value={typebotStageCount.toString()}
-                onValueChange={(value) => {
-                  setTypebotStageCount(parseInt(value));
-                  notifyChanges();
+              <Label htmlFor="typebotStageCount">Número de Estágios do Typebot</Label>
+              <Input 
+                id="typebotStageCount" 
+                type="number" 
+                min={1} 
+                value={typebotStageCount}
+                onChange={(e) => {
+                  const value = parseInt(e.target.value);
+                  if (value > 0) {
+                    setTypebotStageCount(value);
+                    notifyChanges();
+                  }
                 }}
-              >
-                <SelectTrigger id="typebot-stage-count">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">1 estágio</SelectItem>
-                  <SelectItem value="2">2 estágios</SelectItem>
-                  <SelectItem value="3">3 estágios</SelectItem>
-                  <SelectItem value="4">4 estágios</SelectItem>
-                  <SelectItem value="5">5 estágios</SelectItem>
-                </SelectContent>
-              </Select>
+              />
+              <p className="text-sm text-muted-foreground">
+                Defina quantos estágios o seu Typebot possui
+              </p>
             </div>
           )}
-        </div>
-        
-        <div className="space-y-2">
-          <Label htmlFor="status">Status</Label>
-          <div className="mt-2">
-            <Switch
-              id="status"
-              checked={status === "active"}
-              onCheckedChange={(checked) => {
-                setStatus(checked ? "active" : "inactive");
-                notifyChanges();
-              }}
-              className="data-[state=checked]:bg-primary"
-            />
-            <span className="ml-2 text-sm">
-              {status === "active" ? "Sequência ativa" : "Sequência inativa"}
-            </span>
+          
+          <div className="space-y-2">
+            <Label htmlFor="status">Status</Label>
+            <div className="mt-2">
+              <Switch
+                id="status"
+                checked={status === "active"}
+                onCheckedChange={(checked) => {
+                  setStatus(checked ? "active" : "inactive");
+                  notifyChanges();
+                }}
+                className="data-[state=checked]:bg-primary"
+              />
+              <span className="ml-2 text-sm">
+                {status === "active" ? "Sequência ativa" : "Sequência inativa"}
+              </span>
+            </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+
+      {/* Diálogo de alerta para mudança de tipo */}
+      <AlertDialog open={showTypeChangeAlert} onOpenChange={setShowTypeChangeAlert}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Alterar o tipo da sequência?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A alteração do tipo da sequência exigirá que você edite todos os estágios existentes. 
+              O conteúdo dos estágios será limpo e você precisará preenchê-los de acordo com o novo tipo selecionado.
+              Os IDs dos estágios serão preservados.
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={cancelTypeChange}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmTypeChange}>Continuar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

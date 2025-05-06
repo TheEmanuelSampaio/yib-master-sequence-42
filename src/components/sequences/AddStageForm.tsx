@@ -12,46 +12,20 @@ interface AddStageFormProps {
   setNewStage: (stage: Omit<SequenceStage, "id">) => void;
   addStage: () => void;
   sequenceType: "message" | "pattern" | "typebot";
+  nextStageNumber: number;
 }
 
-export function AddStageForm({ newStage, setNewStage, addStage, sequenceType }: AddStageFormProps) {
+export function AddStageForm({ newStage, setNewStage, addStage, sequenceType, nextStageNumber }: AddStageFormProps) {
   return (
     <div className="space-y-4 pb-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="stage-name">Nome do Estágio</Label>
-          <Input 
-            id="stage-name" 
-            value={newStage.name} 
-            onChange={(e) => setNewStage({ ...newStage, name: e.target.value })}
-            placeholder="Ex: Boas-vindas"
-          />
-        </div>
-        {sequenceType === "typebot" && (
-          <div className="space-y-2">
-            <Label htmlFor="typebot-stage">Estágio do Typebot</Label>
-            <Select
-              value={newStage.typebotStage || "stg1"}
-              onValueChange={(value) => setNewStage({
-                ...newStage,
-                typebotStage: value,
-                content: value,
-                type: "typebot"
-              })}
-            >
-              <SelectTrigger id="typebot-stage">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="stg1">Estágio 1</SelectItem>
-                <SelectItem value="stg2">Estágio 2</SelectItem>
-                <SelectItem value="stg3">Estágio 3</SelectItem>
-                <SelectItem value="stg4">Estágio 4</SelectItem>
-                <SelectItem value="stg5">Estágio 5</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        )}
+      <div className="space-y-2">
+        <Label htmlFor="stage-name">Nome do Estágio</Label>
+        <Input 
+          id="stage-name" 
+          value={newStage.name} 
+          onChange={(e) => setNewStage({ ...newStage, name: e.target.value })}
+          placeholder={`Ex: Estágio ${nextStageNumber}`}
+        />
       </div>
       
       {sequenceType !== "typebot" && (
@@ -108,7 +82,12 @@ export function AddStageForm({ newStage, setNewStage, addStage, sequenceType }: 
         </div>
       </div>
       
-      <Button onClick={addStage} disabled={!newStage.name || !newStage.content}>Adicionar Estágio</Button>
+      <Button 
+        onClick={addStage} 
+        disabled={!newStage.name || (sequenceType !== "typebot" && !newStage.content)}
+      >
+        Adicionar Estágio
+      </Button>
     </div>
   );
 }

@@ -6,6 +6,8 @@ import { Clock, PlusCircle } from "lucide-react";
 import { SequenceStage } from "@/types";
 import { StageItem } from "./StageItem";
 import { AddStageForm } from "./AddStageForm";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 
 interface StagesSectionProps {
   stages: SequenceStage[];
@@ -13,6 +15,7 @@ interface StagesSectionProps {
   stageToEdit: SequenceStage | null;
   sequenceType: "message" | "pattern" | "typebot";
   typebotUrl: string;
+  setTypebotUrl: (url: string) => void;
   onEdit: (stage: SequenceStage) => void;
   onUpdate: (stage: SequenceStage) => void;
   onCancel: () => void;
@@ -21,6 +24,7 @@ interface StagesSectionProps {
   newStage: Omit<SequenceStage, "id">;
   setNewStage: (stage: Omit<SequenceStage, "id">) => void;
   addStage: () => void;
+  notifyChanges: () => void;
 }
 
 export function StagesSection({ 
@@ -29,6 +33,7 @@ export function StagesSection({
   stageToEdit,
   sequenceType,
   typebotUrl,
+  setTypebotUrl,
   onEdit, 
   onUpdate, 
   onCancel, 
@@ -36,7 +41,8 @@ export function StagesSection({
   onMove,
   newStage,
   setNewStage,
-  addStage
+  addStage,
+  notifyChanges
 }: StagesSectionProps) {
   return (
     <Card>
@@ -47,6 +53,24 @@ export function StagesSection({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Campo URL do Typebot, apenas visível quando o tipo da sequência é typebot */}
+        {sequenceType === "typebot" && (
+          <div className="space-y-2">
+            <Label htmlFor="typebot-url">URL do Typebot</Label>
+            <Input 
+              id="typebot-url"
+              type="url"
+              value={typebotUrl}
+              onChange={(e) => {
+                setTypebotUrl(e.target.value);
+                notifyChanges();
+              }}
+              placeholder="https://typebot.io/your-bot"
+              className="w-full"
+            />
+          </div>
+        )}
+
         {stages.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-6 text-center">
             <Clock className="h-8 w-8 text-muted-foreground mb-2" />
@@ -59,20 +83,6 @@ export function StagesSection({
           </div>
         ) : (
           <div className="space-y-4">
-            {sequenceType === "typebot" && typebotUrl && (
-              <div className="p-3 border rounded-md mb-4 bg-muted/20">
-                <p className="font-medium">Link do Typebot:</p>
-                <a 
-                  href={typebotUrl} 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  className="text-blue-500 break-all hover:underline"
-                >
-                  {typebotUrl}
-                </a>
-              </div>
-            )}
-            
             {stages.map((stage, index) => (
               <StageItem 
                 key={stage.id}
@@ -107,6 +117,7 @@ export function StagesSection({
                 setNewStage={setNewStage}
                 addStage={addStage}
                 sequenceType={sequenceType}
+                nextStageNumber={stages.length + 1}
               />
             </AccordionContent>
           </AccordionItem>
