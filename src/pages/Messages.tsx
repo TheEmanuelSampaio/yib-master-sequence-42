@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+
+import { useState } from "react";
 import { useApp } from '@/context/AppContext';
 import { Search, Filter, Calendar, CheckCircle, XCircle, AlertCircle, MessageCircle, FileCode, Bot, Clock, Hourglass, XOctagon } from "lucide-react";
 import {
@@ -45,117 +46,152 @@ import { ptBR } from "date-fns/locale";
 
 type MessageStatus = 'waiting' | 'pending' | 'processing' | 'sent' | 'failed' | 'persistent_error';
 
-// Function to get the message status icon and color
-function getMessageStatusInfo(status: string) {
-  switch (status) {
-    case 'waiting':
-      return {
-        icon: <Hourglass className="h-4 w-4" />,
-        color: "bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-500/30"
-      };
-    case 'pending':
-      return {
-        icon: <Clock className="h-4 w-4" />,
-        color: "bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30"
-      };
-    case 'processing':
-      return {
-        icon: <Clock className="h-4 w-4" />,
-        color: "bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30"
-      };
-    case 'sent':
-      return {
-        icon: <CheckCircle className="h-4 w-4" />,
-        color: "bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30"
-      };
-    case 'failed':
-      return {
-        icon: <Hourglass className="h-4 w-4" />,
-        color: "bg-neutral-500/20 text-neutral-700 dark:text-neutral-400 border-neutral-500/30"
-      };
-    case 'persistent_error':
-      return {
-        icon: <XOctagon className="h-4 w-4" />,
-        color: "bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30"
-      };
-    default:
-      return {
-        icon: <MessageCircle className="h-4 w-4" />,
-        color: "bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-500/30"
-      };
-  }
-}
-
 export default function Messages() {
-  const { scheduledMessages, contacts, sequences, contactSequences } = useApp();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const { scheduledMessages, contacts, sequences } = useApp();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilters, setStatusFilters] = useState<MessageStatus[]>([]);
+  const [showMessageContent, setShowMessageContent] = useState(false);
+  const [selectedMessage, setSelectedMessage] = useState<any>(null);
   
-  // Filter and sort messages
-  const filteredMessages = useMemo(() => {
-    const messagesWithDetails = scheduledMessages.map(message => {
-      const contact = contacts.find(c => c.id === message.contactId);
-      const sequence = sequences.find(s => s.id === message.sequenceId);
-      const stage = sequence?.stages.find(s => s.id === message.stageId);
-      
-      // Add waiting status if the scheduled time is in the future
-      let status = message.status;
-      if (status === 'pending') {
-        if (new Date(message.scheduledTime) > new Date()) {
-          status = 'waiting';
-        }
-      }
-      
-      return {
-        ...message,
-        status,
-        contactName: contact?.name || "Desconhecido",
-        contactPhone: contact?.phoneNumber || "",
-        sequenceName: sequence?.name || "Desconhecida",
-        stageName: stage?.name || "Desconhecido",
-        stageType: stage?.type || "message",
-        content: stage?.content || "",
-      };
-    });
+  const messagesWithDetails = scheduledMessages.map(message => {
+    const contact = contacts.find(c => c.id === message.contactId);
+    const sequence = sequences.find(s => s.id === message.sequenceId);
+    const stage = sequence?.stages.find(s => s.id === message.stageId);
     
-    return messagesWithDetails.filter(message => {
-      // If we have status filters and the message status is not in the filter list
-      if (statusFilter && !statusFilter.includes(message.status as MessageStatus)) {
-        return false;
+    // Add waiting status if the scheduled time is in the future
+    let status = message.status;
+    if (status === 'pending') {
+      if (new Date(message.scheduledTime) > new Date()) {
+        status = 'waiting';
       }
-      
-      if (searchTerm) {
-        const searchLower = searchTerm.toLowerCase();
-        return (
-          message.contactName.toLowerCase().includes(searchLower) ||
-          message.contactPhone.includes(searchLower) ||
-          message.sequenceName.toLowerCase().includes(searchLower) ||
-          message.stageName.toLowerCase().includes(searchLower)
-        );
-      }
-      
-      return true;
-    });
-  }, [scheduledMessages, contacts, searchTerm, statusFilter]);
+    }
+    
+    return {
+      ...message,
+      status,
+      contactName: contact?.name || "Desconhecido",
+      contactPhone: contact?.phoneNumber || "",
+      sequenceName: sequence?.name || "Desconhecida",
+      stageName: stage?.name || "Desconhecido",
+      stageType: stage?.type || "message",
+      content: stage?.content || "",
+    };
+  });
   
-  // Pagination
-  const pageCount = Math.ceil(filteredMessages.length / itemsPerPage);
-  const paginatedMessages = filteredMessages.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
+  const filteredMessages = messagesWithDetails.filter(message => {
+    // If we have status filters and the message status is not in the filter list
+    if (statusFilters.length > 0 && !statusFilters.includes(message.status as MessageStatus)) {
+      return false;
+    }
+    
+    if (searchQuery) {
+      const searchLower = searchQuery.toLowerCase();
+      return (
+        message.contactName.toLowerCase().includes(searchLower) ||
+        message.contactPhone.includes(searchLower) ||
+        message.sequenceName.toLowerCase().includes(searchLower) ||
+        message.stageName.toLowerCase().includes(searchLower)
+      );
+    }
+    
+    return true;
+  });
+  
+  const sortedMessages = [...filteredMessages].sort(
+    (a, b) => new Date(b.scheduledTime).getTime() - new Date(a.scheduledTime).getTime()
   );
-
-  const getSequenceTypeForStage = (sequenceId: string): "message" | "pattern" | "typebot" => {
-    const sequence = sequences.find(seq => seq.id === sequenceId);
-    return sequence?.type || "message";
+  
+  const handleToggleStatusFilter = (status: MessageStatus) => {
+    setStatusFilters(prev => {
+      if (prev.includes(status)) {
+        return prev.filter(s => s !== status);
+      } else {
+        return [...prev, status];
+      }
+    });
   };
   
+  const StatusBadge = ({ status }: { status: string }) => {
+    switch (status) {
+      case 'waiting':
+        return (
+          <Badge variant="outline" className="bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-500/30">
+            <Hourglass className="h-3 w-3 mr-1" />
+            Aguardando
+          </Badge>
+        );
+      case 'pending':
+        return (
+          <Badge variant="outline" className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30">
+            <Clock className="h-3 w-3 mr-1" />
+            Pendente
+          </Badge>
+        );
+      case 'processing':
+        return (
+          <Badge variant="outline" className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30">
+            <Clock className="h-3 w-3 mr-1" />
+            Processando
+          </Badge>
+        );
+      case 'sent':
+        return (
+          <Badge variant="outline" className="bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30">
+            <CheckCircle className="h-3 w-3 mr-1" />
+            Enviada
+          </Badge>
+        );
+      case 'failed':
+        return (
+          <Badge variant="outline" className="bg-neutral-500/20 text-neutral-700 dark:text-neutral-400 border-neutral-500/30">
+            <Hourglass className="h-3 w-3 mr-1" />
+            Falhou
+          </Badge>
+        );
+      case 'persistent_error':
+        return (
+          <Badge variant="outline" className="bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30">
+            <XOctagon className="h-3 w-3 mr-1" />
+            Erro Persistente
+          </Badge>
+        );
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+  
+  const getStageTypeIcon = (type: string) => {
+    switch (type) {
+      case "message":
+        return <MessageCircle className="h-4 w-4" />;
+      case "pattern":
+        return <FileCode className="h-4 w-4" />;
+      case "typebot":
+        return <Bot className="h-4 w-4" />;
+      default:
+        return <MessageCircle className="h-4 w-4" />;
+    }
+  };
+  
+  const handleViewMessage = (message: any) => {
+    setSelectedMessage(message);
+    setShowMessageContent(true);
+  };
+  
+  const formatDate = (isoString: string) => {
+    return new Date(isoString).toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
   return (
-    <div className="container mx-auto px-4 py-6">
+    <div className="space-y-6">
       <div className="flex flex-col">
-        <h1 className="text-2xl font-bold tracking-tight">Mensagens Agendadas</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Mensagens</h1>
         <p className="text-muted-foreground">
           Visualize e gerencie as mensagens agendadas e enviadas
         </p>
@@ -165,8 +201,8 @@ export default function Messages() {
         <div className="flex items-center w-full max-w-sm space-x-2">
           <Input
             placeholder="Buscar mensagens..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             className="h-9"
           />
           <Button variant="ghost" className="h-9 px-2 text-muted-foreground">
@@ -189,8 +225,8 @@ export default function Messages() {
                   <div className="flex items-center space-x-2">
                     <Checkbox 
                       id="waiting" 
-                      checked={statusFilter === 'waiting'} 
-                      onCheckedChange={() => setStatusFilter('waiting')}
+                      checked={statusFilters.includes('waiting')} 
+                      onCheckedChange={() => handleToggleStatusFilter('waiting')}
                     />
                     <label htmlFor="waiting" className="text-sm">
                       <Badge variant="outline" className="bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-500/30">
@@ -202,8 +238,8 @@ export default function Messages() {
                   <div className="flex items-center space-x-2">
                     <Checkbox 
                       id="pending" 
-                      checked={statusFilter === 'pending'} 
-                      onCheckedChange={() => setStatusFilter('pending')}
+                      checked={statusFilters.includes('pending')} 
+                      onCheckedChange={() => handleToggleStatusFilter('pending')}
                     />
                     <label htmlFor="pending" className="text-sm">
                       <Badge variant="outline" className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30">
@@ -215,8 +251,8 @@ export default function Messages() {
                   <div className="flex items-center space-x-2">
                     <Checkbox 
                       id="processing" 
-                      checked={statusFilter === 'processing'} 
-                      onCheckedChange={() => setStatusFilter('processing')}
+                      checked={statusFilters.includes('processing')} 
+                      onCheckedChange={() => handleToggleStatusFilter('processing')}
                     />
                     <label htmlFor="processing" className="text-sm">
                       <Badge variant="outline" className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30">
@@ -228,8 +264,8 @@ export default function Messages() {
                   <div className="flex items-center space-x-2">
                     <Checkbox 
                       id="sent" 
-                      checked={statusFilter === 'sent'} 
-                      onCheckedChange={() => setStatusFilter('sent')}
+                      checked={statusFilters.includes('sent')} 
+                      onCheckedChange={() => handleToggleStatusFilter('sent')}
                     />
                     <label htmlFor="sent" className="text-sm">
                       <Badge variant="outline" className="bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30">
@@ -241,8 +277,8 @@ export default function Messages() {
                   <div className="flex items-center space-x-2">
                     <Checkbox 
                       id="failed" 
-                      checked={statusFilter === 'failed'} 
-                      onCheckedChange={() => setStatusFilter('failed')}
+                      checked={statusFilters.includes('failed')} 
+                      onCheckedChange={() => handleToggleStatusFilter('failed')}
                     />
                     <label htmlFor="failed" className="text-sm">
                       <Badge variant="outline" className="bg-neutral-500/20 text-neutral-700 dark:text-neutral-400 border-neutral-500/30">
@@ -254,8 +290,8 @@ export default function Messages() {
                   <div className="flex items-center space-x-2">
                     <Checkbox 
                       id="persistent_error" 
-                      checked={statusFilter === 'persistent_error'} 
-                      onCheckedChange={() => setStatusFilter('persistent_error')}
+                      checked={statusFilters.includes('persistent_error')} 
+                      onCheckedChange={() => handleToggleStatusFilter('persistent_error')}
                     />
                     <label htmlFor="persistent_error" className="text-sm">
                       <Badge variant="outline" className="bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30">
@@ -271,167 +307,100 @@ export default function Messages() {
         </div>
       </div>
       
-      <Card className="mt-6">
+      <Card>
         <CardHeader className="pb-3">
-          <CardTitle>Mensagens Agendadas</CardTitle>
+          <CardTitle>Mensagens</CardTitle>
           <CardDescription>
-            Total: {filteredMessages.length} mensagens
+            {filteredMessages.length} mensagens encontradas
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {paginatedMessages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <Clock className="h-10 w-10 text-muted-foreground mb-3" />
-              <p className="text-muted-foreground">
-                {searchTerm || statusFilter
-                  ? "Nenhuma mensagem encontrada com os filtros aplicados"
-                  : "Nenhuma mensagem agendada no momento"}
-              </p>
-              {(searchTerm || statusFilter) && (
-                <Button
-                  variant="link"
-                  onClick={() => {
-                    setSearchTerm("");
-                    setStatusFilter(null);
-                  }}
-                >
-                  Limpar filtros
-                </Button>
-              )}
-            </div>
-          ) : (
-            <div className="overflow-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[200px]">Contato</TableHead>
-                    <TableHead>Sequência</TableHead>
-                    <TableHead>Estágio</TableHead>
-                    <TableHead>Agendada para</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[200px]">Contato</TableHead>
+                  <TableHead>Sequência</TableHead>
+                  <TableHead>Estágio</TableHead>
+                  <TableHead>Agendada para</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sortedMessages.length > 0 ? sortedMessages.map(message => (
+                  <TableRow key={message.id}>
+                    <TableCell>
+                      <div>
+                        <div className="font-medium">{message.contactName}</div>
+                        <div className="text-xs text-muted-foreground">{message.contactPhone}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell>{message.sequenceName}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-1">
+                        <Badge variant="outline" className={cn(
+                          "flex items-center px-1.5 text-xs",
+                          message.stageType === "message" && "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/30",
+                          message.stageType === "pattern" && "bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/30",
+                          message.stageType === "typebot" && "bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/30"
+                        )}>
+                          {getStageTypeIcon(message.stageType)}
+                        </Badge>
+                        <span>{message.stageName}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span>
+                          {formatDistanceToNow(new Date(message.scheduledTime), {
+                            addSuffix: true,
+                            locale: ptBR
+                          })}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {formatDate(message.scheduledTime)}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-2">
+                        <StatusBadge status={message.status} />
+                        {message.attempts > 0 && (
+                          <span className="text-xs text-muted-foreground">
+                            {message.attempts} tentativa{message.attempts > 1 && 's'}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleViewMessage(message)}
+                      >
+                        Ver Conteúdo
+                      </Button>
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginatedMessages.map((message) => {
-                    const contact = contacts.find(c => c.id === message.contactId);
-                    const sequence = sequences.find(s => s.id === message.sequenceId);
-                    const stage = sequence?.stages.find(s => s.id === message.stageId);
-                    const sequenceType = getSequenceTypeForStage(message.sequenceId);
-                    const { icon: StatusIcon, color } = getMessageStatusInfo(message.status);
-                    
-                    return (
-                      <TableRow key={message.id}>
-                        <TableCell className="font-medium">
-                          <div className="flex items-center space-x-2">
-                            <StatusIcon className={`h-4 w-4 ${color}`} />
-                            <span>
-                              {contact?.name || "Contato desconhecido"}
-                            </span>
+                )) : (
+                  <TableRow>
+                    <TableCell colSpan={6} className="h-24 text-center">
+                      <div className="flex flex-col items-center justify-center space-y-1">
+                        <MessageCircle className="h-6 w-6 text-muted-foreground" />
+                        <div className="text-muted-foreground">Nenhuma mensagem encontrada</div>
+                        {searchQuery && (
+                          <div className="text-sm text-muted-foreground">
+                            Tente alterar os filtros ou a busca
                           </div>
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            {sequenceType === "message" ? (
-                              <MessageCircle className="h-4 w-4 inline-block mr-1" />
-                            ) : sequenceType === "pattern" ? (
-                              <FileCode className="h-4 w-4 inline-block mr-1" />
-                            ) : (
-                              <Bot className="h-4 w-4 inline-block mr-1" />
-                            )}
-                            <span>{sequence?.name || "Sequência desconhecida"}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>{stage?.name || "Estágio desconhecido"}</TableCell>
-                        <TableCell className="text-muted-foreground">
-                          <div className="flex flex-col">
-                            <span>
-                              {formatDistanceToNow(new Date(message.scheduledTime), {
-                                addSuffix: true,
-                                locale: ptBR
-                              })}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              {formatDate(message.scheduledTime)}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "capitalize",
-                              message.status === "sent" && "bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30",
-                              message.status === "pending" && "bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30",
-                              message.status === "waiting" && "bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-500/30",
-                              message.status === "processing" && "bg-purple-500/20 text-purple-700 dark:text-purple-400 border-purple-500/30",
-                              message.status === "failed" && "bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30",
-                              message.status === "persistent_error" && "bg-red-700/20 text-red-900 dark:text-red-300 border-red-700/30"
-                            )}
-                          >
-                            {message.status === "pending"
-                              ? "Pendente"
-                              : message.status === "sent"
-                              ? "Enviada"
-                              : message.status === "waiting"
-                              ? "Aguardando"
-                              : message.status === "processing"
-                              ? "Processando"
-                              : message.status === "failed"
-                              ? "Falha"
-                              : message.status === "persistent_error"
-                              ? "Erro persistente"
-                              : message.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-2">
-                            {message.attempts > 0 && (
-                              <span className="text-xs text-muted-foreground">
-                                {message.attempts} tentativa{message.attempts > 1 && 's'}
-                              </span>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleViewMessage(message)}
-                          >
-                            Ver Conteúdo
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-          
-          {/* Pagination */}
-          {pageCount > 1 && (
-            <div className="flex items-center justify-center space-x-2 mt-4">
-              <Button
-                variant="ghost"
-                onClick={() => setCurrentPage(currentPage - 1)}
-                disabled={currentPage === 1}
-              >
-                Anterior
-              </Button>
-              <span className="text-sm">
-                Página {currentPage} de {pageCount}
-              </span>
-              <Button
-                variant="ghost"
-                onClick={() => setCurrentPage(currentPage + 1)}
-                disabled={currentPage === pageCount}
-              >
-                Próximo
-              </Button>
-            </div>
-          )}
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
       
@@ -517,3 +486,4 @@ export default function Messages() {
     </div>
   );
 }
+

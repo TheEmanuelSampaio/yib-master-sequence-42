@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { PlusCircle, Clock, Trash2, ChevronDown, ChevronUp, MessageCircle, FileCode, Bot, X, Edit, Save, Lock } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,7 +14,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/context/AppContext";
-import { Sequence, SequenceStage, ComplexTagCondition, TagCondition, TimeRestriction } from "@/types";
+import { Sequence, SequenceStage, TagCondition, TimeRestriction } from "@/types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RestrictionItem } from "./RestrictionItem";
 import { StageItem } from "./StageItem";
@@ -34,11 +35,11 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
   const { tags, currentInstance, timeRestrictions: globalTimeRestrictions, addTag } = useApp();
   
   const [name, setName] = useState(sequence?.name || "");
-  const [startCondition, setStartCondition] = useState<ComplexTagCondition>(
-    sequence?.startCondition || { groups: [{ type: "AND", tags: [] }] }
+  const [startCondition, setStartCondition] = useState<TagCondition>(
+    sequence?.startCondition || { type: "AND", tags: [] }
   );
-  const [stopCondition, setStopCondition] = useState<ComplexTagCondition>(
-    sequence?.stopCondition || { groups: [{ type: "OR", tags: [] }] }
+  const [stopCondition, setStopCondition] = useState<TagCondition>(
+    sequence?.stopCondition || { type: "OR", tags: [] }
   );
   const [stages, setStages] = useState<SequenceStage[]>(
     sequence?.stages || []
@@ -49,18 +50,13 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
   const [status, setStatus] = useState<"active" | "inactive">(
     sequence?.status || "active"
   );
-  const [type, setType] = useState<"message" | "pattern" | "typebot">(
-    sequence?.type || "message"
-  );
   
-  const [showTagSelector, setShowTagSelector] = useState<{ 
-    type: "start" | "stop",
-    groupIndex: number 
-  } | null>(null);
+  const [showTagSelector, setShowTagSelector] = useState<"start" | "stop" | null>(null);
   const [newTag, setNewTag] = useState("");
   
   const [newStage, setNewStage] = useState<Omit<SequenceStage, "id">>({
     name: "",
+    type: "message",
     content: "",
     delay: 60,
     delayUnit: "minutes",
@@ -82,7 +78,6 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
   const [editingStageId, setEditingStageId] = useState<string | null>(null);
   const [stageToEdit, setStageToEdit] = useState<SequenceStage | null>(null);
   const [showAddRestrictionDialog, setShowAddRestrictionDialog] = useState(false);
-  const [addingConditionGroup, setAddingConditionGroup] = useState<"start" | "stop" | null>(null);
   
   // Define dayNames for use throughout the component
   const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -99,7 +94,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
     }
   };
   
-  const addTagToCondition = (conditionType: "start" | "stop", groupIndex: number, tag: string) => {
+  const addTagToCondition = (target: "start" | "stop", tag: string) => {
     if (!tag) return;
 
     // Save tag to the global tag list for reuse
@@ -107,120 +102,52 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
       addTag(tag);
     }
     
-    if (conditionType === "start") {
-      const updatedGroups = [...startCondition.groups];
-      if (!updatedGroups[groupIndex].tags.includes(tag)) {
-        updatedGroups[groupIndex] = {
-          ...updatedGroups[groupIndex],
-          tags: [...updatedGroups[groupIndex].tags, tag]
-        };
+    if (target === "start") {
+      if (!startCondition.tags.includes(tag)) {
         setStartCondition({
-          groups: updatedGroups
+          ...startCondition,
+          tags: [...startCondition.tags, tag],
         });
         notifyChanges();
       }
     } else {
-      const updatedGroups = [...stopCondition.groups];
-      if (!updatedGroups[groupIndex].tags.includes(tag)) {
-        updatedGroups[groupIndex] = {
-          ...updatedGroups[groupIndex],
-          tags: [...updatedGroups[groupIndex].tags, tag]
-        };
+      if (!stopCondition.tags.includes(tag)) {
         setStopCondition({
-          groups: updatedGroups
+          ...stopCondition,
+          tags: [...stopCondition.tags, tag],
         });
         notifyChanges();
       }
     }
-    
     setNewTag("");
     setShowTagSelector(null);
   };
   
-  const removeTag = (conditionType: "start" | "stop", groupIndex: number, tag: string) => {
-    if (conditionType === "start") {
-      const updatedGroups = [...startCondition.groups];
-      updatedGroups[groupIndex] = {
-        ...updatedGroups[groupIndex],
-        tags: updatedGroups[groupIndex].tags.filter(t => t !== tag)
-      };
+  const removeTag = (target: "start" | "stop", tag: string) => {
+    if (target === "start") {
       setStartCondition({
-        groups: updatedGroups
+        ...startCondition,
+        tags: startCondition.tags.filter(t => t !== tag),
       });
     } else {
-      const updatedGroups = [...stopCondition.groups];
-      updatedGroups[groupIndex] = {
-        ...updatedGroups[groupIndex],
-        tags: updatedGroups[groupIndex].tags.filter(t => t !== tag)
-      };
       setStopCondition({
-        groups: updatedGroups
+        ...stopCondition,
+        tags: stopCondition.tags.filter(t => t !== tag),
       });
     }
     notifyChanges();
   };
   
-  const toggleConditionType = (conditionType: "start" | "stop", groupIndex: number) => {
-    if (conditionType === "start") {
-      const updatedGroups = [...startCondition.groups];
-      updatedGroups[groupIndex] = {
-        ...updatedGroups[groupIndex],
-        type: updatedGroups[groupIndex].type === "AND" ? "OR" : "AND"
-      };
+  const toggleConditionType = (target: "start" | "stop") => {
+    if (target === "start") {
       setStartCondition({
-        groups: updatedGroups
-      });
-    } else {
-      const updatedGroups = [...stopCondition.groups];
-      updatedGroups[groupIndex] = {
-        ...updatedGroups[groupIndex],
-        type: updatedGroups[groupIndex].type === "AND" ? "OR" : "AND"
-      };
-      setStopCondition({
-        groups: updatedGroups
-      });
-    }
-    notifyChanges();
-  };
-
-  const addConditionGroup = (conditionType: "start" | "stop") => {
-    const newGroup: TagCondition = {
-      type: conditionType === "start" ? "AND" : "OR",
-      tags: []
-    };
-
-    if (conditionType === "start") {
-      setStartCondition({
-        groups: [...startCondition.groups, newGroup]
+        ...startCondition,
+        type: startCondition.type === "AND" ? "OR" : "AND",
       });
     } else {
       setStopCondition({
-        groups: [...stopCondition.groups, newGroup]
-      });
-    }
-
-    setAddingConditionGroup(null);
-    notifyChanges();
-  };
-
-  const removeConditionGroup = (conditionType: "start" | "stop", groupIndex: number) => {
-    if (conditionType === "start" && startCondition.groups.length <= 1) {
-      toast.error("Deve haver pelo menos um grupo de condição de início");
-      return;
-    }
-
-    if (conditionType === "stop" && stopCondition.groups.length <= 1) {
-      toast.error("Deve haver pelo menos um grupo de condição de parada");
-      return;
-    }
-
-    if (conditionType === "start") {
-      setStartCondition({
-        groups: startCondition.groups.filter((_, idx) => idx !== groupIndex)
-      });
-    } else {
-      setStopCondition({
-        groups: stopCondition.groups.filter((_, idx) => idx !== groupIndex)
+        ...stopCondition,
+        type: stopCondition.type === "AND" ? "OR" : "AND",
       });
     }
     notifyChanges();
@@ -241,6 +168,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
       // Reset form
       setNewStage({
         name: "",
+        type: "message",
         content: "",
         delay: 60,
         delayUnit: "minutes",
@@ -428,9 +356,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         return;
       }
       
-      // Verificar se pelo menos um grupo de condição de início tem tags
-      const hasStartTags = startCondition.groups.some(group => group.tags.length > 0);
-      if (!hasStartTags) {
+      if (startCondition.tags.length === 0) {
         toast.error("Por favor, adicione pelo menos uma tag para a condição de início.");
         return;
       }
@@ -455,7 +381,6 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
       const newSequence: Omit<Sequence, "id" | "createdAt" | "updatedAt"> = {
         name,
         instanceId: currentInstance.id,
-        type,
         startCondition,
         stopCondition,
         stages,
@@ -496,11 +421,10 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
   
   // Check if form has been modified from initial values
   const hasBeenModified = () => {
-    if (!sequence) return name !== '' || startCondition.groups.some(g => g.tags.length > 0) || stages.length > 0;
+    if (!sequence) return name !== '' || startCondition.tags.length > 0 || stages.length > 0;
     
     return (
       name !== sequence.name ||
-      type !== sequence.type ||
       JSON.stringify(startCondition) !== JSON.stringify(sequence.startCondition) ||
       JSON.stringify(stopCondition) !== JSON.stringify(sequence.stopCondition) ||
       JSON.stringify(stages) !== JSON.stringify(sequence.stages) ||
@@ -596,41 +520,6 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
                     placeholder="Ex: Sequência de Boas-vindas"
                   />
                 </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="type">Tipo da Sequência</Label>
-                  <Select
-                    value={type}
-                    onValueChange={(value) => {
-                      setType(value as "message" | "pattern" | "typebot");
-                      notifyChanges();
-                    }}
-                  >
-                    <SelectTrigger id="type">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="message">
-                        <div className="flex items-center">
-                          <MessageCircle className="h-4 w-4 mr-2" />
-                          <span>Mensagem</span>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="pattern">
-                        <div className="flex items-center">
-                          <FileCode className="h-4 w-4 mr-2" />
-                          <span>Pattern</span>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="typebot">
-                        <div className="flex items-center">
-                          <Bot className="h-4 w-4 mr-2" />
-                          <span>Typebot</span>
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
                 
                 <div className="space-y-2">
                   <Label htmlFor="status">Status</Label>
@@ -665,113 +554,84 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {startCondition.groups.map((group, groupIndex) => (
-                    <div key={`start-group-${groupIndex}`} className="border rounded-md p-3 relative">
-                      {groupIndex > 0 && (
-                        <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-background px-2 text-sm text-muted-foreground">
-                          OU
-                        </div>
+                  <div className="flex items-center space-x-2">
+                    <Button 
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        toggleConditionType("start");
+                      }}
+                    >
+                      <span className="font-mono">{startCondition.type}</span>
+                    </Button>
+                    <span className="text-sm text-muted-foreground">
+                      {startCondition.type === "AND" 
+                        ? "Contato precisa ter TODAS as tags selecionadas" 
+                        : "Contato precisa ter QUALQUER UMA das tags selecionadas"}
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap gap-2">
+                      {startCondition.tags.map((tag) => (
+                        <Badge key={tag} className="bg-green-600">
+                          {tag}
+                          <button
+                            className="ml-1 hover:bg-green-700 rounded-full"
+                            onClick={() => removeTag("start", tag)}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                      {startCondition.tags.length === 0 && (
+                        <span className="text-sm text-muted-foreground">
+                          Nenhuma tag adicionada
+                        </span>
                       )}
-                      
-                      <div className="flex justify-between items-center mb-2">
-                        <div className="flex items-center space-x-2">
-                          <Button 
-                            variant="outline"
-                            size="sm"
-                            onClick={() => toggleConditionType("start", groupIndex)}
-                          >
-                            <span className="font-mono">{group.type}</span>
-                          </Button>
-                          <span className="text-sm text-muted-foreground">
-                            {group.type === "AND" 
-                              ? "Contato precisa ter TODAS as tags selecionadas" 
-                              : "Contato precisa ter QUALQUER UMA das tags selecionadas"}
-                          </span>
-                        </div>
-                        
-                        {startCondition.groups.length > 1 && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeConditionGroup("start", groupIndex)}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <div className="flex flex-wrap gap-2 min-h-8">
-                          {group.tags.map((tag) => (
-                            <Badge key={tag} className="bg-green-600">
-                              {tag}
-                              <button
-                                className="ml-1 hover:bg-green-700 rounded-full"
-                                onClick={() => removeTag("start", groupIndex, tag)}
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            </Badge>
-                          ))}
-                          {group.tags.length === 0 && (
-                            <span className="text-sm text-muted-foreground">
-                              Nenhuma tag adicionada
-                            </span>
-                          )}
-                        </div>
-                        
-                        <div className="flex space-x-2 tag-selector">
-                          <div className="relative flex-1">
-                            <Input
-                              value={showTagSelector?.type === "start" && showTagSelector?.groupIndex === groupIndex ? newTag : ""}
-                              onChange={(e) => setNewTag(e.target.value)}
-                              placeholder="Digite ou selecione uma tag"
-                              onFocus={() => setShowTagSelector({ type: "start", groupIndex })}
-                            />
-                            {showTagSelector?.type === "start" && showTagSelector?.groupIndex === groupIndex && (
-                              <div className="absolute z-10 w-full max-h-32 overflow-y-auto mt-1 bg-card border rounded-md shadow-lg">
-                                {tags.filter(tag => !group.tags.includes(tag)).length > 0 ? (
-                                  tags
-                                    .filter(tag => !group.tags.includes(tag))
-                                    .map(tag => (
-                                      <button
-                                        key={tag}
-                                        className="w-full text-left px-3 py-1.5 hover:bg-accent text-sm"
-                                        onClick={() => {
-                                          addTagToCondition("start", groupIndex, tag);
-                                        }}
-                                      >
-                                        {tag}
-                                      </button>
-                                    ))
-                                ) : (
-                                  <div className="px-3 py-1.5 text-sm text-muted-foreground">
-                                    Sem tags disponíveis
-                                  </div>
-                                )}
+                    </div>
+                    
+                    <div className="flex space-x-2 tag-selector">
+                      <div className="relative flex-1">
+                        <Input
+                          value={newTag}
+                          onChange={(e) => setNewTag(e.target.value)}
+                          placeholder="Digite ou selecione uma tag"
+                          onFocus={() => setShowTagSelector("start")}
+                        />
+                        {showTagSelector === "start" && (
+                          <div className="absolute z-10 w-full max-h-32 overflow-y-auto mt-1 bg-card border rounded-md shadow-lg">
+                            {tags.filter(tag => !startCondition.tags.includes(tag)).length > 0 ? (
+                              tags
+                                .filter(tag => !startCondition.tags.includes(tag))
+                                .map(tag => (
+                                  <button
+                                    key={tag}
+                                    className="w-full text-left px-3 py-1.5 hover:bg-accent text-sm"
+                                    onClick={() => {
+                                      addTagToCondition("start", tag);
+                                    }}
+                                  >
+                                    {tag}
+                                  </button>
+                                ))
+                            ) : (
+                              <div className="px-3 py-1.5 text-sm text-muted-foreground">
+                                Sem tags disponíveis
                               </div>
                             )}
                           </div>
-                          <Button 
-                            onClick={() => {
-                              addTagToCondition("start", groupIndex, newTag);
-                            }}
-                          >
-                            Adicionar
-                          </Button>
-                        </div>
+                        )}
                       </div>
+                      <Button 
+                        onClick={() => {
+                          addTagToCondition("start", newTag);
+                        }}
+                      >
+                        Adicionar
+                      </Button>
                     </div>
-                  ))}
-                  
-                  <Button
-                    variant="outline"
-                    className="w-full border-dashed"
-                    onClick={() => addConditionGroup("start")}
-                  >
-                    <PlusCircle className="h-4 w-4 mr-1" />
-                    Adicionar Grupo OU
-                  </Button>
+                  </div>
                 </CardContent>
               </Card>
               
@@ -787,113 +647,84 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {stopCondition.groups.map((group, groupIndex) => (
-                    <div key={`stop-group-${groupIndex}`} className="border rounded-md p-3 relative">
-                      {groupIndex > 0 && (
-                        <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-background px-2 text-sm text-muted-foreground">
-                          OU
-                        </div>
+                  <div className="flex items-center space-x-2">
+                    <Button 
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        toggleConditionType("stop");
+                      }}
+                    >
+                      <span className="font-mono">{stopCondition.type}</span>
+                    </Button>
+                    <span className="text-sm text-muted-foreground">
+                      {stopCondition.type === "AND" 
+                        ? "Contato será removido se tiver TODAS as tags selecionadas" 
+                        : "Contato será removido se tiver QUALQUER UMA das tags selecionadas"}
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap gap-2">
+                      {stopCondition.tags.map((tag) => (
+                        <Badge key={tag} className="bg-red-600">
+                          {tag}
+                          <button
+                            className="ml-1 hover:bg-red-700 rounded-full"
+                            onClick={() => removeTag("stop", tag)}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                      {stopCondition.tags.length === 0 && (
+                        <span className="text-sm text-muted-foreground">
+                          Nenhuma tag adicionada
+                        </span>
                       )}
-                      
-                      <div className="flex justify-between items-center mb-2">
-                        <div className="flex items-center space-x-2">
-                          <Button 
-                            variant="outline"
-                            size="sm"
-                            onClick={() => toggleConditionType("stop", groupIndex)}
-                          >
-                            <span className="font-mono">{group.type}</span>
-                          </Button>
-                          <span className="text-sm text-muted-foreground">
-                            {group.type === "AND" 
-                              ? "Contato será removido se tiver TODAS as tags selecionadas" 
-                              : "Contato será removido se tiver QUALQUER UMA das tags selecionadas"}
-                          </span>
-                        </div>
-                        
-                        {stopCondition.groups.length > 1 && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeConditionGroup("stop", groupIndex)}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <div className="flex flex-wrap gap-2 min-h-8">
-                          {group.tags.map((tag) => (
-                            <Badge key={tag} className="bg-red-600">
-                              {tag}
-                              <button
-                                className="ml-1 hover:bg-red-700 rounded-full"
-                                onClick={() => removeTag("stop", groupIndex, tag)}
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            </Badge>
-                          ))}
-                          {group.tags.length === 0 && (
-                            <span className="text-sm text-muted-foreground">
-                              Nenhuma tag adicionada
-                            </span>
-                          )}
-                        </div>
-                        
-                        <div className="flex space-x-2 tag-selector">
-                          <div className="relative flex-1">
-                            <Input
-                              value={showTagSelector?.type === "stop" && showTagSelector?.groupIndex === groupIndex ? newTag : ""}
-                              onChange={(e) => setNewTag(e.target.value)}
-                              placeholder="Digite ou selecione uma tag"
-                              onFocus={() => setShowTagSelector({ type: "stop", groupIndex })}
-                            />
-                            {showTagSelector?.type === "stop" && showTagSelector?.groupIndex === groupIndex && (
-                              <div className="absolute z-10 w-full max-h-32 overflow-y-auto mt-1 bg-card border rounded-md shadow-lg">
-                                {tags.filter(tag => !group.tags.includes(tag)).length > 0 ? (
-                                  tags
-                                    .filter(tag => !group.tags.includes(tag))
-                                    .map(tag => (
-                                      <button
-                                        key={tag}
-                                        className="w-full text-left px-3 py-1.5 hover:bg-accent text-sm"
-                                        onClick={() => {
-                                          addTagToCondition("stop", groupIndex, tag);
-                                        }}
-                                      >
-                                        {tag}
-                                      </button>
-                                    ))
-                                ) : (
-                                  <div className="px-3 py-1.5 text-sm text-muted-foreground">
-                                    Sem tags disponíveis
-                                  </div>
-                                )}
+                    </div>
+                    
+                    <div className="flex space-x-2 tag-selector">
+                      <div className="relative flex-1">
+                        <Input
+                          value={newTag}
+                          onChange={(e) => setNewTag(e.target.value)}
+                          placeholder="Digite ou selecione uma tag"
+                          onFocus={() => setShowTagSelector("stop")}
+                        />
+                        {showTagSelector === "stop" && (
+                          <div className="absolute z-10 w-full max-h-32 overflow-y-auto mt-1 bg-card border rounded-md shadow-lg">
+                            {tags.filter(tag => !stopCondition.tags.includes(tag)).length > 0 ? (
+                              tags
+                                .filter(tag => !stopCondition.tags.includes(tag))
+                                .map(tag => (
+                                  <button
+                                    key={tag}
+                                    className="w-full text-left px-3 py-1.5 hover:bg-accent text-sm"
+                                    onClick={() => {
+                                      addTagToCondition("stop", tag);
+                                    }}
+                                  >
+                                    {tag}
+                                  </button>
+                                ))
+                            ) : (
+                              <div className="px-3 py-1.5 text-sm text-muted-foreground">
+                                Sem tags disponíveis
                               </div>
                             )}
                           </div>
-                          <Button 
-                            onClick={() => {
-                              addTagToCondition("stop", groupIndex, newTag);
-                            }}
-                          >
-                            Adicionar
-                          </Button>
-                        </div>
+                        )}
                       </div>
+                      <Button 
+                        onClick={() => {
+                          addTagToCondition("stop", newTag);
+                        }}
+                      >
+                        Adicionar
+                      </Button>
                     </div>
-                  ))}
-                  
-                  <Button
-                    variant="outline"
-                    className="w-full border-dashed"
-                    onClick={() => addConditionGroup("stop")}
-                  >
-                    <PlusCircle className="h-4 w-4 mr-1" />
-                    Adicionar Grupo OU
-                  </Button>
+                  </div>
                 </CardContent>
               </Card>
             </div>
@@ -925,7 +756,6 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
                     <StageItem 
                       key={stage.id}
                       stage={stage}
-                      sequenceType={type}
                       index={index}
                       isEditing={editingStageId === stage.id}
                       stageToEdit={stageToEdit}
@@ -955,22 +785,43 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
                   </AccordionTrigger>
                   <AccordionContent>
                     <div className="space-y-4 pb-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="stage-name">Nome do Estágio</Label>
-                        <Input 
-                          id="stage-name" 
-                          value={newStage.name} 
-                          onChange={(e) => setNewStage({ ...newStage, name: e.target.value })}
-                          placeholder="Ex: Boas-vindas"
-                        />
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="stage-name">Nome do Estágio</Label>
+                          <Input 
+                            id="stage-name" 
+                            value={newStage.name} 
+                            onChange={(e) => setNewStage({ ...newStage, name: e.target.value })}
+                            placeholder="Ex: Boas-vindas"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="stage-type">Tipo do Conteúdo</Label>
+                          <Select
+                            value={newStage.type}
+                            onValueChange={(value) => setNewStage({ 
+                              ...newStage, 
+                              type: value as "message" | "pattern" | "typebot" 
+                            })}
+                          >
+                            <SelectTrigger id="stage-type">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="message">Mensagem</SelectItem>
+                              <SelectItem value="pattern">Pattern</SelectItem>
+                              <SelectItem value="typebot">Typebot</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
                       
                       <div className="space-y-2">
                         <Label htmlFor="stage-content">
-                          {type === "message" ? "Mensagem" : 
-                          type === "pattern" ? "Pattern" : "Link do Typebot"}
+                          {newStage.type === "message" ? "Mensagem" : 
+                          newStage.type === "pattern" ? "Pattern" : "Link do Typebot"}
                         </Label>
-                        {type === "typebot" ? (
+                        {newStage.type === "typebot" ? (
                           <div className="space-y-4">
                             <Input 
                               id="stage-content" 
@@ -1007,7 +858,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
                             onChange={(e) => setNewStage({ ...newStage, content: e.target.value })}
                             rows={4}
                             placeholder={
-                              type === "message" 
+                              newStage.type === "message" 
                                 ? "Digite sua mensagem. Use ${name} para incluir o nome do contato."
                                 : "IMAGE::https://example.com/produto-xyz.jpg||TEXT::Confira todos os detalhes!"
                             }

@@ -1,3 +1,4 @@
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 
@@ -73,18 +74,13 @@ Deno.serve(async (req) => {
     
     // Atualizar status da mensagem
     const newStatus = status === 'success' ? 'sent' : 'failed';
-    const newAttempts = message.attempts + 1;
     
-    console.log(`[UPDATE] Atualizando status da mensagem ${messageId} para ${newStatus} com ${newAttempts} tentativas`);
-    
-    // Verificar se deve ser marcada como erro persistente
-    const finalStatus = (status !== 'success' && newAttempts >= 3) ? 'persistent_error' : newStatus;
-    
+    console.log(`[UPDATE] Atualizando status da mensagem ${messageId} para ${newStatus} com ${message.attempts + 1} tentativas`);
     const { error: updateError } = await supabase
       .from('scheduled_messages')
       .update({
-        status: finalStatus,
-        attempts: newAttempts,
+        status: newStatus,
+        attempts: message.attempts + 1,
         sent_at: status === 'success' ? new Date().toISOString() : null
       })
       .eq('id', messageId);
@@ -425,8 +421,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         message: 'Status da mensagem atualizado com sucesso',
-        status: finalStatus,
-        attempts: newAttempts
+        status: newStatus
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

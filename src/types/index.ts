@@ -39,30 +39,24 @@ export interface Sequence {
   id: string;
   instanceId: string;
   name: string;
-  startCondition: ComplexTagCondition;
-  stopCondition: ComplexTagCondition;
+  startCondition: TagCondition;
+  stopCondition: TagCondition;
   stages: SequenceStage[];
   timeRestrictions: TimeRestriction[];
   status: "active" | "inactive";
-  type: "message" | "pattern" | "typebot";
   createdAt: string;
   updatedAt: string;
 }
 
-// Condição simples (AND/OR entre tags)
 export interface TagCondition {
   type: "AND" | "OR";
   tags: string[];
 }
 
-// Condição complexa (OR entre grupos de condições)
-export interface ComplexTagCondition {
-  groups: TagCondition[];
-}
-
 export interface SequenceStage {
   id: string;
   name: string;
+  type: "message" | "pattern" | "typebot";
   content: string;
   typebotStage?: string;
   delay: number;

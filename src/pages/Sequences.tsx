@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useApp } from '@/context/AppContext';
 import {
@@ -119,7 +118,7 @@ export default function Sequences() {
     toast.success("Sequência excluída com sucesso");
   };
   
-  const getTypeIcon = (type: string) => {
+  const getStageIcon = (type: string) => {
     switch (type) {
       case "message":
         return <MessageCircle className="h-4 w-4" />;
@@ -360,45 +359,24 @@ export default function Sequences() {
                   </div>
                   <div className="flex flex-col space-y-2">
                     <div>
-                      <span className="text-xs text-muted-foreground">Início:</span>
+                      <span className="text-xs text-muted-foreground">Início ({sequence.startCondition.type}):</span>
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {sequence.startCondition.groups.map((group, groupIndex) => (
-                          <div key={groupIndex} className="flex items-center gap-1 bg-green-500/5 rounded px-1 py-0.5 border border-green-500/20">
-                            <span className="text-xs font-medium text-green-700 dark:text-green-400">{group.type}</span>
-                            <div className="flex flex-wrap gap-1">
-                              {group.tags.map(tag => (
-                                <Badge key={tag} variant="outline" className="bg-green-500/10 text-green-700 dark:text-green-400 text-xs py-0">
-                                  {tag}
-                                </Badge>
-                              ))}
-                            </div>
-                            {groupIndex < sequence.startCondition.groups.length - 1 && (
-                              <span className="text-xs font-medium mx-1">OR</span>
-                            )}
-                          </div>
+                        {sequence.startCondition.tags.map(tag => (
+                          <Badge key={tag} variant="outline" className="bg-green-500/10 text-green-700 dark:text-green-400 text-xs py-0">
+                            {tag}
+                          </Badge>
                         ))}
                       </div>
                     </div>
                     <div>
-                      <span className="text-xs text-muted-foreground">Parada:</span>
+                      <span className="text-xs text-muted-foreground">Parada ({sequence.stopCondition.type}):</span>
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {sequence.stopCondition.groups.length > 0 ? (
-                          sequence.stopCondition.groups.map((group, groupIndex) => (
-                            <div key={groupIndex} className="flex items-center gap-1 bg-red-500/5 rounded px-1 py-0.5 border border-red-500/20">
-                              <span className="text-xs font-medium text-red-700 dark:text-red-400">{group.type}</span>
-                              <div className="flex flex-wrap gap-1">
-                                {group.tags.map(tag => (
-                                  <Badge key={tag} variant="outline" className="bg-red-500/10 text-red-700 dark:text-red-400 text-xs py-0">
-                                    {tag}
-                                  </Badge>
-                                ))}
-                              </div>
-                              {groupIndex < sequence.stopCondition.groups.length - 1 && (
-                                <span className="text-xs font-medium mx-1">OR</span>
-                              )}
-                            </div>
-                          ))
-                        ) : (
+                        {sequence.stopCondition.tags.map(tag => (
+                          <Badge key={tag} variant="outline" className="bg-red-500/10 text-red-700 dark:text-red-400 text-xs py-0">
+                            {tag}
+                          </Badge>
+                        ))}
+                        {sequence.stopCondition.tags.length === 0 && (
                           <span className="text-xs text-muted-foreground italic">Nenhuma</span>
                         )}
                       </div>
@@ -417,8 +395,13 @@ export default function Sequences() {
                         key={stage.id}
                         className="flex items-center"
                       >
-                        <Badge variant="outline" className="flex items-center px-1.5 text-xs">
-                          {idx + 1}
+                        <Badge variant="outline" className={cn(
+                          "flex items-center px-1.5 text-xs",
+                          stage.type === "message" && "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/30",
+                          stage.type === "pattern" && "bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/30",
+                          stage.type === "typebot" && "bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/30"
+                        )}>
+                          {getStageIcon(stage.type)}
                         </Badge>
                         {idx < sequence.stages.length - 1 && (
                           <div className="h-px w-4 bg-border" />
@@ -431,23 +414,11 @@ export default function Sequences() {
                 <div>
                   <div className="text-sm font-medium mb-1 flex items-center">
                     <Activity className="h-4 w-4 mr-1" />
-                    Tipo e Status
+                    Status
                   </div>
-                  <div className="flex gap-2">
-                    <Badge variant="outline" className={cn(
-                      "flex items-center gap-1 text-xs",
-                      sequence.type === "message" && "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/30",
-                      sequence.type === "pattern" && "bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/30",
-                      sequence.type === "typebot" && "bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/30"
-                    )}>
-                      {getTypeIcon(sequence.type)}
-                      {sequence.type === "message" ? "Mensagem" : 
-                       sequence.type === "pattern" ? "Pattern" : "Typebot"}
-                    </Badge>
-                    <Badge variant={sequence.status === "active" ? "default" : "outline"}>
-                      {sequence.status === "active" ? "Ativa" : "Inativa"}
-                    </Badge>
-                  </div>
+                  <Badge variant={sequence.status === "active" ? "default" : "outline"}>
+                    {sequence.status === "active" ? "Ativa" : "Inativa"}
+                  </Badge>
                 </div>
               </div>
             </CardContent>

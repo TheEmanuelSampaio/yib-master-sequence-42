@@ -1,4 +1,3 @@
-
 import { corsHeaders } from '../_shared/cors.ts';
 
 /**
@@ -104,12 +103,12 @@ export async function processSequences(
           continue;
         }
         
-        // Verificar condições complexas de início da sequência
-        const matchesStartCondition = checkComplexCondition(tags, sequence.start_condition_groups);
+        // Verificar condições de início da sequência
+        const matchesStartCondition = checkCondition(tags, sequence.start_condition_tags, sequence.start_condition_type);
         console.log(`[5. SEQUÊNCIAS] Verificando condição de início para sequência ${sequence.name}: ${matchesStartCondition ? 'ATENDE' : 'NÃO ATENDE'}`);
         
-        // Verificar condições complexas de parada da sequência
-        const matchesStopCondition = checkComplexCondition(tags, sequence.stop_condition_groups);
+        // Verificar condições de parada da sequência
+        const matchesStopCondition = checkCondition(tags, sequence.stop_condition_tags, sequence.stop_condition_type);
         console.log(`[5. SEQUÊNCIAS] Verificando condição de parada para sequência ${sequence.name}: ${matchesStopCondition ? 'ATENDE' : 'NÃO ATENDE'}`);
         
         // Se atende à condição de início e não atende à condição de parada, adicionar à sequência
@@ -244,21 +243,6 @@ export async function processSequences(
     sequencesAdded,
     sequencesSkipped
   };
-}
-
-/**
- * Verifica condições complexas de tags (grupos de condições AND/OR com OR entre eles)
- */
-function checkComplexCondition(contactTags: string[], conditionGroups: any[]): boolean {
-  if (!conditionGroups || conditionGroups.length === 0) {
-    return false;
-  }
-  
-  // Se qualquer grupo de condições for verdadeiro, a condição complexa é verdadeira (OR entre grupos)
-  return conditionGroups.some(group => {
-    // Verificar condição simples (AND/OR entre tags no grupo)
-    return checkCondition(contactTags, group.tags, group.type);
-  });
 }
 
 /**
