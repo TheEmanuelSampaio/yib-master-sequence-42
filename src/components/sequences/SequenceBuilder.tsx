@@ -29,11 +29,17 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
   const [type, setType] = useState<"message" | "pattern" | "typebot">(
     sequence?.type || "message"
   );
-  const [startCondition, setStartCondition] = useState<TagCondition>(
-    sequence?.startCondition || { type: "AND", tags: [] }
+  const [startCondition, setStartCondition] = useState<ConditionStructure>(
+    sequence?.startCondition || { 
+      operator: "AND", 
+      groups: [{ operator: "AND", tags: [] }] 
+    }
   );
-  const [stopCondition, setStopCondition] = useState<TagCondition>(
-    sequence?.stopCondition || { type: "OR", tags: [] }
+  const [stopCondition, setStopCondition] = useState<ConditionStructure>(
+    sequence?.stopCondition || { 
+      operator: "OR", 
+      groups: [{ operator: "OR", tags: [] }] 
+    }
   );
   const [stages, setStages] = useState<SequenceStage[]>(
     sequence?.stages || []
@@ -152,7 +158,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
     setType(newType);
   };
   
-  const addTagToCondition = (target: "start" | "stop", tag: string) => {
+  const addTagToCondition = (target: "start" | "stop", groupIndex: number, tag: string) => {
     if (!tag) return;
 
     // Save tag to the global tag list for reuse
@@ -161,18 +167,28 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
     }
     
     if (target === "start") {
-      if (!startCondition.tags.includes(tag)) {
+      const newGroups = [...startCondition.groups];
+      if (!newGroups[groupIndex].tags.includes(tag)) {
+        newGroups[groupIndex] = {
+          ...newGroups[groupIndex],
+          tags: [...newGroups[groupIndex].tags, tag]
+        };
         setStartCondition({
           ...startCondition,
-          tags: [...startCondition.tags, tag],
+          groups: newGroups
         });
         notifyChanges();
       }
     } else {
-      if (!stopCondition.tags.includes(tag)) {
+      const newGroups = [...stopCondition.groups];
+      if (!newGroups[groupIndex].tags.includes(tag)) {
+        newGroups[groupIndex] = {
+          ...newGroups[groupIndex],
+          tags: [...newGroups[groupIndex].tags, tag]
+        };
         setStopCondition({
           ...stopCondition,
-          tags: [...stopCondition.tags, tag],
+          groups: newGroups
         });
         notifyChanges();
       }
@@ -181,31 +197,110 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
     setShowTagSelector(null);
   };
   
-  const removeTag = (target: "start" | "stop", tag: string) => {
+  const removeTag = (target: "start" | "stop", groupIndex: number, tag: string) => {
     if (target === "start") {
+      const newGroups = [...startCondition.groups];
+      newGroups[groupIndex] = {
+        ...newGroups[groupIndex],
+        tags: newGroups[groupIndex].tags.filter(t => t !== tag)
+      };
       setStartCondition({
         ...startCondition,
-        tags: startCondition.tags.filter(t => t !== tag),
+        groups: newGroups
       });
     } else {
+      const newGroups = [...stopCondition.groups];
+      newGroups[groupIndex] = {
+        ...newGroups[groupIndex],
+        tags: newGroups[groupIndex].tags.filter(t => t !== tag)
+      };
       setStopCondition({
         ...stopCondition,
-        tags: stopCondition.tags.filter(t => t !== tag),
+        groups: newGroups
       });
     }
     notifyChanges();
   };
   
-  const toggleConditionType = (target: "start" | "stop") => {
+  const toggleGroupOperator = (target: "start" | "stop", groupIndex: number) => {
+    if (target === "start") {
+      const newGroups = [...startCondition.groups];
+      newGroups[groupIndex] = {
+        ...newGroups[groupIndex],
+        operator: newGroups[groupIndex].operator === "AND" ? "OR" : "AND"
+      };
+      setStartCondition({
+        ...startCondition,
+        groups: newGroups
+      });
+    } else {
+      const newGroups = [...stopCondition.groups];
+      newGroups[groupIndex] = {
+        ...newGroups[groupIndex],
+        operator: newGroups[groupIndex].operator === "AND" ? "OR" : "AND"
+      };
+      setStopCondition({
+        ...stopCondition,
+        groups: newGroups
+      });
+    }
+    notifyChanges();
+  };
+  
+  const toggleMainOperator = (target: "start" | "stop") => {
     if (target === "start") {
       setStartCondition({
         ...startCondition,
-        type: startCondition.type === "AND" ? "OR" : "AND",
+        operator: startCondition.operator === "AND" ? "OR" : "AND"
       });
     } else {
       setStopCondition({
         ...stopCondition,
-        type: stopCondition.type === "AND" ? "OR" : "AND",
+        operator: stopCondition.operator === "AND" ? "OR" : "AND"
+      });
+    }
+    notifyChanges();
+  };
+  
+  const addConditionGroup = (target: "start" | "stop") => {
+    if (target === "start") {
+      setStartCondition({
+        ...startCondition,
+        groups: [
+          ...startCondition.groups,
+          { operator: "AND", tags: [] }
+        ]
+      });
+    } else {
+      setStopCondition({
+        ...stopCondition,
+        groups: [
+          ...stopCondition.groups,
+          { operator: "OR", tags: [] }
+        ]
+      });
+    }
+    notifyChanges();
+  };
+  
+  const removeConditionGroup = (target: "start" | "stop", groupIndex: number) => {
+    if (target === "start") {
+      if (startCondition.groups.length <= 1) return;
+      
+      const newGroups = [...startCondition.groups];
+      newGroups.splice(groupIndex, 1);
+      setStartCondition({
+        ...startCondition,
+        groups: newGroups
+      });
+    } else {
+      if (stopCondition.groups.length <= 1) return;
+      
+      const newGroups = [...stopCondition.groups];
+      newGroups.splice(groupIndex, 1);
+      setStopCondition({
+        ...stopCondition,
+        groups: newGroups
       });
     }
     notifyChanges();
@@ -433,15 +528,17 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
     }
   };
   
-  // Update the handleSubmit function to update all typebot stage content with the current URL when saving
-  const handleSubmit = () => {
+  // Update the handleSubmit function to use the new condition structure
+  const handleSubmit = async () => {
     try {
       if (!name) {
         toast.error("Por favor, informe um nome para a sequência.");
         return;
       }
       
-      if (startCondition.tags.length === 0) {
+      // Check if any start condition groups have tags
+      const hasStartConditionTags = startCondition.groups.some(group => group.tags.length > 0);
+      if (!hasStartConditionTags) {
         toast.error("Por favor, adicione pelo menos uma tag para a condição de início.");
         return;
       }
@@ -504,7 +601,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
   
   // Check if form has been modified from initial values
   const hasBeenModified = () => {
-    if (!sequence) return name !== '' || startCondition.tags.length > 0 || stages.length > 0;
+    if (!sequence) return name !== '' || startCondition.groups.some(group => group.tags.length > 0) || stages.length > 0;
     
     return (
       name !== sequence.name ||
@@ -554,7 +651,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
 
   return (
     <div className="space-y-6">
-      {/* Header com botões - apenas botão de salvar */}
+      {/* Header with buttons - only save button */}
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold">Configuração da Sequência</h2>
         <div className="flex gap-2">
@@ -622,9 +719,12 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
                 setNewTag={setNewTag}
                 showTagSelector={showTagSelector === "start"}
                 setShowTagSelector={() => setShowTagSelector("start")}
-                addTagToCondition={(tag) => addTagToCondition("start", tag)}
-                removeTag={(tag) => removeTag("start", tag)}
-                toggleConditionType={() => toggleConditionType("start")}
+                addTagToCondition={(groupIndex, tag) => addTagToCondition("start", groupIndex, tag)}
+                removeTag={(groupIndex, tag) => removeTag("start", groupIndex, tag)}
+                toggleGroupOperator={(groupIndex) => toggleGroupOperator("start", groupIndex)}
+                toggleMainOperator={() => toggleMainOperator("start")}
+                addGroup={() => addConditionGroup("start")}
+                removeGroup={(groupIndex) => removeConditionGroup("start", groupIndex)}
                 notifyChanges={notifyChanges}
               />
               
@@ -640,9 +740,12 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
                 setNewTag={setNewTag}
                 showTagSelector={showTagSelector === "stop"}
                 setShowTagSelector={() => setShowTagSelector("stop")}
-                addTagToCondition={(tag) => addTagToCondition("stop", tag)}
-                removeTag={(tag) => removeTag("stop", tag)}
-                toggleConditionType={() => toggleConditionType("stop")}
+                addTagToCondition={(groupIndex, tag) => addTagToCondition("stop", groupIndex, tag)}
+                removeTag={(groupIndex, tag) => removeTag("stop", groupIndex, tag)}
+                toggleGroupOperator={(groupIndex) => toggleGroupOperator("stop", groupIndex)}
+                toggleMainOperator={() => toggleMainOperator("stop")}
+                addGroup={() => addConditionGroup("stop")}
+                removeGroup={(groupIndex) => removeConditionGroup("stop", groupIndex)}
                 notifyChanges={notifyChanges}
               />
             </div>

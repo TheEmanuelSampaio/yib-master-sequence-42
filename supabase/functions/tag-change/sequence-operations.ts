@@ -104,130 +104,103 @@ export async function processSequences(
           continue;
         }
         
-        // Verificar condições de início da sequência
-        const matchesStartCondition = checkCondition(tags, sequence.start_condition_tags, sequence.start_condition_type);
-        console.log(`[5. SEQUÊNCIAS] Verificando condição de início para sequência ${sequence.name}: ${matchesStartCondition ? 'ATENDE' : 'NÃO ATENDE'}`);
+        // Buscar os grupos de condições de início da sequência
+        const { data: startGroups, error: startGroupsError } = await supabase
+          .from('sequence_condition_groups')
+          .select('*')
+          .eq('sequence_id', sequence.id)
+          .eq('condition_type', 'start');
+          
+        if (startGroupsError) {
+          console.error(`[5. SEQUÊNCIAS] Erro ao buscar grupos de condição de início: ${JSON.stringify(startGroupsError)}`);
+          continue;
+        }
         
-        // Verificar condições de parada da sequência
-        const matchesStopCondition = checkCondition(tags, sequence.stop_condition_tags, sequence.stop_condition_type);
-        console.log(`[5. SEQUÊNCIAS] Verificando condição de parada para sequência ${sequence.name}: ${matchesStopCondition ? 'ATENDE' : 'NÃO ATENDE'}`);
+        // Se não encontrou grupos da nova estrutura, usar a estrutura antiga
+        if (!startGroups || startGroups.length === 0) {
+          console.log(`[5. SEQUÊNCIAS] Usando estrutura antiga para a sequência ${sequence.name}`);
+          
+          // Verificar condições de início da sequência (estrutura antiga)
+          const matchesStartCondition = checkConditionOld(tags, sequence.start_condition_tags, sequence.start_condition_type);
+          console.log(`[5. SEQUÊNCIAS] Verificando condição de início para sequência ${sequence.name}: ${matchesStartCondition ? 'ATENDE' : 'NÃO ATENDE'}`);
+          
+          // Verificar condições de parada da sequência (estrutura antiga)
+          const matchesStopCondition = checkConditionOld(tags, sequence.stop_condition_tags, sequence.stop_condition_type);
+          console.log(`[5. SEQUÊNCIAS] Verificando condição de parada para sequência ${sequence.name}: ${matchesStopCondition ? 'ATENDE' : 'NÃO ATENDE'}`);
+          
+          // Se atende à condição de início e não atende à condição de parada, adicionar à sequência
+          if (matchesStartCondition && !matchesStopCondition) {
+            await addContactToSequence(supabase, sequence, contactId, instance.id);
+            sequencesAdded++;
+          } else {
+            console.log(`[5. SEQUÊNCIAS] Contato não adicionado à sequência ${sequence.name}: não atende às condições necessárias`);
+            sequencesSkipped++;
+          }
+          
+          continue; // Prossegue para a próxima sequência
+        }
+        
+        // Buscar os grupos de condições de parada da sequência
+        const { data: stopGroups, error: stopGroupsError } = await supabase
+          .from('sequence_condition_groups')
+          .select('*')
+          .eq('sequence_id', sequence.id)
+          .eq('condition_type', 'stop');
+          
+        if (stopGroupsError) {
+          console.error(`[5. SEQUÊNCIAS] Erro ao buscar grupos de condição de parada: ${JSON.stringify(stopGroupsError)}`);
+          continue;
+        }
+        
+        // Para cada grupo de início, buscar as tags
+        const startConditions = [];
+        for (const group of startGroups) {
+          const { data: tags, error: tagsError } = await supabase
+            .from('sequence_condition_tags')
+            .select('*')
+            .eq('group_id', group.id);
+            
+          if (tagsError) {
+            console.error(`[5. SEQUÊNCIAS] Erro ao buscar tags do grupo: ${JSON.stringify(tagsError)}`);
+            continue;
+          }
+          
+          startConditions.push({
+            operator: group.group_operator,
+            tags: tags.map((t: any) => t.tag_name)
+          });
+        }
+        
+        // Para cada grupo de parada, buscar as tags
+        const stopConditions = [];
+        for (const group of stopGroups) {
+          const { data: tags, error: tagsError } = await supabase
+            .from('sequence_condition_tags')
+            .select('*')
+            .eq('group_id', group.id);
+            
+          if (tagsError) {
+            console.error(`[5. SEQUÊNCIAS] Erro ao buscar tags do grupo: ${JSON.stringify(tagsError)}`);
+            continue;
+          }
+          
+          stopConditions.push({
+            operator: group.group_operator,
+            tags: tags.map((t: any) => t.tag_name)
+          });
+        }
+        
+        // Verificar condições complexas (novos grupos)
+        const matchesStartCondition = checkComplexCondition(tags, startConditions, startGroups[0]?.group_operator || 'OR');
+        console.log(`[5. SEQUÊNCIAS] Verificando condição complexa de início para sequência ${sequence.name}: ${matchesStartCondition ? 'ATENDE' : 'NÃO ATENDE'}`);
+        
+        const matchesStopCondition = checkComplexCondition(tags, stopConditions, stopGroups[0]?.group_operator || 'OR');
+        console.log(`[5. SEQUÊNCIAS] Verificando condição complexa de parada para sequência ${sequence.name}: ${matchesStopCondition ? 'ATENDE' : 'NÃO ATENDE'}`);
         
         // Se atende à condição de início e não atende à condição de parada, adicionar à sequência
         if (matchesStartCondition && !matchesStopCondition) {
-          // Buscar o primeiro estágio da sequência
-          const { data: stages, error: stagesError } = await supabase
-            .from('sequence_stages')
-            .select('*')
-            .eq('sequence_id', sequence.id)
-            .order('order_index', { ascending: true })
-            .limit(1);
-          
-          if (stagesError || !stages || stages.length === 0) {
-            console.error(`[5. SEQUÊNCIAS] Erro ao buscar estágios da sequência ou nenhum estágio encontrado: ${JSON.stringify(stagesError || 'Nenhum estágio')}`);
-            continue;
-          }
-          
-          const firstStage = stages[0];
-          const now = new Date().toISOString();
-          let contactSequenceId = '';
-          
-          // Criar uma nova entrada para o contato na sequência
-          const { data: newContactSequence, error: insertError } = await supabase
-            .from('contact_sequences')
-            .insert([{
-              contact_id: contactId,
-              sequence_id: sequence.id,
-              current_stage_index: 0,
-              current_stage_id: firstStage.id,
-              status: 'active',
-              started_at: now
-            }])
-            .select();
-          
-          if (insertError) {
-            console.error(`[5. SEQUÊNCIAS] Erro ao adicionar contato à sequência: ${JSON.stringify(insertError)}`);
-            continue;
-          }
-          
-          console.log(`[5. SEQUÊNCIAS] Contato adicionado com sucesso à sequência ${sequence.name}!`);
-          contactSequenceId = newContactSequence[0].id;
+          await addContactToSequence(supabase, sequence, contactId, instance.id);
           sequencesAdded++;
-          
-          // Adicionar registro de progresso do estágio
-          const { error: progressError } = await supabase
-            .from('stage_progress')
-            .insert([{
-              contact_sequence_id: contactSequenceId,
-              stage_id: firstStage.id,
-              status: 'pending'
-            }]);
-          
-          if (progressError) {
-            console.error(`[5. SEQUÊNCIAS] Erro ao adicionar progresso do estágio: ${JSON.stringify(progressError)}`);
-            continue;
-          }
-          
-          // Calcular o tempo de agendamento da mensagem
-          const delayMs = calculateDelayMs(firstStage.delay, firstStage.delay_unit);
-          const scheduledTime = new Date(Date.now() + delayMs);
-          
-          // Agendar a mensagem para o primeiro estágio
-          // MODIFICADO: Alterado o status de "waiting" para "pending"
-          const { error: scheduleError } = await supabase
-            .from('scheduled_messages')
-            .insert([{
-              contact_id: contactId,
-              sequence_id: sequence.id,
-              stage_id: firstStage.id,
-              raw_scheduled_time: scheduledTime.toISOString(),
-              scheduled_time: scheduledTime.toISOString(),
-              status: 'pending' // Alterado de 'waiting' para 'pending'
-            }]);
-          
-          if (scheduleError) {
-            console.error(`[5. SEQUÊNCIAS] Erro ao agendar mensagem: ${JSON.stringify(scheduleError)}`);
-            continue;
-          }
-          
-          console.log(`[5. SEQUÊNCIAS] Mensagem agendada com sucesso para ${scheduledTime.toISOString()}`);
-          
-          // Incrementar estatísticas diárias
-          try {
-            const today = new Date().toISOString().split('T')[0];
-            
-            // Verificar se já existe um registro para este dia e instância
-            const { data: existingStats } = await supabase
-              .from('daily_stats')
-              .select('*')
-              .eq('instance_id', instance.id)
-              .eq('date', today)
-              .maybeSingle();
-            
-            if (existingStats) {
-              // Se existe, fazer update
-              await supabase
-                .from('daily_stats')
-                .update({
-                  messages_scheduled: existingStats.messages_scheduled + 1
-                })
-                .eq('id', existingStats.id);
-            } else {
-              // Se não existe, criar um novo
-              await supabase
-                .from('daily_stats')
-                .insert([{
-                  instance_id: instance.id,
-                  date: today,
-                  messages_scheduled: 1,
-                  messages_sent: 0,
-                  messages_failed: 0,
-                  completed_sequences: 0,
-                  new_contacts: 0
-                }]);
-            }
-          } catch (statsError) {
-            console.error(`[ESTATÍSTICAS] Erro ao incrementar estatísticas: ${JSON.stringify(statsError)}`);
-          }
         } else {
           console.log(`[5. SEQUÊNCIAS] Contato não adicionado à sequência ${sequence.name}: não atende às condições necessárias`);
           sequencesSkipped++;
@@ -248,9 +221,129 @@ export async function processSequences(
 }
 
 /**
- * Verifica se as tags do contato atendem a uma condição (AND/OR)
+ * Adiciona um contato a uma sequência e agenda a primeira mensagem
  */
-function checkCondition(contactTags: string[], conditionTags: string[], conditionType: string): boolean {
+async function addContactToSequence(supabase: any, sequence: any, contactId: string, instanceId: string) {
+  // Buscar o primeiro estágio da sequência
+  const { data: stages, error: stagesError } = await supabase
+    .from('sequence_stages')
+    .select('*')
+    .eq('sequence_id', sequence.id)
+    .order('order_index', { ascending: true })
+    .limit(1);
+  
+  if (stagesError || !stages || stages.length === 0) {
+    console.error(`[5. SEQUÊNCIAS] Erro ao buscar estágios da sequência ou nenhum estágio encontrado: ${JSON.stringify(stagesError || 'Nenhum estágio')}`);
+    return false;
+  }
+  
+  const firstStage = stages[0];
+  const now = new Date().toISOString();
+  let contactSequenceId = '';
+  
+  // Criar uma nova entrada para o contato na sequência
+  const { data: newContactSequence, error: insertError } = await supabase
+    .from('contact_sequences')
+    .insert([{
+      contact_id: contactId,
+      sequence_id: sequence.id,
+      current_stage_index: 0,
+      current_stage_id: firstStage.id,
+      status: 'active',
+      started_at: now
+    }])
+    .select();
+  
+  if (insertError) {
+    console.error(`[5. SEQUÊNCIAS] Erro ao adicionar contato à sequência: ${JSON.stringify(insertError)}`);
+    return false;
+  }
+  
+  console.log(`[5. SEQUÊNCIAS] Contato adicionado com sucesso à sequência ${sequence.name}!`);
+  contactSequenceId = newContactSequence[0].id;
+  
+  // Adicionar registro de progresso do estágio
+  const { error: progressError } = await supabase
+    .from('stage_progress')
+    .insert([{
+      contact_sequence_id: contactSequenceId,
+      stage_id: firstStage.id,
+      status: 'pending'
+    }]);
+  
+  if (progressError) {
+    console.error(`[5. SEQUÊNCIAS] Erro ao adicionar progresso do estágio: ${JSON.stringify(progressError)}`);
+    return false;
+  }
+  
+  // Calcular o tempo de agendamento da mensagem
+  const delayMs = calculateDelayMs(firstStage.delay, firstStage.delay_unit);
+  const scheduledTime = new Date(Date.now() + delayMs);
+  
+  // Agendar a mensagem para o primeiro estágio
+  const { error: scheduleError } = await supabase
+    .from('scheduled_messages')
+    .insert([{
+      contact_id: contactId,
+      sequence_id: sequence.id,
+      stage_id: firstStage.id,
+      raw_scheduled_time: scheduledTime.toISOString(),
+      scheduled_time: scheduledTime.toISOString(),
+      status: 'pending'
+    }]);
+  
+  if (scheduleError) {
+    console.error(`[5. SEQUÊNCIAS] Erro ao agendar mensagem: ${JSON.stringify(scheduleError)}`);
+    return false;
+  }
+  
+  console.log(`[5. SEQUÊNCIAS] Mensagem agendada com sucesso para ${scheduledTime.toISOString()}`);
+  
+  // Incrementar estatísticas diárias
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Verificar se já existe um registro para este dia e instância
+    const { data: existingStats } = await supabase
+      .from('daily_stats')
+      .select('*')
+      .eq('instance_id', instanceId)
+      .eq('date', today)
+      .maybeSingle();
+    
+    if (existingStats) {
+      // Se existe, fazer update
+      await supabase
+        .from('daily_stats')
+        .update({
+          messages_scheduled: existingStats.messages_scheduled + 1
+        })
+        .eq('id', existingStats.id);
+    } else {
+      // Se não existe, criar um novo
+      await supabase
+        .from('daily_stats')
+        .insert([{
+          instance_id: instanceId,
+          date: today,
+          messages_scheduled: 1,
+          messages_sent: 0,
+          messages_failed: 0,
+          completed_sequences: 0,
+          new_contacts: 0
+        }]);
+    }
+  } catch (statsError) {
+    console.error(`[ESTATÍSTICAS] Erro ao incrementar estatísticas: ${JSON.stringify(statsError)}`);
+  }
+  
+  return true;
+}
+
+/**
+ * Verifica se as tags do contato atendem a uma condição (AND/OR) - Estrutura antiga
+ */
+function checkConditionOld(contactTags: string[], conditionTags: string[], conditionType: string): boolean {
   if (!conditionTags || conditionTags.length === 0) {
     return false;
   }
@@ -264,6 +357,39 @@ function checkCondition(contactTags: string[], conditionTags: string[], conditio
   }
   
   return false;
+}
+
+/**
+ * Verifica se as tags do contato atendem a uma condição complexa com grupos
+ */
+function checkComplexCondition(contactTags: string[], conditions: any[], mainOperator: string): boolean {
+  if (!conditions || conditions.length === 0) {
+    return false;
+  }
+  
+  // Avaliar cada grupo de acordo com seu operador interno
+  const groupResults = conditions.map(group => {
+    if (!group.tags || group.tags.length === 0) {
+      return false;
+    }
+    
+    if (group.operator === 'AND') {
+      // Todas as tags do grupo devem existir nas tags do contato
+      return group.tags.every((tag: string) => contactTags.includes(tag));
+    } else {
+      // Ao menos uma tag do grupo deve existir nas tags do contato
+      return group.tags.some((tag: string) => contactTags.includes(tag));
+    }
+  });
+  
+  // Avaliar o resultado final com base no operador principal
+  if (mainOperator === 'AND') {
+    // Todos os grupos devem ser verdadeiros
+    return groupResults.every(result => result === true);
+  } else {
+    // Pelo menos um grupo deve ser verdadeiro
+    return groupResults.some(result => result === true);
+  }
 }
 
 /**
