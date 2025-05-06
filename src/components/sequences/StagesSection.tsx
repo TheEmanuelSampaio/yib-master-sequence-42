@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -8,7 +7,6 @@ import { StageItem } from "./StageItem";
 import { AddStageForm } from "./AddStageForm";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-
 interface StagesSectionProps {
   stages: SequenceStage[];
   editingStageId: string | null;
@@ -26,26 +24,24 @@ interface StagesSectionProps {
   addStage: () => void;
   notifyChanges: () => void;
 }
-
-export function StagesSection({ 
-  stages, 
-  editingStageId, 
+export function StagesSection({
+  stages,
+  editingStageId,
   stageToEdit,
   sequenceType,
   typebotUrl,
   setTypebotUrl,
-  onEdit, 
-  onUpdate, 
-  onCancel, 
-  onRemove, 
+  onEdit,
+  onUpdate,
+  onCancel,
+  onRemove,
   onMove,
   newStage,
   setNewStage,
   addStage,
   notifyChanges
 }: StagesSectionProps) {
-  return (
-    <Card>
+  return <Card>
       <CardHeader>
         <CardTitle>Estágios da Sequência</CardTitle>
         <CardDescription>
@@ -54,25 +50,15 @@ export function StagesSection({
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Campo URL do Typebot, movido para esta aba */}
-        {sequenceType === "typebot" && (
-          <div className="space-y-2">
+        {sequenceType === "typebot" && <div className="space-y-2">
             <Label htmlFor="typebot-url">URL do Typebot</Label>
-            <Input 
-              id="typebot-url"
-              type="url"
-              value={typebotUrl}
-              onChange={(e) => {
-                setTypebotUrl(e.target.value);
-                notifyChanges();
-              }}
-              placeholder="https://typebot.io/your-bot"
-              className="w-full"
-            />
-          </div>
-        )}
+            <Input id="typebot-url" type="url" value={typebotUrl} onChange={e => {
+          setTypebotUrl(e.target.value);
+          notifyChanges();
+        }} placeholder="https://typebot.io/your-bot" className="w-full" />
+          </div>}
 
-        {stages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-6 text-center">
+        {stages.length === 0 ? <div className="flex flex-col items-center justify-center py-6 text-center">
             <Clock className="h-8 w-8 text-muted-foreground mb-2" />
             <p className="text-muted-foreground">
               Nenhum estágio definido
@@ -80,41 +66,11 @@ export function StagesSection({
             <p className="text-xs text-muted-foreground mt-1">
               Adicione pelo menos um estágio à sua sequência
             </p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {sequenceType === "typebot" && typebotUrl && (
-              <div className="p-3 border rounded-md mb-4 bg-muted/20">
-                <p className="font-medium">Link do Typebot:</p>
-                <a 
-                  href={typebotUrl} 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  className="text-blue-500 break-all hover:underline"
-                >
-                  {typebotUrl}
-                </a>
-              </div>
-            )}
+          </div> : <div className="space-y-4">
+            {sequenceType === "typebot" && typebotUrl}
             
-            {stages.map((stage, index) => (
-              <StageItem 
-                key={stage.id}
-                stage={stage}
-                index={index}
-                isEditing={editingStageId === stage.id}
-                stageToEdit={stageToEdit}
-                onEdit={onEdit}
-                onUpdate={onUpdate}
-                onCancel={onCancel}
-                onRemove={onRemove}
-                onMove={onMove}
-                isFirst={index === 0}
-                isLast={index === stages.length - 1}
-              />
-            ))}
-          </div>
-        )}
+            {stages.map((stage, index) => <StageItem key={stage.id} stage={stage} index={index} isEditing={editingStageId === stage.id} stageToEdit={stageToEdit} onEdit={onEdit} onUpdate={onUpdate} onCancel={onCancel} onRemove={onRemove} onMove={onMove} isFirst={index === 0} isLast={index === stages.length - 1} />)}
+          </div>}
         
         {/* Add Stage */}
         <Accordion type="single" collapsible>
@@ -126,17 +82,10 @@ export function StagesSection({
               </div>
             </AccordionTrigger>
             <AccordionContent>
-              <AddStageForm 
-                newStage={newStage}
-                setNewStage={setNewStage}
-                addStage={addStage}
-                sequenceType={sequenceType}
-                nextStageNumber={stages.length + 1}
-              />
+              <AddStageForm newStage={newStage} setNewStage={setNewStage} addStage={addStage} sequenceType={sequenceType} nextStageNumber={stages.length + 1} />
             </AccordionContent>
           </AccordionItem>
         </Accordion>
       </CardContent>
-    </Card>
-  );
+    </Card>;
 }
