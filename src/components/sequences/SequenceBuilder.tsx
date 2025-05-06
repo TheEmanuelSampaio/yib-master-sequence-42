@@ -47,9 +47,6 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
   const [typebotUrl, setTypebotUrl] = useState<string>(
     sequence?.type === "typebot" && stages[0]?.content ? stages[0].content : ""
   );
-  const [typebotStageCount, setTypebotStageCount] = useState<number>(
-    sequence?.type === "typebot" ? stages.length || 1 : 1
-  );
   
   const [showTagSelector, setShowTagSelector] = useState<"start" | "stop" | null>(null);
   const [newTag, setNewTag] = useState("");
@@ -69,7 +66,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
       type: type
     }));
     
-    // Para typebot, podemos pré-configurar o nome do estágio e o conteúdo
+    // Para typebot, podemos pré-configurar o nome do estágio
     if (type === 'typebot') {
       const nextStageNumber = stages.length + 1;
       setNewStage(prev => ({
@@ -135,11 +132,9 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
       // Se mudar para typebot, ajustar alguns campos necessários
       if (newType === 'typebot') {
         // Não vamos mais sobrescrever o array de estágios
-        // Apenas garantir que todos os estágios tenham o mesmo conteúdo (URL do typebot)
-        // e os typebotStage corretos
+        // Apenas garantir que todos os estágios tenham os typebotStage corretos
         const finalStages = updatedStages.map((stage, index) => ({
           ...stage,
-          content: typebotUrl,
           typebotStage: `stg${index + 1}`
         }));
         
@@ -609,10 +604,9 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
               setStatus={setStatus}
               type={type}
               setType={setType}
-              typebotStageCount={typebotStageCount}
-              setTypebotStageCount={setTypebotStageCount}
               notifyChanges={notifyChanges}
               onTypeChange={handleTypeChange}
+              isEditMode={!!sequence} // Passa true se estiver editando uma sequência existente
             />
 
             <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">

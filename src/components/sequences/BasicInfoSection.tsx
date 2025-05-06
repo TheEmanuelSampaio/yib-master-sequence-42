@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -14,10 +14,9 @@ interface BasicInfoSectionProps {
   setStatus: (status: "active" | "inactive") => void;
   type: "message" | "pattern" | "typebot";
   setType: (type: "message" | "pattern" | "typebot") => void;
-  typebotStageCount: number;
-  setTypebotStageCount: (count: number) => void;
   notifyChanges: () => void;
   onTypeChange: (newType: "message" | "pattern" | "typebot") => void;
+  isEditMode: boolean;
 }
 
 export function BasicInfoSection({ 
@@ -26,39 +25,31 @@ export function BasicInfoSection({
   status, 
   setStatus, 
   type, 
-  setType, 
-  typebotStageCount, 
-  setTypebotStageCount,
+  setType,
   notifyChanges,
-  onTypeChange 
+  onTypeChange,
+  isEditMode
 }: BasicInfoSectionProps) {
   const [showTypeChangeAlert, setShowTypeChangeAlert] = useState(false);
   const [pendingType, setPendingType] = useState<"message" | "pattern" | "typebot" | null>(null);
 
-  // Preserve the current typebotStageCount when switching to typebot
-  const [preservedStageCount, setPreservedStageCount] = useState<number>(typebotStageCount);
-  
-  // When type changes to typebot, restore the preserved stage count
-  useEffect(() => {
-    if (type === "typebot" && preservedStageCount > 1) {
-      setTypebotStageCount(preservedStageCount);
-    }
-  }, [type]);
-
   const handleTypeChange = (newType: "message" | "pattern" | "typebot") => {
     if (newType !== type) {
-      setPendingType(newType);
-      setShowTypeChangeAlert(true);
+      // Só mostrar o alerta se estiver no modo de edição (não para sequências novas)
+      if (isEditMode) {
+        setPendingType(newType);
+        setShowTypeChangeAlert(true);
+      } else {
+        // Se for uma nova sequência, apenas muda o tipo sem alertas
+        onTypeChange(newType);
+        setType(newType);
+        notifyChanges();
+      }
     }
   };
 
   const confirmTypeChange = () => {
     if (pendingType) {
-      // If changing to typebot, save the current stage count
-      if (pendingType === "typebot") {
-        setPreservedStageCount(typebotStageCount);
-      }
-      
       onTypeChange(pendingType);
       setType(pendingType);
       notifyChanges();
@@ -114,28 +105,6 @@ export function BasicInfoSection({
             </div>
           </div>
           
-          {type === "typebot" && (
-            <div className="space-y-2">
-              <Label htmlFor="typebotStageCount">Número de Estágios do Typebot</Label>
-              <Input 
-                id="typebotStageCount" 
-                type="number" 
-                min={1} 
-                value={typebotStageCount}
-                onChange={(e) => {
-                  const value = parseInt(e.target.value);
-                  if (value > 0) {
-                    setTypebotStageCount(value);
-                    notifyChanges();
-                  }
-                }}
-              />
-              <p className="text-sm text-muted-foreground">
-                Defina quantos estágios o seu Typebot possui
-              </p>
-            </div>
-          )}
-          
           <div className="space-y-2">
             <Label htmlFor="status">Status</Label>
             <div className="mt-2">
@@ -156,16 +125,14 @@ export function BasicInfoSection({
         </CardContent>
       </Card>
 
-      {/* Diálogo de alerta para mudança de tipo */}
+      {/* Diálogo de alerta para mudança de tipo - mensagem simplificada */}
       <AlertDialog open={showTypeChangeAlert} onOpenChange={setShowTypeChangeAlert}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Alterar o tipo da sequência?</AlertDialogTitle>
             <AlertDialogDescription>
-              A alteração do tipo da sequência exigirá que você edite todos os estágios existentes. 
-              O conteúdo dos estágios será limpo e você precisará preenchê-los de acordo com o novo tipo selecionado.
-              Os IDs dos estágios serão preservados.
-              Esta ação não pode ser desfeita.
+              O conteúdo dos estágios será limpo ao alterar o tipo da sequência.
+              Esta ação não pode ser desfeita após salvar.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
