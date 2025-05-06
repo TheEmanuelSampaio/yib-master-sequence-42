@@ -59,6 +59,7 @@ export interface ConditionGroup {
   tags: string[];
 }
 
+// Legacy type - keeping for backward compatibility
 export interface TagCondition {
   type: "AND" | "OR";
   tags: string[];

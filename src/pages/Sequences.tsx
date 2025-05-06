@@ -116,6 +116,11 @@ export default function Sequences() {
     toast.success("Sequência excluída com sucesso");
   };
   
+  // Helper to get all tags from all groups
+  const getAllTags = (conditionStructure: { operator: string, groups: { operator: string, tags: string[] }[] }) => {
+    return conditionStructure.groups.flatMap(group => group.tags);
+  };
+  
   const getStageIcon = (type: string) => {
     switch (type) {
       case "message":
@@ -352,24 +357,24 @@ export default function Sequences() {
                   </div>
                   <div className="flex flex-col space-y-2">
                     <div>
-                      <span className="text-xs text-muted-foreground">Início ({sequence.startCondition.type}):</span>
+                      <span className="text-xs text-muted-foreground">Início ({sequence.startCondition.operator}):</span>
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {sequence.startCondition.tags.map(tag => (
-                          <Badge key={tag} variant="outline" className="bg-green-500/10 text-green-700 dark:text-green-400 text-xs py-0">
+                        {getAllTags(sequence.startCondition).map((tag, idx) => (
+                          <Badge key={`start-${idx}-${tag}`} variant="outline" className="bg-green-500/10 text-green-700 dark:text-green-400 text-xs py-0">
                             {tag}
                           </Badge>
                         ))}
                       </div>
                     </div>
                     <div>
-                      <span className="text-xs text-muted-foreground">Parada ({sequence.stopCondition.type}):</span>
+                      <span className="text-xs text-muted-foreground">Parada ({sequence.stopCondition.operator}):</span>
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {sequence.stopCondition.tags.map(tag => (
-                          <Badge key={tag} variant="outline" className="bg-red-500/10 text-red-700 dark:text-red-400 text-xs py-0">
+                        {getAllTags(sequence.stopCondition).map((tag, idx) => (
+                          <Badge key={`stop-${idx}-${tag}`} variant="outline" className="bg-red-500/10 text-red-700 dark:text-red-400 text-xs py-0">
                             {tag}
                           </Badge>
                         ))}
-                        {sequence.stopCondition.tags.length === 0 && (
+                        {getAllTags(sequence.stopCondition).length === 0 && (
                           <span className="text-xs text-muted-foreground italic">Nenhuma</span>
                         )}
                       </div>
