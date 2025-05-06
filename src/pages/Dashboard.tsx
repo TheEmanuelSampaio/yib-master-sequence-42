@@ -5,7 +5,7 @@ import { SequenceOverview } from '@/components/dashboard/SequenceOverview';
 import { MessagesChart } from '@/components/dashboard/MessagesChart';
 import { RecentContacts } from '@/components/dashboard/RecentContacts';
 import { TagDistributionChart } from '@/components/dashboard/TagDistributionChart';
-import { LayoutDashboard, Users, MessageSquare, CheckCheck, Clock } from 'lucide-react';
+import { LayoutDashboard, Users, MessageSquare, CheckCheck } from 'lucide-react';
 
 export default function Dashboard() {
   const { currentInstance, sequences, contacts, stats } = useApp();
@@ -21,9 +21,12 @@ export default function Dashboard() {
   
   const contactCount = contacts.length;
   
+  // Ensure stats is an array before using find
+  const statsArray = Array.isArray(stats) ? stats : [];
+  
   // Get today's stats
   const today = new Date().toISOString().split('T')[0];
-  const todayStats = stats.find(s => s.date === today) || {
+  const todayStats = statsArray.find(s => s.date === today) || {
     messagesSent: 0,
     messagesScheduled: 0,
     messagesFailed: 0,

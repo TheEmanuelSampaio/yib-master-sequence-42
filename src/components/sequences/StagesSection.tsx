@@ -44,6 +44,18 @@ export function StagesSection({
   addStage,
   notifyChanges
 }: StagesSectionProps) {
+  // Function to handle adding a stage
+  const handleAddStage = () => {
+    addStage();
+    notifyChanges(); // Important: notify that changes were made
+  };
+  
+  // Notify changes when typebot URL changes
+  const handleTypebotUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setTypebotUrl(e.target.value);
+    notifyChanges();
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -61,10 +73,7 @@ export function StagesSection({
               id="typebot-url"
               type="url"
               value={typebotUrl}
-              onChange={(e) => {
-                setTypebotUrl(e.target.value);
-                notifyChanges();
-              }}
+              onChange={handleTypebotUrlChange}
               placeholder="https://typebot.io/your-bot"
               className="w-full"
             />
@@ -90,11 +99,23 @@ export function StagesSection({
                 index={index}
                 isEditing={editingStageId === stage.id}
                 stageToEdit={stageToEdit}
-                onEdit={onEdit}
-                onUpdate={onUpdate}
+                onEdit={(stage) => {
+                  onEdit(stage);
+                  notifyChanges(); // Notify when editing begins
+                }}
+                onUpdate={(stage) => {
+                  onUpdate(stage);
+                  notifyChanges(); // Notify when stage is updated
+                }}
                 onCancel={onCancel}
-                onRemove={onRemove}
-                onMove={onMove}
+                onRemove={(id) => {
+                  onRemove(id);
+                  notifyChanges(); // Notify when stage is removed
+                }}
+                onMove={(id, direction) => {
+                  onMove(id, direction);
+                  notifyChanges(); // Notify when stage is moved
+                }}
                 isFirst={index === 0}
                 isLast={index === stages.length - 1}
               />
@@ -114,8 +135,11 @@ export function StagesSection({
             <AccordionContent>
               <AddStageForm 
                 newStage={newStage}
-                setNewStage={setNewStage}
-                addStage={addStage}
+                setNewStage={(stage) => {
+                  setNewStage(stage);
+                  // Don't notify changes here as the stage isn't added yet
+                }}
+                addStage={handleAddStage}
                 sequenceType={sequenceType}
                 nextStageNumber={stages.length + 1}
               />

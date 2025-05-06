@@ -16,8 +16,13 @@ interface AddStageFormProps {
 }
 
 export function AddStageForm({ newStage, setNewStage, addStage, sequenceType, nextStageNumber }: AddStageFormProps) {
+  const handleAddStage = (e: React.FormEvent) => {
+    e.preventDefault();
+    addStage();
+  };
+
   return (
-    <div className="space-y-4 pb-4">
+    <form className="space-y-4 pb-4" onSubmit={handleAddStage}>
       <div className="space-y-2">
         <Label htmlFor="stage-name">Nome do Estágio</Label>
         <Input 
@@ -83,11 +88,11 @@ export function AddStageForm({ newStage, setNewStage, addStage, sequenceType, ne
       </div>
       
       <Button 
-        onClick={addStage} 
+        type="submit"
         disabled={!newStage.name || (sequenceType !== "typebot" && !newStage.content)}
       >
         Adicionar Estágio
       </Button>
-    </div>
+    </form>
   );
 }

@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ChevronUp, ChevronDown, Trash2, Edit, MessageCircle, FileCode, Bot, Save, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,8 +38,18 @@ export function StageItem({
   isLast
 }: StageItemProps) {
   const [localStage, setLocalStage] = useState<SequenceStage>(stageToEdit || stage);
+  
+  // Update local stage when stageToEdit changes
+  useEffect(() => {
+    if (stageToEdit) {
+      setLocalStage(stageToEdit);
+    } else {
+      setLocalStage(stage);
+    }
+  }, [stageToEdit, stage, isEditing]);
 
-  const handleUpdate = () => {
+  const handleUpdate = (e: React.FormEvent) => {
+    e.preventDefault();
     onUpdate(localStage);
   };
 
@@ -58,14 +68,14 @@ export function StageItem({
 
   if (isEditing) {
     return (
-      <div className="border rounded-md p-4 space-y-4">
+      <form className="border rounded-md p-4 space-y-4" onSubmit={handleUpdate}>
         <div className="flex justify-between items-center mb-3">
           <h3 className="font-medium text-lg">Editando estágio</h3>
           <div className="flex space-x-1">
-            <Button variant="ghost" size="sm" onClick={onCancel}>
+            <Button variant="ghost" size="sm" type="button" onClick={onCancel}>
               <X className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="sm" onClick={handleUpdate}>
+            <Button variant="ghost" size="sm" type="submit">
               <Save className="h-4 w-4" />
             </Button>
           </div>
@@ -77,6 +87,7 @@ export function StageItem({
             id="edit-stage-name" 
             value={localStage.name}
             onChange={(e) => setLocalStage({ ...localStage, name: e.target.value })}
+            required
           />
         </div>
 
@@ -90,6 +101,7 @@ export function StageItem({
               value={localStage.content}
               onChange={(e) => setLocalStage({ ...localStage, content: e.target.value })}
               rows={4}
+              required
             />
           </div>
         )}
@@ -118,6 +130,7 @@ export function StageItem({
                 ...localStage,
                 delay: parseInt(e.target.value) || 60
               })}
+              required
             />
           </div>
           <div className="space-y-2">
@@ -140,7 +153,7 @@ export function StageItem({
             </Select>
           </div>
         </div>
-      </div>
+      </form>
     );
   }
 
