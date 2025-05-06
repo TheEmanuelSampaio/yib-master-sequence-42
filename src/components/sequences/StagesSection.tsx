@@ -83,6 +83,20 @@ export function StagesSection({
           </div>
         ) : (
           <div className="space-y-4">
+            {sequenceType === "typebot" && typebotUrl && (
+              <div className="p-3 border rounded-md mb-4 bg-muted/20">
+                <p className="font-medium">Link do Typebot:</p>
+                <a 
+                  href={typebotUrl} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="text-blue-500 break-all hover:underline"
+                >
+                  {typebotUrl}
+                </a>
+              </div>
+            )}
+            
             {stages.map((stage, index) => (
               <StageItem 
                 key={stage.id}
