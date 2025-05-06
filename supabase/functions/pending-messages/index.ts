@@ -64,6 +64,7 @@ Deno.serve(async (req) => {
         sequences!inner(
           id, 
           name,
+          type,
           instances!inner(
             id, 
             name, 
@@ -74,8 +75,7 @@ Deno.serve(async (req) => {
         sequence_stages!inner(
           id, 
           name, 
-          content, 
-          type
+          content
         )
       `)
       .eq('status', 'pending')
@@ -185,7 +185,7 @@ Deno.serve(async (req) => {
         sequenceData: {
           instanceName: instance.name,
           sequenceName: sequence.name,
-          type: stage.type,
+          type: sequence.type,  // Agora usando o tipo da sequência, não do estágio
           stage: {
             [`stg${stage.id}`]: {
               id: stage.id,
