@@ -21,6 +21,9 @@ export function AddStageForm({ newStage, setNewStage, addStage, sequenceType, ne
     addStage();
   };
 
+  // Validação de conteúdo somente necessária para tipos não-typebot
+  const isFormValid = newStage.name && (sequenceType === "typebot" || newStage.content);
+
   return (
     <form className="space-y-4 pb-4" onSubmit={handleAddStage}>
       <div className="space-y-2">
@@ -89,7 +92,7 @@ export function AddStageForm({ newStage, setNewStage, addStage, sequenceType, ne
       
       <Button 
         type="submit"
-        disabled={!newStage.name || (sequenceType !== "typebot" && !newStage.content)}
+        disabled={!isFormValid}
       >
         Adicionar Estágio
       </Button>
