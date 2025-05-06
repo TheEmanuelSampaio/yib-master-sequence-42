@@ -79,7 +79,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         content: typebotUrl || ""
       }));
     }
-  }, [type, stages.length]); // Removed typebotUrl from dependencies to prevent updates when URL changes
+  }, [type, stages.length, typebotUrl]);
   
   const [newRestriction, setNewRestriction] = useState<Omit<TimeRestriction, "id">>({
     name: "Nova restrição",
@@ -481,7 +481,6 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
     }
   };
   
-  // Update the handleSubmit function to update all typebot stage content with the current URL when saving
   const handleSubmit = () => {
     try {
       if (!name) {
@@ -511,23 +510,13 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         return;
       }
       
-      // Update all typebot stage content with the current URL before saving
-      let finalStages = [...stages];
-      if (type === 'typebot' && typebotUrl) {
-        finalStages = stages.map((stage, index) => ({
-          ...stage,
-          content: typebotUrl,
-          typebotStage: `stg${index + 1}`
-        }));
-      }
-      
       const newSequence: Omit<Sequence, "id" | "createdAt" | "updatedAt"> = {
         name,
         type,
         instanceId: currentInstance.id,
         startCondition,
         stopCondition,
-        stages: finalStages,
+        stages,
         timeRestrictions,
         status,
       };
