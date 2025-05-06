@@ -1,3 +1,4 @@
+
 import { corsHeaders } from '../_shared/cors.ts';
 
 /**
@@ -171,6 +172,7 @@ export async function processSequences(
           const scheduledTime = new Date(Date.now() + delayMs);
           
           // Agendar a mensagem para o primeiro estágio
+          // MODIFICADO: Alterado o status de "waiting" para "pending"
           const { error: scheduleError } = await supabase
             .from('scheduled_messages')
             .insert([{
@@ -179,7 +181,7 @@ export async function processSequences(
               stage_id: firstStage.id,
               raw_scheduled_time: scheduledTime.toISOString(),
               scheduled_time: scheduledTime.toISOString(),
-              status: 'pending'
+              status: 'pending' // Alterado de 'waiting' para 'pending'
             }]);
           
           if (scheduleError) {
