@@ -53,7 +53,7 @@ export function StagesSection({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Campo URL do Typebot, apenas visível quando o tipo da sequência é typebot */}
+        {/* Campo URL do Typebot, movido para esta aba */}
         {sequenceType === "typebot" && (
           <div className="space-y-2">
             <Label htmlFor="typebot-url">URL do Typebot</Label>

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Save, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -70,6 +69,23 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
       type: type
     }));
     
+    // Limpar estágios quando o tipo da sequência mudar
+    if (stages.length > 0) {
+      // Perguntar ao usuário antes de limpar os estágios
+      toast.warning(
+        "Alterar o tipo da sequência irá limpar todos os estágios existentes.", 
+        {
+          action: {
+            label: "Continuar",
+            onClick: () => {
+              // Limpar os estágios
+              setStages([]);
+            }
+          }
+        }
+      );
+    }
+    
     // Para typebot, podemos pré-configurar o nome do estágio e o conteúdo
     if (type === 'typebot') {
       const nextStageNumber = stages.length + 1;
@@ -80,7 +96,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         content: typebotUrl || ""
       }));
     }
-  }, [type, stages.length, typebotUrl]);
+  }, [type]);
   
   const [newRestriction, setNewRestriction] = useState<Omit<TimeRestriction, "id">>({
     name: "Nova restrição",
@@ -98,7 +114,6 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
   const [editingStageId, setEditingStageId] = useState<string | null>(null);
   const [stageToEdit, setStageToEdit] = useState<SequenceStage | null>(null);
   const [showAddRestrictionDialog, setShowAddRestrictionDialog] = useState(false);
-  const [currentTab, setCurrentTab] = useState("basic");
   
   // Define dayNames for use throughout the component
   const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -114,97 +129,38 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
       onChangesMade();
     }
   };
-
-  // Função para lidar com a mudança de tipo da sequência
-  const handleTypeChange = (newType: "message" | "pattern" | "typebot") => {
-    console.log(`Mudando tipo da sequência para: ${newType}`);
-    
-    // Preservar IDs, mas limpar conteúdos dos estágios
-    if (stages.length > 0) {
-      const updatedStages = stages.map(stage => {
-        // Manter o ID e alguns campos básicos, mas limpar o conteúdo específico
-        return {
-          id: stage.id,
-          name: stage.name,
-          type: newType, // Atualizar para o novo tipo
-          content: "", // Limpar o conteúdo
-          delay: stage.delay,
-          delayUnit: stage.delayUnit,
-          typebotStage: newType === 'typebot' ? `stg${stages.indexOf(stage) + 1}` : undefined
-        };
-      });
+  
+  // Update content for typebot stages
+  useEffect(() => {
+    if (type === 'typebot' && typebotUrl) {
+      // Create new stages based on typebotStageCount
+      let updatedStages: SequenceStage[] = [];
       
-      // Se mudar para typebot, preencher alguns campos necessários
-      if (newType === 'typebot') {
-        // Ajustar o número de estágios para o typebot
-        let finalStages = [...updatedStages];
+      // Keep existing stages if they're valid
+      if (stages.length > 0 && stages[0].content === typebotUrl) {
+        updatedStages = [...stages];
         
-        // Ajustar para o número correto de estágios do typebot
-        if (finalStages.length > typebotStageCount) {
-          // Reduzir o número de estágios
-          finalStages = finalStages.slice(0, typebotStageCount);
-        } else if (finalStages.length < typebotStageCount) {
-          // Adicionar estágios extras se necessário
-          for (let i = finalStages.length; i < typebotStageCount; i++) {
-            finalStages.push({
+        // Adjust the number of stages
+        if (updatedStages.length > typebotStageCount) {
+          // Remove extra stages
+          updatedStages = updatedStages.slice(0, typebotStageCount);
+        } else if (updatedStages.length < typebotStageCount) {
+          // Add new stages
+          for (let i = updatedStages.length; i < typebotStageCount; i++) {
+            updatedStages.push({
               id: uuidv4(),
               name: `Estágio ${i + 1}`,
               type: "typebot",
-              content: "",
+              content: typebotUrl,
               typebotStage: `stg${i + 1}`,
               delay: 60,
               delayUnit: "minutes",
             });
           }
         }
-        
-        // Atualizar conteúdo com URL do typebot, se disponível
-        if (typebotUrl) {
-          finalStages = finalStages.map(stage => ({
-            ...stage,
-            content: typebotUrl
-          }));
-        }
-        
-        setStages(finalStages);
       } else {
-        // Para outros tipos, apenas limpar os conteúdos
-        setStages(updatedStages);
-      }
-      
-      console.log("Estágios resetados com sucesso, mantendo IDs.");
-      notifyChanges();
-    }
-    
-    // Atualizar novo tipo
-    setType(newType);
-  };
-  
-  // Update content for typebot stages
-  useEffect(() => {
-    if (type === 'typebot' && typebotUrl) {
-      // Se a URL do typebot mudou, atualizar em todos os estágios
-      if (stages.length > 0 && stages.some(s => s.type === 'typebot' && s.content !== typebotUrl)) {
-        const updatedStages = stages.map(stage => {
-          if (stage.type === 'typebot') {
-            return {...stage, content: typebotUrl};
-          }
-          return stage;
-        });
-        setStages(updatedStages);
-      }
-      
-      // Create new stages based on typebotStageCount
-      let updatedStages: SequenceStage[] = [...stages];
-      
-      // Adjust the number of stages
-      if (updatedStages.length > typebotStageCount) {
-        // Remove extra stages
-        updatedStages = updatedStages.slice(0, typebotStageCount);
-        setStages(updatedStages);
-      } else if (updatedStages.length < typebotStageCount) {
-        // Add new stages
-        for (let i = updatedStages.length; i < typebotStageCount; i++) {
+        // Create all new stages
+        for (let i = 0; i < typebotStageCount; i++) {
           updatedStages.push({
             id: uuidv4(),
             name: `Estágio ${i + 1}`,
@@ -215,10 +171,25 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
             delayUnit: "minutes",
           });
         }
-        setStages(updatedStages);
       }
+      
+      setStages(updatedStages);
     }
-  }, [typebotUrl, typebotStageCount, type, stages]);
+  }, [typebotUrl, typebotStageCount, type]);
+  
+  // No longer needed as typebotUrl is handled in StagesSection
+  const handleTypebotUrlChange = (url: string) => {
+    setTypebotUrl(url);
+    
+    // Update new stage form to reference typebot URL
+    setNewStage(prev => ({
+      ...prev,
+      type: "typebot",
+      content: url
+    }));
+    
+    notifyChanges();
+  };
   
   const addTagToCondition = (target: "start" | "stop", tag: string) => {
     if (!tag) return;
@@ -611,14 +582,11 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
 
   return (
     <div className="space-y-6">
-      {/* Header com botões - apenas botão de salvar */}
+      {/* Header with buttons - apenas um botão de cancelar */}
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold">Configuração da Sequência</h2>
         <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            onClick={handleCancel}
-          >
+          <Button variant="outline" onClick={handleCancel}>
             <X className="h-4 w-4 mr-1" />
             Cancelar
           </Button>
@@ -634,11 +602,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         </div>
       </div>
 
-      <Tabs 
-        defaultValue="basic"
-        value={currentTab}
-        onValueChange={setCurrentTab}
-      >
+      <Tabs defaultValue="basic">
         <TabsList className="w-full">
           <TabsTrigger value="basic" className="flex-1">Informações Básicas</TabsTrigger>
           <TabsTrigger value="stages" className="flex-1">
@@ -664,7 +628,6 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
               typebotStageCount={typebotStageCount}
               setTypebotStageCount={setTypebotStageCount}
               notifyChanges={notifyChanges}
-              onTypeChange={handleTypeChange}
             />
 
             <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
