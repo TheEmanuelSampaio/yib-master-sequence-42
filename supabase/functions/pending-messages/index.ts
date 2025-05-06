@@ -185,7 +185,7 @@ Deno.serve(async (req) => {
       
       return {
         id: msg.id,
-        stageNumber: stageNumber, // Adicionar o número do estágio no payload
+        stageNumber: stageNumber, // Continuamos incluindo isso no nível principal
         chatwootData: {
           accountData: {
             accountId: contact.client_id,
@@ -214,12 +214,11 @@ Deno.serve(async (req) => {
           sequenceName: sequence.name,
           type: stage.type,
           stage: {
-            [`stg${stageNumber}`]: {
-              id: stage.id,
-              content: stage.content,
-              rawScheduledTime: msg.raw_scheduled_time,
-              scheduledTime: msg.scheduled_time
-            }
+            stageNumber: stageNumber,
+            id: stage.id,
+            content: stage.content,
+            rawScheduledTime: msg.raw_scheduled_time,
+            scheduledTime: msg.scheduled_time
           }
         }
       };
