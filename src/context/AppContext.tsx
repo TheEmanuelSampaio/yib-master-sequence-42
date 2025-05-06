@@ -890,3 +890,68 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       
       toast.success(`Sequência "${sequenceData.name}" criada com sucesso`);
+      
+      // Refresh to get the newly created sequence
+      await refreshData();
+    } catch (error: any) {
+      console.error("Error creating sequence:", error);
+      toast.error(`Erro ao criar sequência: ${error.message || error}`);
+    }
+  };
+
+  const value: AppContextType = {
+    clients,
+    instances,
+    currentInstance,
+    sequences,
+    contacts,
+    scheduledMessages,
+    contactSequences,
+    tags,
+    timeRestrictions,
+    users,
+    stats,
+    setCurrentInstance,
+    addInstance,
+    updateInstance,
+    deleteInstance,
+    addSequence,
+    updateSequence,
+    deleteSequence,
+    addTimeRestriction,
+    updateTimeRestriction,
+    deleteTimeRestriction,
+    addContact,
+    getContactSequences,
+    addClient,
+    updateClient,
+    deleteClient,
+    addUser,
+    updateUser,
+    deleteUser,
+    addTag,
+    deleteTag,
+    refreshData,
+    isDataInitialized,
+    
+    // Contact functions
+    deleteContact: contactFunctions.deleteContact,
+    updateContact: contactFunctions.updateContact,
+    removeFromSequence: contactFunctions.removeFromSequence,
+    updateContactSequence: contactFunctions.updateContactSequence,
+  };
+
+  return (
+    <AppContext.Provider value={value}>
+      {children}
+    </AppContext.Provider>
+  );
+}
+
+export const useApp = () => {
+  const context = useContext(AppContext);
+  if (context === undefined) {
+    throw new Error('useApp must be used within an AppProvider');
+  }
+  return context;
+};
