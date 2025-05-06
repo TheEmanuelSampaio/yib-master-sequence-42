@@ -158,63 +158,47 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
     setType(newType);
   };
   
-  // Update content for typebot stages when URL changes
+  // Update content for typebot stages
   useEffect(() => {
     if (type === 'typebot' && typebotUrl) {
       // Se a URL do typebot mudou, atualizar em todos os estágios
-      const updatedStages = stages.map((stage, index) => {
-        if (stage.type === 'typebot') {
-          return {
-            ...stage,
-            content: typebotUrl,
-            typebotStage: `stg${index + 1}`
-          };
-        }
-        return stage;
-      });
-      
-      // Só atualizamos os estágios se houver mudanças
-      if (JSON.stringify(updatedStages) !== JSON.stringify(stages)) {
-        console.log("Atualizando URL do typebot em todos os estágios");
+      if (stages.length > 0 && stages.some(s => s.type === 'typebot' && s.content !== typebotUrl)) {
+        const updatedStages = stages.map(stage => {
+          if (stage.type === 'typebot') {
+            return {...stage, content: typebotUrl};
+          }
+          return stage;
+        });
         setStages(updatedStages);
       }
-    }
-  }, [typebotUrl, type]);
-  
-  // Ajuste da quantidade de estágios para typebot, mas sem alterar os existentes
-  useEffect(() => {
-    // Apenas execute se for typebot e o número de estágios precisar ser ajustado
-    if (type === 'typebot' && typebotUrl && typebotStageCount !== stages.length) {
-      console.log(`Ajustando número de estágios de ${stages.length} para ${typebotStageCount}`);
       
-      // Crie uma cópia dos estágios atuais
-      let updatedStages = [...stages];
-      
-      if (typebotStageCount < stages.length) {
-        // Se precisarmos reduzir o número de estágios
-        updatedStages = updatedStages.slice(0, typebotStageCount);
-        console.log(`Reduzindo para ${typebotStageCount} estágios`);
-      } else if (typebotStageCount > stages.length) {
-        // Se precisarmos adicionar mais estágios
-        for (let i = stages.length; i < typebotStageCount; i++) {
-          const newStage: SequenceStage = {
-            id: uuidv4(),
-            name: `Estágio ${i + 1}`,
-            type: "typebot",
-            content: typebotUrl,
-            typebotStage: `stg${i + 1}`,
-            delay: 60,
-            delayUnit: "minutes",
-          };
-          updatedStages.push(newStage);
+      // Only adjust stages if typebotStageCount changed
+      if (typebotStageCount !== stages.length) {
+        let updatedStages = [...stages];
+        
+        // Adjust the number of stages
+        if (updatedStages.length > typebotStageCount) {
+          // Remove extra stages
+          updatedStages = updatedStages.slice(0, typebotStageCount);
+          setStages(updatedStages);
+        } else if (updatedStages.length < typebotStageCount) {
+          // Add new stages
+          for (let i = updatedStages.length; i < typebotStageCount; i++) {
+            updatedStages.push({
+              id: uuidv4(),
+              name: `Estágio ${i + 1}`,
+              type: "typebot",
+              content: typebotUrl,
+              typebotStage: `stg${i + 1}`,
+              delay: 60,
+              delayUnit: "minutes",
+            });
+          }
+          setStages(updatedStages);
         }
-        console.log(`Adicionando ${typebotStageCount - stages.length} novos estágios`);
       }
-      
-      // Atualiza os estágios
-      setStages(updatedStages);
     }
-  }, [typebotStageCount, type, typebotUrl]);
+  }, [typebotUrl, typebotStageCount, type, stages.length]);
 
   const addTagToCondition = (target: "start" | "stop", tag: string) => {
     if (!tag) return;
@@ -526,28 +510,13 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         return;
       }
       
-      // Atualizar todos os estágios typebot com a URL atual antes de salvar
-      let stagesToSave = stages;
-      if (type === 'typebot' && typebotUrl) {
-        stagesToSave = stages.map((stage, index) => {
-          if (stage.type === 'typebot') {
-            return {
-              ...stage,
-              content: typebotUrl,
-              typebotStage: `stg${index + 1}`
-            };
-          }
-          return stage;
-        });
-      }
-      
       const newSequence: Omit<Sequence, "id" | "createdAt" | "updatedAt"> = {
         name,
         type,
         instanceId: currentInstance.id,
         startCondition,
         stopCondition,
-        stages: stagesToSave,
+        stages,
         timeRestrictions,
         status,
       };

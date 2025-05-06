@@ -50,8 +50,7 @@ export function StagesSection({
     notifyChanges(); // Important: notify that changes were made
   };
   
-  // Apenas notifica mudanças quando a URL do typebot muda, 
-  // não aciona nenhuma atualização automática dos estágios
+  // Notify changes when typebot URL changes
   const handleTypebotUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setTypebotUrl(e.target.value);
     notifyChanges();
@@ -78,9 +77,6 @@ export function StagesSection({
               placeholder="https://typebot.io/your-bot"
               className="w-full"
             />
-            <p className="text-sm text-muted-foreground">
-              Esta URL será usada como base para todos os estágios da sequência.
-            </p>
           </div>
         )}
 

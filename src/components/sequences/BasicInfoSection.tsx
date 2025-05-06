@@ -40,10 +40,8 @@ export function BasicInfoSection({
   
   // When type changes to typebot, restore the preserved stage count
   useEffect(() => {
-    if (type === "typebot") {
-      // Garantir que o valor mínimo é 1
-      const valueToSet = preservedStageCount > 1 ? preservedStageCount : 1;
-      setTypebotStageCount(valueToSet);
+    if (type === "typebot" && preservedStageCount > 1) {
+      setTypebotStageCount(preservedStageCount);
     }
   }, [type]);
 
@@ -56,9 +54,8 @@ export function BasicInfoSection({
 
   const confirmTypeChange = () => {
     if (pendingType) {
-      // Se estiver mudando para typebot, salve a contagem atual de estágios
-      if (type !== "typebot" && pendingType === "typebot") {
-        // Armazene o número atual de estágios para preservar quando mudar para typebot
+      // If changing to typebot, save the current stage count
+      if (pendingType === "typebot") {
         setPreservedStageCount(typebotStageCount);
       }
       
@@ -129,7 +126,6 @@ export function BasicInfoSection({
                   const value = parseInt(e.target.value);
                   if (value > 0) {
                     setTypebotStageCount(value);
-                    setPreservedStageCount(value);
                     notifyChanges();
                   }
                 }}
