@@ -50,9 +50,10 @@ export function StagesSection({
     notifyChanges(); // Important: notify that changes were made
   };
   
-  // Notify changes when typebot URL changes
+  // Handle typebot URL changes without affecting existing stages
   const handleTypebotUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setTypebotUrl(e.target.value);
+    // Do not update stages here - we'll only update them when saving
     notifyChanges();
   };
 
