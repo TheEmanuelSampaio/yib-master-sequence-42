@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { supabase, UserWithEmail, isValidUUID, checkStagesInUse } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
@@ -79,6 +78,7 @@ interface ExtendedSequence {
   sequence_stages: any[];
   sequence_time_restrictions: any[];
   localTimeRestrictions?: TimeRestriction[]; // Add this property to the interface
+  type: "message" | "pattern" | "typebot"; // Adicionar o tipo para ExtendedSequence
 }
 
 // Create a default context value to prevent "undefined" errors
@@ -369,10 +369,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Ensure status is "active" or "inactive"
         const status = sequence.status === "active" ? "active" : "inactive";
         
+        // Determinar o tipo de sequência com base nos estágios ou usar um valor padrão
+        let sequenceType: "message" | "pattern" | "typebot" = "message";
+        if (stages.length > 0) {
+          // Se o último estágio for um typebot, consideramos que é uma sequência de typebot
+          const lastStage = stages[stages.length - 1];
+          if (lastStage.type === "typebot") {
+            sequenceType = "typebot";
+          } else if (lastStage.type === "pattern") {
+            sequenceType = "pattern";
+          }
+        }
+        
         return {
           id: sequence.id,
           name: sequence.name,
           instanceId: sequence.instance_id,
+          type: sequence.type || sequenceType, // Usar o tipo da sequência ou determinar pelo último estágio
           startCondition: {
             type: startType as "AND" | "OR",
             tags: sequence.start_condition_tags
@@ -1470,11 +1483,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Combinar todas as restrições
         const timeRestrictions = [...localRestrictions, ...globalRestrictionsProcessed];
         
+        // Determinar o tipo de sequência com base nos estágios ou usar um valor padrão
+        let sequenceType: "message" | "pattern" | "typebot" = "message";
+        if (stages.length > 0) {
+          // Se o último estágio for um typebot, consideramos que é uma sequência de typebot
+          const lastStage = stages[stages.length - 1];
+          if (lastStage.type === "typebot") {
+            sequenceType = "typebot";
+          } else if (lastStage.type === "pattern") {
+            sequenceType = "pattern";
+          }
+        }
+        
         // Adicionar sequência ao array
         sequencesWithStages.push({
           id: seq.id,
           name: seq.name,
           instanceId: seq.instance_id,
+          type: seq.type || sequenceType, // Usar o tipo da sequência ou determinar pelo último estágio
           status: seq.status as "active" | "inactive",
           startCondition: {
             type: seq.start_condition_type as "AND" | "OR",

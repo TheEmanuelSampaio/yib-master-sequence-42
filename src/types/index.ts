@@ -39,7 +39,7 @@ export interface Sequence {
   id: string;
   instanceId: string;
   name: string;
-  type: "message" | "pattern" | "typebot";
+  type: "message" | "pattern" | "typebot"; // Adicionado tipo à interface Sequence
   startCondition: TagCondition;
   stopCondition: TagCondition;
   stages: SequenceStage[];
