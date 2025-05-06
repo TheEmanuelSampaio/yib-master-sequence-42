@@ -50,7 +50,8 @@ export function StagesSection({
     notifyChanges(); // Important: notify that changes were made
   };
   
-  // Notify changes when typebot URL changes
+  // Notify changes when typebot URL changes, mas NÃO atualiza todos os estágios
+  // isso será feito no useEffect do SequenceBuilder.tsx
   const handleTypebotUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setTypebotUrl(e.target.value);
     notifyChanges();
