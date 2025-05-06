@@ -1,5 +1,4 @@
 
-
 -- Trigger para manter as condições antigas da sequência em sincronia com as novas estruturas complexas
 
 -- Função que será chamada pelo trigger para atualizar as colunas antigas quando as novas tabelas são modificadas
@@ -70,4 +69,3 @@ CREATE TRIGGER on_condition_group_change
 AFTER INSERT OR UPDATE OR DELETE ON sequence_condition_groups
 FOR EACH ROW
 EXECUTE FUNCTION update_sequence_conditions();
-

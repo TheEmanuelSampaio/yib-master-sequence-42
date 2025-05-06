@@ -1,7 +1,7 @@
 
 import { useApp } from '@/context/AppContext';
 import { StatsCard } from '@/components/dashboard/StatsCard';
-import { SequenceOverview } from '@/components/dashboard/SequenceOverview';
+import SequenceOverview from '@/components/dashboard/SequenceOverview';
 import { MessagesChart } from '@/components/dashboard/MessagesChart';
 import { RecentContacts } from '@/components/dashboard/RecentContacts';
 import { TagDistributionChart } from '@/components/dashboard/TagDistributionChart';
