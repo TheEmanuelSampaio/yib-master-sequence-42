@@ -367,7 +367,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const startCondition: ComplexCondition = {
           groups: [{
             operator: sequence.start_condition_type === "AND" ? "AND" : "OR",
-            tags: sequence.start_condition_tags || []
+            tags: sequence.start_condition_tags || [] // Ensure this is always an array
           }],
           operator: "AND" // Default to AND for backward compatibility
         };
@@ -376,7 +376,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const stopCondition: ComplexCondition = {
           groups: [{
             operator: sequence.stop_condition_type === "AND" ? "AND" : "OR",
-            tags: sequence.stop_condition_tags || []
+            tags: sequence.stop_condition_tags || [] // Ensure this is always an array
           }],
           operator: "AND" // Default to AND for backward compatibility
         };
@@ -442,7 +442,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           clientId: contact.client_id,
           inboxId: contact.inbox_id,
           conversationId: contact.conversation_id,
-          displayId: contact.display_id,  // Fixed: Using camelCase property name from the Contact type
+          displayId: contact.displayId,  // Fixed: Using camelCase property name from the Contact type
           createdAt: contact.created_at,
           updatedAt: contact.updated_at,
           tags: contactTags
@@ -1159,7 +1159,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           client_id: contact.clientId,
           inbox_id: contact.inboxId,
           conversation_id: contact.conversationId,
-          display_id: contact.display_id  // Fixed: Using camelCase property name from the Contact type
+          display_id: contact.displayId  // Fixed: Using camelCase property name from the Contact type
         })
         .select();
       
