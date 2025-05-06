@@ -148,7 +148,8 @@ export function BasicInfoSection({
             <AlertDialogTitle>Alterar o tipo da sequência?</AlertDialogTitle>
             <AlertDialogDescription>
               A alteração do tipo da sequência exigirá que você edite todos os estágios existentes. 
-              O conteúdo dos estágios será mantido vazio e você precisará preenchê-los de acordo com o novo tipo selecionado.
+              O conteúdo dos estágios será limpo e você precisará preenchê-los de acordo com o novo tipo selecionado.
+              Os IDs dos estágios serão preservados.
               Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>

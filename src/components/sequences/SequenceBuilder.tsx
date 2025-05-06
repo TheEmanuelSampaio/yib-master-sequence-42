@@ -158,6 +158,14 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
           }
         }
         
+        // Atualizar conteúdo com URL do typebot, se disponível
+        if (typebotUrl) {
+          finalStages = finalStages.map(stage => ({
+            ...stage,
+            content: typebotUrl
+          }));
+        }
+        
         setStages(finalStages);
       } else {
         // Para outros tipos, apenas limpar os conteúdos
@@ -608,6 +616,13 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         <h2 className="text-xl font-semibold">Configuração da Sequência</h2>
         <div className="flex gap-2">
           <Button 
+            variant="outline" 
+            onClick={handleCancel}
+          >
+            <X className="h-4 w-4 mr-1" />
+            Cancelar
+          </Button>
+          <Button 
             variant="default" 
             onClick={handleSubmit}
             disabled={!hasBeenModified()}
@@ -748,4 +763,3 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
     </div>
   );
 }
-
