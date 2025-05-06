@@ -66,6 +66,11 @@ export function StageItem({
     }
   };
 
+  // Função para gerar o nome do estágio do typebot com base no índice
+  const getTypebotStageName = (idx: number) => {
+    return `stg${idx + 1}`;
+  };
+
   if (isEditing) {
     return (
       <form className="border rounded-md p-4 space-y-4" onSubmit={handleUpdate}>
@@ -111,7 +116,7 @@ export function StageItem({
             <Label htmlFor="edit-typebot-stage">Estágio do Typebot</Label>
             <Input
               id="edit-typebot-stage"
-              value={`stg${index + 1}`}
+              value={getTypebotStageName(index)}
               disabled
               className="bg-muted"
             />
@@ -178,8 +183,8 @@ export function StageItem({
             >
               {getStageIcon(stage.type)}
               <span className="ml-1 capitalize">{stage.type}</span>
-              {stage.type === "typebot" && stage.typebotStage && (
-                <span className="ml-1">({stage.typebotStage})</span>
+              {stage.type === "typebot" && (
+                <span className="ml-1">({getTypebotStageName(index)})</span>
               )}
             </Badge>
           </h3>
@@ -228,14 +233,7 @@ export function StageItem({
         {stage.type === "typebot" ? (
           <div className="flex items-center">
             <Bot className="h-4 w-4 mr-2 text-muted-foreground" />
-            <a 
-              href={stage.content} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-blue-500 hover:underline"
-            >
-              {stage.content}
-            </a>
+            <span className="font-medium">Estágio Typebot: {getTypebotStageName(index)}</span>
           </div>
         ) : (
           <div className="whitespace-pre-line">{stage.content}</div>

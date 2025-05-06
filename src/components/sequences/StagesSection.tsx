@@ -77,6 +77,9 @@ export function StagesSection({
               placeholder="https://typebot.io/your-bot"
               className="w-full"
             />
+            <p className="text-sm text-muted-foreground">
+              Esta URL será usada como base para todos os estágios da sequência.
+            </p>
           </div>
         )}
 
