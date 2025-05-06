@@ -78,7 +78,7 @@ interface ExtendedSequence {
   sequence_stages: any[];
   sequence_time_restrictions: any[];
   localTimeRestrictions?: TimeRestriction[]; // Add this property to the interface
-  type: "message" | "pattern" | "typebot"; // Adicionar o tipo para ExtendedSequence
+  type?: "message" | "pattern" | "typebot"; // Make type optional since it might not exist in database response
 }
 
 // Create a default context value to prevent "undefined" errors
@@ -1500,7 +1500,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           id: seq.id,
           name: seq.name,
           instanceId: seq.instance_id,
-          type: seq.type || sequenceType, // Usar o tipo da sequência ou determinar pelo último estágio
+          // Fix here: Use optional chaining to safely access seq.type, or use sequenceType as fallback
+          type: (seq as any).type || sequenceType,
           status: seq.status as "active" | "inactive",
           startCondition: {
             type: seq.start_condition_type as "AND" | "OR",
