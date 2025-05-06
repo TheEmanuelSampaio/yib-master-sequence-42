@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useApp } from '@/context/AppContext';
 import {
@@ -77,34 +76,25 @@ export default function Sequences() {
         console.log("Modo de edição, atualizando sequência existente ID:", currentSequence.id);
         console.log("Estágios sendo salvos:", sequence.stages.length, sequence.stages);
         
-        const result = await updateSequence(currentSequence.id, sequence);
+        // Usando o tipo de retorno correto para updateSequence
+        await updateSequence(currentSequence.id, sequence);
         
-        if (result.success) {
-          setIsEditMode(false);
-          setCurrentSequence(null);
-          toast.success("Sequência atualizada com sucesso");
-          setHasUnsavedChanges(false);
-          console.log("Sequência atualizada com sucesso:", result);
-        } else {
-          // Exibir mensagem de erro específica
-          console.error("Erro ao atualizar sequência:", result.error);
-          toast.error(result.error || "Erro ao atualizar sequência");
-          // Não fechamos o modo de edição aqui, permitindo que o usuário corrija o problema
-        }
+        setIsEditMode(false);
+        setCurrentSequence(null);
+        toast.success("Sequência atualizada com sucesso");
+        setHasUnsavedChanges(false);
+        console.log("Sequência atualizada com sucesso");
       } else {
         console.log("Modo de criação, adicionando nova sequência");
         console.log("Estágios sendo salvos:", sequence.stages.length, sequence.stages);
         
-        const result = await addSequence(sequence);
-        if (result.success) {
-          setIsCreateMode(false);
-          toast.success("Sequência criada com sucesso");
-          setHasUnsavedChanges(false);
-          console.log("Sequência criada com sucesso:", result);
-        } else {
-          console.error("Erro ao criar sequência:", result.error);
-          toast.error(result.error || "Erro ao criar sequência");
-        }
+        // Usando o tipo de retorno correto para addSequence
+        await addSequence(sequence);
+        
+        setIsCreateMode(false);
+        toast.success("Sequência criada com sucesso");
+        setHasUnsavedChanges(false);
+        console.log("Sequência criada com sucesso");
       }
     } catch (error) {
       console.error("Erro ao processar sequência:", error);
@@ -121,20 +111,20 @@ export default function Sequences() {
     setHasUnsavedChanges(false);
   };
   
-  const handleToggleStatus = (sequence: Sequence) => {
-    updateSequence(sequence.id, {
-      status: sequence.status === 'active' ? 'inactive' : 'active'
-    }).then(result => {
-      if (result.success) {
-        toast.success(
-          sequence.status === 'active' 
-            ? "Sequência desativada com sucesso" 
-            : "Sequência ativada com sucesso"
-        );
-      } else {
-        toast.error(result.error || "Erro ao alterar status da sequência");
-      }
-    });
+  const handleToggleStatus = async (sequence: Sequence) => {
+    try {
+      await updateSequence(sequence.id, {
+        status: sequence.status === 'active' ? 'inactive' : 'active'
+      });
+      toast.success(
+        sequence.status === 'active' 
+          ? "Sequência desativada com sucesso" 
+          : "Sequência ativada com sucesso"
+      );
+    } catch (error) {
+      console.error("Erro ao alterar status:", error);
+      toast.error("Erro ao alterar status da sequência");
+    }
   };
   
   const handleDeleteSequence = (id: string) => {
