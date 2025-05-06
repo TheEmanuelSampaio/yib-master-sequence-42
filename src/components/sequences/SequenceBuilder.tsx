@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Save, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -121,50 +120,29 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
     
     // Preservar IDs, mas limpar conteúdos dos estágios
     if (stages.length > 0) {
-      const updatedStages = stages.map(stage => {
+      const updatedStages = stages.map((stage, index) => {
         // Manter o ID e alguns campos básicos, mas limpar o conteúdo específico
         return {
           id: stage.id,
           name: stage.name,
           type: newType, // Atualizar para o novo tipo
-          content: "", // Limpar o conteúdo
+          content: newType === 'typebot' ? typebotUrl : "", // Para typebot, usar a URL do typebot
           delay: stage.delay,
           delayUnit: stage.delayUnit,
-          typebotStage: newType === 'typebot' ? `stg${stages.indexOf(stage) + 1}` : undefined
+          typebotStage: newType === 'typebot' ? `stg${index + 1}` : undefined
         };
       });
       
-      // Se mudar para typebot, preencher alguns campos necessários
+      // Se mudar para typebot, ajustar alguns campos necessários
       if (newType === 'typebot') {
-        // Ajustar o número de estágios para o typebot
-        let finalStages = [...updatedStages];
-        
-        // Ajustar para o número correto de estágios do typebot
-        if (finalStages.length > typebotStageCount) {
-          // Reduzir o número de estágios
-          finalStages = finalStages.slice(0, typebotStageCount);
-        } else if (finalStages.length < typebotStageCount) {
-          // Adicionar estágios extras se necessário
-          for (let i = finalStages.length; i < typebotStageCount; i++) {
-            finalStages.push({
-              id: uuidv4(),
-              name: `Estágio ${i + 1}`,
-              type: "typebot",
-              content: "",
-              typebotStage: `stg${i + 1}`,
-              delay: 60,
-              delayUnit: "minutes",
-            });
-          }
-        }
-        
-        // Atualizar conteúdo com URL do typebot, se disponível
-        if (typebotUrl) {
-          finalStages = finalStages.map(stage => ({
-            ...stage,
-            content: typebotUrl
-          }));
-        }
+        // Não vamos mais sobrescrever o array de estágios
+        // Apenas garantir que todos os estágios tenham o mesmo conteúdo (URL do typebot)
+        // e os typebotStage corretos
+        const finalStages = updatedStages.map((stage, index) => ({
+          ...stage,
+          content: typebotUrl,
+          typebotStage: `stg${index + 1}`
+        }));
         
         setStages(finalStages);
       } else {
@@ -194,32 +172,34 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         setStages(updatedStages);
       }
       
-      // Create new stages based on typebotStageCount
-      let updatedStages: SequenceStage[] = [...stages];
-      
-      // Adjust the number of stages
-      if (updatedStages.length > typebotStageCount) {
-        // Remove extra stages
-        updatedStages = updatedStages.slice(0, typebotStageCount);
-        setStages(updatedStages);
-      } else if (updatedStages.length < typebotStageCount) {
-        // Add new stages
-        for (let i = updatedStages.length; i < typebotStageCount; i++) {
-          updatedStages.push({
-            id: uuidv4(),
-            name: `Estágio ${i + 1}`,
-            type: "typebot",
-            content: typebotUrl,
-            typebotStage: `stg${i + 1}`,
-            delay: 60,
-            delayUnit: "minutes",
-          });
+      // Only adjust stages if typebotStageCount changed
+      if (typebotStageCount !== stages.length) {
+        let updatedStages = [...stages];
+        
+        // Adjust the number of stages
+        if (updatedStages.length > typebotStageCount) {
+          // Remove extra stages
+          updatedStages = updatedStages.slice(0, typebotStageCount);
+          setStages(updatedStages);
+        } else if (updatedStages.length < typebotStageCount) {
+          // Add new stages
+          for (let i = updatedStages.length; i < typebotStageCount; i++) {
+            updatedStages.push({
+              id: uuidv4(),
+              name: `Estágio ${i + 1}`,
+              type: "typebot",
+              content: typebotUrl,
+              typebotStage: `stg${i + 1}`,
+              delay: 60,
+              delayUnit: "minutes",
+            });
+          }
+          setStages(updatedStages);
         }
-        setStages(updatedStages);
       }
     }
-  }, [typebotUrl, typebotStageCount, type, stages]);
-  
+  }, [typebotUrl, typebotStageCount, type, stages.length]);
+
   const addTagToCondition = (target: "start" | "stop", tag: string) => {
     if (!tag) return;
 

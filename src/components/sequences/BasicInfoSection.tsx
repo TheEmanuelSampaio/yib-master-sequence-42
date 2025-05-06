@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -35,6 +35,16 @@ export function BasicInfoSection({
   const [showTypeChangeAlert, setShowTypeChangeAlert] = useState(false);
   const [pendingType, setPendingType] = useState<"message" | "pattern" | "typebot" | null>(null);
 
+  // Preserve the current typebotStageCount when switching to typebot
+  const [preservedStageCount, setPreservedStageCount] = useState<number>(typebotStageCount);
+  
+  // When type changes to typebot, restore the preserved stage count
+  useEffect(() => {
+    if (type === "typebot" && preservedStageCount > 1) {
+      setTypebotStageCount(preservedStageCount);
+    }
+  }, [type]);
+
   const handleTypeChange = (newType: "message" | "pattern" | "typebot") => {
     if (newType !== type) {
       setPendingType(newType);
@@ -44,6 +54,11 @@ export function BasicInfoSection({
 
   const confirmTypeChange = () => {
     if (pendingType) {
+      // If changing to typebot, save the current stage count
+      if (pendingType === "typebot") {
+        setPreservedStageCount(typebotStageCount);
+      }
+      
       onTypeChange(pendingType);
       setType(pendingType);
       notifyChanges();
