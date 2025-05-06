@@ -1,16 +1,14 @@
 
 import { useApp } from '@/context/AppContext';
 import { StatsCard } from '@/components/dashboard/StatsCard';
-import SequenceOverview from '@/components/dashboard/SequenceOverview';
+import { SequenceOverview } from '@/components/dashboard/SequenceOverview';
 import { MessagesChart } from '@/components/dashboard/MessagesChart';
 import { RecentContacts } from '@/components/dashboard/RecentContacts';
 import { TagDistributionChart } from '@/components/dashboard/TagDistributionChart';
 import { LayoutDashboard, Users, MessageSquare, CheckCheck } from 'lucide-react';
-import { useState, useEffect } from 'react';
 
 export default function Dashboard() {
   const { currentInstance, sequences, contacts, stats } = useApp();
-  const [activeSequence, setActiveSequence] = useState(null);
   
   // Calculate key metrics
   const activeSequenceCount = sequences.filter(
@@ -40,18 +38,6 @@ export default function Dashboard() {
   const successRate = todayStats.messagesSent > 0 
     ? Math.round((todayStats.messagesSent / (todayStats.messagesSent + todayStats.messagesFailed)) * 100) 
     : 0;
-
-  // Set an active sequence for the overview component when sequences are loaded
-  useEffect(() => {
-    if (sequences.length > 0 && currentInstance) {
-      const instanceSequences = sequences.filter(s => s.instanceId === currentInstance.id);
-      if (instanceSequences.length > 0) {
-        // Prefer active sequences
-        const active = instanceSequences.find(s => s.status === 'active');
-        setActiveSequence(active || instanceSequences[0]);
-      }
-    }
-  }, [sequences, currentInstance]);
 
   return (
     <div className="space-y-6">
@@ -110,7 +96,7 @@ export default function Dashboard() {
         <TagDistributionChart />
       </div>
       
-      <SequenceOverview sequence={activeSequence} />
+      <SequenceOverview />
     </div>
   );
 }

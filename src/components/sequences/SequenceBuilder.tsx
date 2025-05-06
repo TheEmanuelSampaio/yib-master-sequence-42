@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useApp } from "@/context/AppContext";
-import { Sequence, SequenceStage, ComplexCondition, TimeRestriction, ConditionGroup } from "@/types";
+import { Sequence, SequenceStage, TagCondition, TimeRestriction } from "@/types";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
 import { isValidUUID } from "@/integrations/supabase/client";
@@ -29,39 +29,12 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
   const [type, setType] = useState<"message" | "pattern" | "typebot">(
     sequence?.type || "message"
   );
-  
-  // Inicializar condições complexas, ou converter antigas TagCondition para ComplexCondition
-  const initializeComplexCondition = (condition: any): ComplexCondition => {
-    if (condition && 'groups' in condition) {
-      return condition as ComplexCondition;
-    } else {
-      // Converter antigas TagCondition para ComplexCondition
-      return {
-        operator: "OR",
-        groups: [
-          {
-            operator: condition?.type || "AND",
-            tags: condition?.tags || []
-          }
-        ]
-      };
-    }
-  };
-  
-  const [startCondition, setStartCondition] = useState<ComplexCondition>(
-    initializeComplexCondition(sequence?.startCondition) || {
-      operator: "OR",
-      groups: [{ operator: "AND", tags: [] }]
-    }
+  const [startCondition, setStartCondition] = useState<TagCondition>(
+    sequence?.startCondition || { type: "AND", tags: [] }
   );
-  
-  const [stopCondition, setStopCondition] = useState<ComplexCondition>(
-    initializeComplexCondition(sequence?.stopCondition) || {
-      operator: "OR",
-      groups: [{ operator: "OR", tags: [] }]
-    }
+  const [stopCondition, setStopCondition] = useState<TagCondition>(
+    sequence?.stopCondition || { type: "OR", tags: [] }
   );
-  
   const [stages, setStages] = useState<SequenceStage[]>(
     sequence?.stages || []
   );
@@ -188,21 +161,53 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
     }
     
     if (target === "start") {
-      
+      if (!startCondition.tags.includes(tag)) {
+        setStartCondition({
+          ...startCondition,
+          tags: [...startCondition.tags, tag],
+        });
+        notifyChanges();
+      }
     } else {
-      
+      if (!stopCondition.tags.includes(tag)) {
+        setStopCondition({
+          ...stopCondition,
+          tags: [...stopCondition.tags, tag],
+        });
+        notifyChanges();
+      }
     }
     setNewTag("");
     setShowTagSelector(null);
   };
   
   const removeTag = (target: "start" | "stop", tag: string) => {
-    
+    if (target === "start") {
+      setStartCondition({
+        ...startCondition,
+        tags: startCondition.tags.filter(t => t !== tag),
+      });
+    } else {
+      setStopCondition({
+        ...stopCondition,
+        tags: stopCondition.tags.filter(t => t !== tag),
+      });
+    }
     notifyChanges();
   };
   
   const toggleConditionType = (target: "start" | "stop") => {
-    
+    if (target === "start") {
+      setStartCondition({
+        ...startCondition,
+        type: startCondition.type === "AND" ? "OR" : "AND",
+      });
+    } else {
+      setStopCondition({
+        ...stopCondition,
+        type: stopCondition.type === "AND" ? "OR" : "AND",
+      });
+    }
     notifyChanges();
   };
   
@@ -436,9 +441,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         return;
       }
       
-      // Verificar se há pelo menos um grupo com tags na condição de início
-      const hasStartTags = startCondition.groups.some(group => group.tags.length > 0);
-      if (!hasStartTags) {
+      if (startCondition.tags.length === 0) {
         toast.error("Por favor, adicione pelo menos uma tag para a condição de início.");
         return;
       }
@@ -501,7 +504,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
   
   // Check if form has been modified from initial values
   const hasBeenModified = () => {
-    if (!sequence) return name !== '' || startCondition.groups.length > 0 || stages.length > 0;
+    if (!sequence) return name !== '' || startCondition.tags.length > 0 || stages.length > 0;
     
     return (
       name !== sequence.name ||
@@ -607,7 +610,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
             />
 
             <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
-              {/* Start Condition - Atualizado para usar as condições complexas */}
+              {/* Start Condition */}
               <TagConditionSection
                 title="Condição de Início"
                 description="Define quando um contato deve entrar nesta sequência"
@@ -615,10 +618,17 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
                 condition={startCondition}
                 setCondition={setStartCondition}
                 availableTags={tags}
+                newTag={newTag}
+                setNewTag={setNewTag}
+                showTagSelector={showTagSelector === "start"}
+                setShowTagSelector={() => setShowTagSelector("start")}
+                addTagToCondition={(tag) => addTagToCondition("start", tag)}
+                removeTag={(tag) => removeTag("start", tag)}
+                toggleConditionType={() => toggleConditionType("start")}
                 notifyChanges={notifyChanges}
               />
               
-              {/* Stop Condition - Atualizado para usar as condições complexas */}
+              {/* Stop Condition */}
               <TagConditionSection
                 title="Condição de Parada"
                 description="Define quando um contato deve ser removido desta sequência"
@@ -626,12 +636,18 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
                 condition={stopCondition}
                 setCondition={setStopCondition}
                 availableTags={tags}
+                newTag={newTag}
+                setNewTag={setNewTag}
+                showTagSelector={showTagSelector === "stop"}
+                setShowTagSelector={() => setShowTagSelector("stop")}
+                addTagToCondition={(tag) => addTagToCondition("stop", tag)}
+                removeTag={(tag) => removeTag("stop", tag)}
+                toggleConditionType={() => toggleConditionType("stop")}
                 notifyChanges={notifyChanges}
               />
             </div>
           </div>
         </TabsContent>
-        
         
         <TabsContent value="stages" className="pt-6">
           <StagesSection 
