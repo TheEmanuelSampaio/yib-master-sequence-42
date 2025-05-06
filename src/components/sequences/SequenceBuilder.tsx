@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { X, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,7 @@ import { TagConditionSection } from "./TagConditionSection";
 import { StagesSection } from "./StagesSection";
 import { TimeRestrictionsSection } from "./TimeRestrictionsSection";
 import { NewRestrictionDialog } from "./NewRestrictionDialog";
+import { Dialog } from "@/components/ui/dialog";
 
 interface SequenceBuilderProps {
   sequence?: Sequence;
@@ -670,15 +672,17 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         </TabsContent>
       </Tabs>
       
-      {/* Dialog for adding restriction */}
-      <NewRestrictionDialog 
-        open={showAddRestrictionDialog}
-        onOpenChange={setShowAddRestrictionDialog}
-        newRestriction={newRestriction}
-        setNewRestriction={setNewRestriction}
-        addLocalRestriction={addLocalRestriction}
-        dayNames={dayNames}
-      />
+      {/* Dialog for adding restriction - Now as a standalone Dialog */}
+      <Dialog open={showAddRestrictionDialog} onOpenChange={setShowAddRestrictionDialog}>
+        <NewRestrictionDialog 
+          open={showAddRestrictionDialog}
+          onOpenChange={setShowAddRestrictionDialog}
+          newRestriction={newRestriction}
+          setNewRestriction={setNewRestriction}
+          addLocalRestriction={addLocalRestriction}
+          dayNames={dayNames}
+        />
+      </Dialog>
     </div>
   );
 }

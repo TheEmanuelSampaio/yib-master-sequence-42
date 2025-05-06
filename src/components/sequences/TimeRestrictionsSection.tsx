@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { PlusCircle, Lock } from "lucide-react";
 import { TimeRestriction } from "@/types";
 import { RestrictionItem } from "./RestrictionItem";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 
 interface TimeRestrictionsSectionProps {
   localRestrictions: TimeRestriction[];
@@ -63,6 +63,26 @@ export function TimeRestrictionsSection({
                 Nova Restrição
               </Button>
             </DialogTrigger>
+            {/* Moved NewRestrictionDialog here inside the Dialog component */}
+            {showAddRestrictionDialog && (
+              <NewRestrictionDialog 
+                open={showAddRestrictionDialog}
+                onOpenChange={setShowAddRestrictionDialog}
+                newRestriction={{
+                  name: "Nova restrição",
+                  active: true,
+                  days: [1, 2, 3, 4, 5],
+                  startHour: 22,
+                  startMinute: 0,
+                  endHour: 8,
+                  endMinute: 0,
+                  isGlobal: false,
+                }}
+                setNewRestriction={() => {}}
+                addLocalRestriction={() => {}}
+                dayNames={dayNames}
+              />
+            )}
           </Dialog>
         </CardHeader>
         <CardContent>
