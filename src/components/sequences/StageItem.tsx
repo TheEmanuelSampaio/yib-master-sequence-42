@@ -39,8 +39,29 @@ export function StageItem({
 }: StageItemProps) {
   const [localStage, setLocalStage] = useState<SequenceStage>(stageToEdit || stage);
 
-  const handleUpdate = () => {
+  // Usar uma cópia local do estágio quando entrar no modo de edição
+  const handleEdit = () => {
+    console.log("Editando estágio:", stage);
+    setLocalStage({...stage});
+    onEdit(stage);
+  };
+
+  const handleUpdate = (e: React.MouseEvent) => {
+    e.preventDefault();
+    console.log("Atualizando estágio:", localStage);
     onUpdate(localStage);
+  };
+
+  const handleCancel = (e: React.MouseEvent) => {
+    e.preventDefault();
+    console.log("Cancelando edição");
+    onCancel();
+  };
+
+  const handleRemove = (e: React.MouseEvent) => {
+    e.preventDefault();
+    console.log("Removendo estágio:", stage.id);
+    onRemove(stage.id);
   };
 
   const getStageIcon = (type: string) => {
@@ -62,7 +83,7 @@ export function StageItem({
         <div className="flex justify-between items-center mb-3">
           <h3 className="font-medium text-lg">Editando estágio</h3>
           <div className="flex space-x-1">
-            <Button variant="ghost" size="sm" onClick={onCancel}>
+            <Button variant="ghost" size="sm" onClick={handleCancel}>
               <X className="h-4 w-4" />
             </Button>
             <Button variant="ghost" size="sm" onClick={handleUpdate}>
@@ -99,7 +120,7 @@ export function StageItem({
             <Label htmlFor="edit-typebot-stage">Estágio do Typebot</Label>
             <Input
               id="edit-typebot-stage"
-              value={`stg${index + 1}`}
+              value={localStage.typebotStage || `stg${index + 1}`}
               disabled
               className="bg-muted"
             />
@@ -181,7 +202,10 @@ export function StageItem({
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => onMove(stage.id, "up")}
+            onClick={(e) => {
+              e.preventDefault();
+              onMove(stage.id, "up");
+            }}
             disabled={isFirst}
           >
             <ChevronUp className="h-4 w-4" />
@@ -189,7 +213,10 @@ export function StageItem({
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => onMove(stage.id, "down")}
+            onClick={(e) => {
+              e.preventDefault();
+              onMove(stage.id, "down");
+            }}
             disabled={isLast}
           >
             <ChevronDown className="h-4 w-4" />
@@ -197,14 +224,14 @@ export function StageItem({
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => onEdit(stage)}
+            onClick={handleEdit}
           >
             <Edit className="h-4 w-4" />
           </Button>
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => onRemove(stage.id)}
+            onClick={handleRemove}
           >
             <Trash2 className="h-4 w-4 text-red-500" />
           </Button>

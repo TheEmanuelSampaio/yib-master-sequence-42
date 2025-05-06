@@ -8,6 +8,7 @@ import { StageItem } from "./StageItem";
 import { AddStageForm } from "./AddStageForm";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 
 interface StagesSectionProps {
   stages: SequenceStage[];
@@ -44,6 +45,21 @@ export function StagesSection({
   addStage,
   notifyChanges
 }: StagesSectionProps) {
+  // Função de debug para mostrar estágios no console
+  const handleDebugStages = () => {
+    console.log("Estágios atuais:", stages);
+  };
+
+  // Função para lidar com a adição de um estágio
+  const handleAddStage = () => {
+    console.log("Tentando adicionar estágio. Novo estágio:", newStage);
+    addStage();
+    // Verificar se o estágio foi adicionado corretamente
+    setTimeout(() => {
+      console.log("Estágios após adicionar:", stages);
+    }, 100);
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -99,6 +115,15 @@ export function StagesSection({
                 isLast={index === stages.length - 1}
               />
             ))}
+            <div className="flex justify-end">
+              <button 
+                onClick={handleDebugStages}
+                type="button" 
+                className="text-xs text-muted-foreground hover:underline"
+              >
+                Debug: Ver estágios no console
+              </button>
+            </div>
           </div>
         )}
         
@@ -115,7 +140,7 @@ export function StagesSection({
               <AddStageForm 
                 newStage={newStage}
                 setNewStage={setNewStage}
-                addStage={addStage}
+                addStage={handleAddStage}
                 sequenceType={sequenceType}
                 nextStageNumber={stages.length + 1}
               />

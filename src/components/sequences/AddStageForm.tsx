@@ -16,6 +16,11 @@ interface AddStageFormProps {
 }
 
 export function AddStageForm({ newStage, setNewStage, addStage, sequenceType, nextStageNumber }: AddStageFormProps) {
+  const handleAddStage = (e: React.MouseEvent) => {
+    e.preventDefault(); // Prevenir comportamento padrão
+    addStage(); // Chamar função de adicionar estágio
+  };
+
   return (
     <div className="space-y-4 pb-4">
       <div className="space-y-2">
@@ -83,7 +88,7 @@ export function AddStageForm({ newStage, setNewStage, addStage, sequenceType, ne
       </div>
       
       <Button 
-        onClick={addStage} 
+        onClick={handleAddStage}
         disabled={!newStage.name || (sequenceType !== "typebot" && !newStage.content)}
       >
         Adicionar Estágio

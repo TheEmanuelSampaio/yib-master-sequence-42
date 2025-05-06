@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useApp } from '@/context/AppContext';
 import {
@@ -70,28 +71,51 @@ export default function Sequences() {
   const inactiveSequences = instanceSequences.filter(seq => seq.status === 'inactive');
   
   const handleSaveSequence = async (sequence: Omit<Sequence, "id" | "createdAt" | "updatedAt">) => {
-    if (isEditMode && currentSequence) {
-      const result = await updateSequence(currentSequence.id, sequence);
-      
-      if (result.success) {
-        setIsEditMode(false);
-        setCurrentSequence(null);
-        toast.success("Sequência atualizada com sucesso");
-        setHasUnsavedChanges(false);
+    console.log("Tentando salvar sequência:", sequence);
+    try {
+      if (isEditMode && currentSequence) {
+        console.log("Modo de edição, atualizando sequência existente ID:", currentSequence.id);
+        console.log("Estágios sendo salvos:", sequence.stages.length, sequence.stages);
+        
+        const result = await updateSequence(currentSequence.id, sequence);
+        
+        if (result.success) {
+          setIsEditMode(false);
+          setCurrentSequence(null);
+          toast.success("Sequência atualizada com sucesso");
+          setHasUnsavedChanges(false);
+          console.log("Sequência atualizada com sucesso:", result);
+        } else {
+          // Exibir mensagem de erro específica
+          console.error("Erro ao atualizar sequência:", result.error);
+          toast.error(result.error || "Erro ao atualizar sequência");
+          // Não fechamos o modo de edição aqui, permitindo que o usuário corrija o problema
+        }
       } else {
-        // Exibir mensagem de erro específica
-        toast.error(result.error || "Erro ao atualizar sequência");
-        // Não fechamos o modo de edição aqui, permitindo que o usuário corrija o problema
+        console.log("Modo de criação, adicionando nova sequência");
+        console.log("Estágios sendo salvos:", sequence.stages.length, sequence.stages);
+        
+        const result = await addSequence(sequence);
+        if (result.success) {
+          setIsCreateMode(false);
+          toast.success("Sequência criada com sucesso");
+          setHasUnsavedChanges(false);
+          console.log("Sequência criada com sucesso:", result);
+        } else {
+          console.error("Erro ao criar sequência:", result.error);
+          toast.error(result.error || "Erro ao criar sequência");
+        }
       }
-    } else {
-      await addSequence(sequence);
-      setIsCreateMode(false);
-      toast.success("Sequência criada com sucesso");
-      setHasUnsavedChanges(false);
+    } catch (error) {
+      console.error("Erro ao processar sequência:", error);
+      toast.error("Ocorreu um erro ao processar a sequência");
     }
   };
   
   const handleEditSequence = (sequence: Sequence) => {
+    console.log("Editando sequência:", sequence);
+    console.log("Estágios da sequência:", sequence.stages);
+    
     setCurrentSequence(sequence);
     setIsEditMode(true);
     setHasUnsavedChanges(false);
