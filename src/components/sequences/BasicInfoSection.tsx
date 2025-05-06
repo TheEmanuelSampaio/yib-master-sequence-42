@@ -36,20 +36,20 @@ export function BasicInfoSection({
         <CardDescription>Configure os detalhes principais da sequência</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Nome da Sequência</Label>
-            <Input 
-              id="name" 
-              value={name} 
-              onChange={(e) => {
-                setName(e.target.value);
-                notifyChanges();
-              }} 
-              placeholder="Ex: Sequência de Boas-vindas"
-            />
-          </div>
+        <div className="space-y-2">
+          <Label htmlFor="name">Nome da Sequência</Label>
+          <Input 
+            id="name" 
+            value={name} 
+            onChange={(e) => {
+              setName(e.target.value);
+              notifyChanges();
+            }} 
+            placeholder="Ex: Sequência de Boas-vindas"
+          />
+        </div>
 
+        <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="type">Tipo da Sequência</Label>
             <Select
@@ -69,6 +69,30 @@ export function BasicInfoSection({
               </SelectContent>
             </Select>
           </div>
+          
+          {type === "typebot" && (
+            <div className="space-y-2">
+              <Label htmlFor="typebot-stage-count">Número de Estágios</Label>
+              <Select
+                value={typebotStageCount.toString()}
+                onValueChange={(value) => {
+                  setTypebotStageCount(parseInt(value));
+                  notifyChanges();
+                }}
+              >
+                <SelectTrigger id="typebot-stage-count">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">1 estágio</SelectItem>
+                  <SelectItem value="2">2 estágios</SelectItem>
+                  <SelectItem value="3">3 estágios</SelectItem>
+                  <SelectItem value="4">4 estágios</SelectItem>
+                  <SelectItem value="5">5 estágios</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
         
         <div className="space-y-2">

@@ -6,8 +6,6 @@ import { Clock, PlusCircle } from "lucide-react";
 import { SequenceStage } from "@/types";
 import { StageItem } from "./StageItem";
 import { AddStageForm } from "./AddStageForm";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 
 interface StagesSectionProps {
   stages: SequenceStage[];
@@ -15,7 +13,6 @@ interface StagesSectionProps {
   stageToEdit: SequenceStage | null;
   sequenceType: "message" | "pattern" | "typebot";
   typebotUrl: string;
-  setTypebotUrl: (url: string) => void;
   onEdit: (stage: SequenceStage) => void;
   onUpdate: (stage: SequenceStage) => void;
   onCancel: () => void;
@@ -24,7 +21,6 @@ interface StagesSectionProps {
   newStage: Omit<SequenceStage, "id">;
   setNewStage: (stage: Omit<SequenceStage, "id">) => void;
   addStage: () => void;
-  notifyChanges: () => void;
 }
 
 export function StagesSection({ 
@@ -33,7 +29,6 @@ export function StagesSection({
   stageToEdit,
   sequenceType,
   typebotUrl,
-  setTypebotUrl,
   onEdit, 
   onUpdate, 
   onCancel, 
@@ -41,8 +36,7 @@ export function StagesSection({
   onMove,
   newStage,
   setNewStage,
-  addStage,
-  notifyChanges
+  addStage
 }: StagesSectionProps) {
   return (
     <Card>
@@ -53,24 +47,6 @@ export function StagesSection({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Campo URL do Typebot, movido para esta aba */}
-        {sequenceType === "typebot" && (
-          <div className="space-y-2">
-            <Label htmlFor="typebot-url">URL do Typebot</Label>
-            <Input 
-              id="typebot-url"
-              type="url"
-              value={typebotUrl}
-              onChange={(e) => {
-                setTypebotUrl(e.target.value);
-                notifyChanges();
-              }}
-              placeholder="https://typebot.io/your-bot"
-              className="w-full"
-            />
-          </div>
-        )}
-
         {stages.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-6 text-center">
             <Clock className="h-8 w-8 text-muted-foreground mb-2" />
@@ -131,7 +107,6 @@ export function StagesSection({
                 setNewStage={setNewStage}
                 addStage={addStage}
                 sequenceType={sequenceType}
-                nextStageNumber={stages.length + 1}
               />
             </AccordionContent>
           </AccordionItem>

@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { X, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -68,18 +69,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
       ...prev,
       type: type
     }));
-    
-    // Para typebot, podemos pré-configurar o nome do estágio e o conteúdo
-    if (type === 'typebot') {
-      const nextStageNumber = stages.length + 1;
-      setNewStage(prev => ({
-        ...prev,
-        name: `Estágio ${nextStageNumber}`,
-        typebotStage: `stg${nextStageNumber}`,
-        content: typebotUrl || ""
-      }));
-    }
-  }, [type, stages.length, typebotUrl]);
+  }, [type]);
   
   const [newRestriction, setNewRestriction] = useState<Omit<TimeRestriction, "id">>({
     name: "Nova restrição",
@@ -160,7 +150,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
     }
   }, [typebotUrl, typebotStageCount, type]);
   
-  // No longer needed as typebotUrl is handled in StagesSection
+  // Handle typebot URL changes
   const handleTypebotUrlChange = (url: string) => {
     setTypebotUrl(url);
     
@@ -234,51 +224,25 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
   };
   
   const addStage = () => {
-    if (!newStage.name) return;
-    
-    // Para typebot, não precisamos verificar o conteúdo se tiver uma URL
-    if (type !== 'typebot' && !newStage.content) return;
+    if (!newStage.name || !newStage.content) return;
     
     try {
-      // Para typebot, usamos a URL e o número do estágio
-      const stageToAdd: Omit<SequenceStage, "id"> = {
-        ...newStage
-      };
-      
-      if (type === 'typebot') {
-        const nextStageNumber = stages.length + 1;
-        stageToAdd.typebotStage = `stg${nextStageNumber}`;
-        stageToAdd.content = typebotUrl;
-      }
-      
       const stage: SequenceStage = {
-        ...stageToAdd,
+        ...newStage,
         id: uuidv4(),
       };
       
       setStages([...stages, stage]);
       notifyChanges();
       
-      // Reset form com valor apropriado para o próximo estágio
-      if (type === 'typebot') {
-        const nextStageNumber = stages.length + 2;
-        setNewStage({
-          name: `Estágio ${nextStageNumber}`,
-          type: type,
-          content: typebotUrl,
-          typebotStage: `stg${nextStageNumber}`,
-          delay: 60,
-          delayUnit: "minutes",
-        });
-      } else {
-        setNewStage({
-          name: "",
-          type: type,
-          content: "",
-          delay: 60,
-          delayUnit: "minutes",
-        });
-      }
+      // Reset form
+      setNewStage({
+        name: "",
+        type: type,
+        content: "",
+        delay: 60,
+        delayUnit: "minutes",
+      });
     } catch (error) {
       console.error("Erro ao adicionar estágio:", error);
       toast.error("Erro ao adicionar estágio. Verifique o console para mais detalhes.");
@@ -613,6 +577,21 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
               notifyChanges={notifyChanges}
             />
 
+            {type === "typebot" && (
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  URL do Typebot
+                </label>
+                <input
+                  type="url"
+                  value={typebotUrl}
+                  onChange={(e) => handleTypebotUrlChange(e.target.value)}
+                  placeholder="https://typebot.io/your-bot"
+                  className="w-full px-3 py-2 border rounded-md"
+                />
+              </div>
+            )}
+
             <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
               {/* Start Condition */}
               <TagConditionSection
@@ -660,7 +639,6 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
             stageToEdit={stageToEdit}
             sequenceType={type}
             typebotUrl={typebotUrl}
-            setTypebotUrl={setTypebotUrl}
             onEdit={startEditingStage}
             onUpdate={updateStage}
             onCancel={() => {
@@ -672,7 +650,6 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
             newStage={newStage}
             setNewStage={setNewStage}
             addStage={addStage}
-            notifyChanges={notifyChanges}
           />
         </TabsContent>
         
