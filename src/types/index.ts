@@ -1,4 +1,3 @@
-
 // User related types
 export interface User {
   id: string;
@@ -35,13 +34,25 @@ export interface Instance {
   updatedAt: string;
 }
 
+// New condition structure with support for groups
+export interface TagGroup {
+  id: string;
+  tags: string[];
+  operator: "AND" | "OR";
+}
+
+export interface ConditionStructure {
+  groups: TagGroup[];
+  operator: "AND" | "OR"; // Top-level operator between groups
+}
+
 export interface Sequence {
   id: string;
   instanceId: string;
   name: string;
   type: "message" | "pattern" | "typebot"; // Adicionado tipo à interface Sequence
-  startCondition: TagCondition;
-  stopCondition: TagCondition;
+  startCondition: ConditionStructure;
+  stopCondition: ConditionStructure;
   stages: SequenceStage[];
   timeRestrictions: TimeRestriction[];
   status: "active" | "inactive";
@@ -49,6 +60,7 @@ export interface Sequence {
   updatedAt: string;
 }
 
+// Legacy TagCondition type for backwards compatibility
 export interface TagCondition {
   type: "AND" | "OR";
   tags: string[];

@@ -1,6 +1,18 @@
 
 import { corsHeaders } from '../_shared/cors.ts';
 
+// Define the ConditionStructure type
+interface TagGroup {
+  id: string;
+  tags: string[];
+  operator: "AND" | "OR";
+}
+
+interface ConditionStructure {
+  groups: TagGroup[];
+  operator: "AND" | "OR"; // Top-level operator between groups
+}
+
 /**
  * Verifica se o contato deve ser adicionado a alguma sequência com base nas tags do contato
  * e nas condições das sequências ativas.
@@ -104,12 +116,70 @@ export async function processSequences(
           continue;
         }
         
+        // Primeiro, verificar se temos condições no novo formato
+        const { data: startGroups, error: startGroupsError } = await supabase
+          .from('sequence_condition_groups')
+          .select(`
+            *,
+            sequence_condition_tags(*)
+          `)
+          .eq('sequence_id', sequence.id)
+          .eq('condition_type', 'start');
+        
+        const { data: stopGroups, error: stopGroupsError } = await supabase
+          .from('sequence_condition_groups')
+          .select(`
+            *,
+            sequence_condition_tags(*)
+          `)
+          .eq('sequence_id', sequence.id)
+          .eq('condition_type', 'stop');
+        
         // Verificar condições de início da sequência
-        const matchesStartCondition = checkCondition(tags, sequence.start_condition_tags, sequence.start_condition_type);
+        let matchesStartCondition = false;
+        
+        if (startGroups && startGroups.length > 0) {
+          // Usar o novo formato de condições com grupos
+          console.log(`[5. SEQUÊNCIAS] Usando novo formato de condições para sequência ${sequence.name}`);
+          
+          const startCondition: ConditionStructure = {
+            operator: 'OR', // Default top-level operator
+            groups: startGroups.map(group => ({
+              id: group.id,
+              operator: group.group_operator,
+              tags: group.sequence_condition_tags.map(tag => tag.tag_name)
+            }))
+          };
+          
+          matchesStartCondition = checkComplexCondition(tags, startCondition);
+        } else {
+          // Usar o formato antigo (manter compatibilidade)
+          console.log(`[5. SEQUÊNCIAS] Usando formato legado de condições para sequência ${sequence.name}`);
+          matchesStartCondition = checkCondition(tags, sequence.start_condition_tags, sequence.start_condition_type);
+        }
+        
         console.log(`[5. SEQUÊNCIAS] Verificando condição de início para sequência ${sequence.name}: ${matchesStartCondition ? 'ATENDE' : 'NÃO ATENDE'}`);
         
         // Verificar condições de parada da sequência
-        const matchesStopCondition = checkCondition(tags, sequence.stop_condition_tags, sequence.stop_condition_type);
+        let matchesStopCondition = false;
+        
+        if (stopGroups && stopGroups.length > 0) {
+          // Usar o novo formato de condições com grupos
+          const stopCondition: ConditionStructure = {
+            operator: 'OR', // Default top-level operator
+            groups: stopGroups.map(group => ({
+              id: group.id,
+              operator: group.group_operator,
+              tags: group.sequence_condition_tags.map(tag => tag.tag_name)
+            }))
+          };
+          
+          matchesStopCondition = checkComplexCondition(tags, stopCondition);
+        } else {
+          // Usar o formato antigo (manter compatibilidade)
+          matchesStopCondition = checkCondition(tags, sequence.stop_condition_tags, sequence.stop_condition_type);
+        }
+        
         console.log(`[5. SEQUÊNCIAS] Verificando condição de parada para sequência ${sequence.name}: ${matchesStopCondition ? 'ATENDE' : 'NÃO ATENDE'}`);
         
         // Se atende à condição de início e não atende à condição de parada, adicionar à sequência
@@ -248,6 +318,41 @@ export async function processSequences(
 }
 
 /**
+ * Nova função para verificar condições complexas com múltiplos grupos
+ */
+function checkComplexCondition(contactTags: string[], condition: ConditionStructure): boolean {
+  // Se não houver grupos, a condição não é atendida
+  if (!condition.groups || condition.groups.length === 0) {
+    return false;
+  }
+  
+  // Avaliar cada grupo
+  const groupResults = condition.groups.map(group => {
+    // Pular grupos vazios
+    if (group.tags.length === 0) return false;
+    
+    // Avaliar as tags dentro do grupo
+    if (group.operator === 'AND') {
+      // Todas as tags do grupo devem existir nas tags do contato
+      return group.tags.every(tag => contactTags.includes(tag));
+    } else {
+      // Pelo menos uma tag do grupo deve existir nas tags do contato
+      return group.tags.some(tag => contactTags.includes(tag));
+    }
+  });
+  
+  // Combinar os resultados dos grupos usando o operador de nível superior
+  if (condition.operator === 'AND') {
+    // Todos os grupos devem ser verdadeiros
+    return groupResults.every(result => result === true);
+  } else {
+    // Pelo menos um grupo deve ser verdadeiro
+    return groupResults.some(result => result === true);
+  }
+}
+
+/**
+ * Mantemos a função original para compatibilidade com sequências antigas
  * Verifica se as tags do contato atendem a uma condição (AND/OR)
  */
 function checkCondition(contactTags: string[], conditionTags: string[], conditionType: string): boolean {
