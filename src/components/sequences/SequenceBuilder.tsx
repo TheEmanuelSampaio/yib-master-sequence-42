@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { X, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -43,9 +44,11 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
   const [status, setStatus] = useState<"active" | "inactive">(
     sequence?.status || "active"
   );
-  const [typebotUrl, setTypebotUrl] = useState<string>("");
+  const [typebotUrl, setTypebotUrl] = useState<string>(
+    sequence?.type === "typebot" && stages[0]?.content ? stages[0].content : ""
+  );
   const [typebotStageCount, setTypebotStageCount] = useState<number>(
-    type === "typebot" ? 1 : 0
+    sequence?.type === "typebot" ? stages.length || 1 : 1
   );
   
   const [showTagSelector, setShowTagSelector] = useState<"start" | "stop" | null>(null);
