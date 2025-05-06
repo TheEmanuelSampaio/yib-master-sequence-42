@@ -1,228 +1,198 @@
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { corsHeaders } from '../_shared/cors.ts';
+import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { corsHeaders } from "../_shared/cors.ts";
 
-const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
-const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
+console.log("Função pending-messages iniciada!");
 
-// Logs de inicialização
-console.log(`[INIT] Inicializando função pending-messages`);
-console.log(`[INIT] SUPABASE_URL definido: ${supabaseUrl ? 'SIM' : 'NÃO'}`);
-console.log(`[INIT] SUPABASE_ANON_KEY definido: ${supabaseAnonKey ? 'SIM' : 'NÃO'}`);
-
-Deno.serve(async (req) => {
-  console.log(`[REQUEST] Método: ${req.method}, URL: ${req.url}`);
-  
-  // Handle CORS
+serve(async (req) => {
+  // Gerenciamento de CORS
   if (req.method === 'OPTIONS') {
-    console.log(`[CORS] Requisição OPTIONS recebida, retornando cabeçalhos CORS`);
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    console.log(`[CLIENT] Criando cliente Supabase...`);
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
-    console.log(`[CLIENT] Cliente Supabase criado com sucesso`);
-    
-    // Parse the request body
-    console.log(`[PARSE] Iniciando parse do corpo da requisição...`);
-    const body = await req.text();
-    console.log(`[PARSE] Body recebido: ${body}`);
-    
-    // Tentando converter body para JSON
-    let jsonData;
-    try {
-      jsonData = JSON.parse(body);
-      console.log(`[PARSE] JSON parseado com sucesso`);
-    } catch (parseError) {
-      console.error(`[PARSE] Erro ao parsear JSON: ${parseError.message}`);
-      return new Response(
-        JSON.stringify({ error: 'Payload JSON inválido', details: parseError.message }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    // Inicializar cliente Supabase
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
 
-    // Pegar mensagens pendentes com horário de envio menor que o horário atual
-    console.log(`[QUERY] Buscando mensagens pendentes...`);
-    const now = new Date();
-    const { data: pendingMessages, error: messagesError } = await supabase
+    // Obter mensagens agendadas onde scheduledTime é passado
+    // Comentário: agora usamos <= em vez de < para incluir mensagens exatamente no tempo agendado
+    const { data: pendingMessages, error: pendingError } = await supabaseClient
       .from('scheduled_messages')
       .select(`
         id,
-        status,
+        sequence_id,
+        contact_id,
+        stage_id,
         scheduled_time,
-        raw_scheduled_time,
-        contacts!inner(
-          id, 
-          name, 
-          phone_number, 
-          client_id,
-          inbox_id,
-          conversation_id,
-          display_id
-        ),
-        sequences!inner(
-          id, 
-          name,
-          instances!inner(
+        raw_scheduled_time
+      `)
+      .eq('status', 'waiting')
+      .lte('scheduled_time', new Date().toISOString())
+      .order('scheduled_time', { ascending: true })
+      .limit(10);
+    
+    if (pendingError) {
+      console.error("Erro ao buscar mensagens pendentes:", pendingError);
+      throw pendingError;
+    }
+
+    console.log(`Encontradas ${pendingMessages?.length || 0} mensagens pendentes.`);
+    
+    if (!pendingMessages || pendingMessages.length === 0) {
+      return new Response(
+        JSON.stringify({ messages: [] }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Atualizar o status das mensagens para 'pending'
+    const messageIds = pendingMessages.map(msg => msg.id);
+    const { error: updateError } = await supabaseClient
+      .from('scheduled_messages')
+      .update({ status: 'pending' })
+      .in('id', messageIds);
+    
+    if (updateError) {
+      console.error("Erro ao atualizar status das mensagens:", updateError);
+      throw updateError;
+    }
+
+    // Array para armazenar os resultados completos
+    const processedMessages = [];
+
+    // Processar cada mensagem
+    for (const message of pendingMessages) {
+      try {
+        // Buscar detalhes da sequência
+        const { data: sequence, error: sequenceError } = await supabaseClient
+          .from('sequences')
+          .select(`
             id, 
             name, 
-            evolution_api_url, 
-            api_key
-          )
-        ),
-        sequence_stages!inner(
-          id, 
-          name, 
-          content, 
-          type
-        )
-      `)
-      .eq('status', 'pending')
-      .lt('scheduled_time', now.toISOString())
-      .order('scheduled_time', { ascending: true })
-      .limit(10); // Limitar a 10 mensagens por vez para evitar sobrecarga
+            type,
+            instance_id,
+            sequence_stages (
+              id, 
+              name,
+              content,
+              typebot_stage
+            )
+          `)
+          .eq('id', message.sequence_id)
+          .single();
+        
+        if (sequenceError || !sequence) {
+          console.error(`Erro ao buscar sequência ${message.sequence_id}:`, sequenceError);
+          continue;
+        }
 
-    if (messagesError) {
-      console.error(`[QUERY] Erro ao buscar mensagens pendentes: ${messagesError.message}`);
-      return new Response(
-        JSON.stringify({ 
-          error: 'Erro ao buscar mensagens pendentes', 
-          details: messagesError.message 
-        }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+        // Buscar estágio específico
+        const stageData = sequence.sequence_stages.find(stage => stage.id === message.stage_id);
+        if (!stageData) {
+          console.error(`Estágio ${message.stage_id} não encontrado na sequência ${message.sequence_id}`);
+          continue;
+        }
 
-    // Se não houver mensagens pendentes, retornar array vazio
-    if (!pendingMessages || pendingMessages.length === 0) {
-      console.log(`[RESULT] Nenhuma mensagem pendente encontrada`);
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          messages: [] 
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+        // Buscar detalhes da instância
+        const { data: instance, error: instanceError } = await supabaseClient
+          .from('instances')
+          .select('id, name, evolution_api_url, api_key')
+          .eq('id', sequence.instance_id)
+          .single();
+        
+        if (instanceError || !instance) {
+          console.error(`Erro ao buscar instância ${sequence.instance_id}:`, instanceError);
+          continue;
+        }
 
-    console.log(`[RESULT] Encontradas ${pendingMessages.length} mensagens pendentes`);
+        // Buscar detalhes do contato
+        const { data: contact, error: contactError } = await supabaseClient
+          .from('contacts')
+          .select('id, name, phone_number, inbox_id, conversation_id, display_id, client_id')
+          .eq('id', message.contact_id)
+          .single();
+        
+        if (contactError || !contact) {
+          console.error(`Erro ao buscar contato ${message.contact_id}:`, contactError);
+          continue;
+        }
 
-    // Marcar as mensagens como "processing"
-    const messageIds = pendingMessages.map(msg => msg.id);
-    
-    const { error: updateError } = await supabase
-      .from('scheduled_messages')
-      .update({ status: 'processing' })
-      .in('id', messageIds);
+        // Buscar detalhes do cliente
+        const { data: client, error: clientError } = await supabaseClient
+          .from('clients')
+          .select('id, account_id, account_name')
+          .eq('id', contact.client_id)
+          .single();
+        
+        if (clientError || !client) {
+          console.error(`Erro ao buscar cliente ${contact.client_id}:`, clientError);
+          continue;
+        }
 
-    if (updateError) {
-      console.error(`[UPDATE] Erro ao atualizar status das mensagens: ${updateError.message}`);
-      return new Response(
-        JSON.stringify({ 
-          error: 'Erro ao atualizar status das mensagens', 
-          details: updateError.message 
-        }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Obter tags de contatos para incluir no payload
-    const contactIds = pendingMessages.map(msg => msg.contacts.id);
-    const { data: contactTags, error: tagsError } = await supabase
-      .from('contact_tags')
-      .select('contact_id, tag_name')
-      .in('contact_id', contactIds);
-
-    if (tagsError) {
-      console.log(`[TAGS] Erro ao buscar tags dos contatos: ${tagsError.message}`);
-    }
-
-    // Agrupar tags por contato
-    const tagsByContact = {};
-    contactTags?.forEach(tag => {
-      if (!tagsByContact[tag.contact_id]) {
-        tagsByContact[tag.contact_id] = [];
-      }
-      tagsByContact[tag.contact_id].push(tag.tag_name);
-    });
-
-    // Formatar mensagens no formato esperado pelo N8N
-    const formattedMessages = pendingMessages.map(msg => {
-      const contact = msg.contacts;
-      const sequence = msg.sequences;
-      const stage = msg.sequence_stages;
-      const instance = sequence.instances;
-      
-      // Obter tags do contato, se existirem
-      const contactTagsList = tagsByContact[contact.id] || [];
-      
-      return {
-        id: msg.id,
-        chatwootData: {
-          accountData: {
-            accountId: contact.client_id,
-            accountName: "Account Name" // Idealmente, buscar o nome da conta, mas não temos isso no JOIN acima
+        // Construir o objeto de resposta
+        const messagePayload = {
+          id: message.id,
+          chatwootData: {
+            accountData: {
+              accountId: client.account_id,
+              accountName: client.account_name
+            },
+            contactData: {
+              id: contact.id,
+              name: contact.name,
+              phoneNumber: contact.phone_number
+            },
+            conversation: {
+              inboxId: contact.inbox_id,
+              conversationId: contact.conversation_id,
+              displayId: contact.display_id,
+              labels: "" // Não precisamos das tags nesse ponto
+            }
           },
-          contactData: {
-            id: contact.id,
-            name: contact.name,
-            phoneNumber: contact.phone_number,
+          instanceData: {
+            id: instance.id,
+            name: instance.name,
+            evolutionApiUrl: instance.evolution_api_url,
+            apiKey: instance.api_key
           },
-          conversationData: {
-            inboxId: contact.inbox_id,
-            conversationId: contact.conversation_id,
-            displayId: contact.display_id,
-            labels: contactTagsList.join(", ")
-          }
-        },
-        instanceData: {
-          id: instance.id,
-          name: instance.name,
-          evolutionApiUrl: instance.evolution_api_url,
-          apiKey: instance.api_key
-        },
-        sequenceData: {
-          instanceName: instance.name,
-          sequenceName: sequence.name,
-          type: stage.type,
-          stage: {
-            [`stg${stage.id}`]: {
-              id: stage.id,
-              content: stage.content,
-              rawScheduledTime: msg.raw_scheduled_time,
-              scheduledTime: msg.scheduled_time
+          sequenceData: {
+            instanceName: instance.name,
+            sequenceName: sequence.name,
+            type: sequence.type, // Tipo agora vem da sequência, não do estágio
+            stage: {
+              [`${stageData.typebot_stage || 'stg1'}`]: {
+                id: stageData.id,
+                content: stageData.content,
+                rawScheduledTime: message.raw_scheduled_time,
+                scheduledTime: message.scheduled_time
+              }
             }
           }
-        }
-      };
-    });
+        };
+
+        processedMessages.push(messagePayload);
+      } catch (error) {
+        console.error(`Erro ao processar mensagem ${message.id}:`, error);
+      }
+    }
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        messages: formattedMessages,
-        meta: {
-          count: formattedMessages.length,
-          processedAt: now.toISOString()
-        },
-        logs: [
-          { level: 'info', message: `[RESULT] Processadas ${formattedMessages.length} mensagens pendentes` }
-        ]
-      }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ messages: processedMessages }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
   } catch (error) {
-    console.error(`[CRITICAL] Erro não tratado: ${error.message}`);
-    console.error(`[CRITICAL] Stack: ${error.stack}`);
+    console.error("Erro geral na função:", error);
     return new Response(
-      JSON.stringify({ 
-        error: 'Erro interno do servidor', 
-        details: error.message,
-        stack: error.stack
-      }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ error: error.message }),
+      { 
+        status: 500, 
+        headers: { ...corsHeaders, "Content-Type": "application/json" } 
+      }
     );
   }
 });
