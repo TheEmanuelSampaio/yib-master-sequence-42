@@ -71,6 +71,28 @@ export function BasicInfoSection({
           </div>
         </div>
         
+        {type === "typebot" && (
+          <div className="space-y-2">
+            <Label htmlFor="typebotStageCount">Número de Estágios do Typebot</Label>
+            <Input 
+              id="typebotStageCount" 
+              type="number" 
+              min={1} 
+              value={typebotStageCount}
+              onChange={(e) => {
+                const value = parseInt(e.target.value);
+                if (value > 0) {
+                  setTypebotStageCount(value);
+                  notifyChanges();
+                }
+              }}
+            />
+            <p className="text-sm text-muted-foreground">
+              Defina quantos estágios o seu Typebot possui
+            </p>
+          </div>
+        )}
+        
         <div className="space-y-2">
           <Label htmlFor="status">Status</Label>
           <div className="mt-2">
