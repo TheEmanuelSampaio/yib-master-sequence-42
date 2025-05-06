@@ -34,7 +34,7 @@ interface AppContextType {
   updateInstance: (id: string, instance: Partial<Instance>) => void;
   deleteInstance: (id: string) => void;
   addSequence: (sequence: Omit<Sequence, "id" | "createdAt" | "updatedAt">) => void;
-  updateSequence: (id: string, update: Partial<Sequence>) => Promise<{ success: boolean; error?: string }>;
+  updateSequence: (id: string, updates: Partial<Sequence>) => Promise<{ success: boolean, error?: string }>;
   deleteSequence: (id: string) => void;
   addTimeRestriction: (restriction: Omit<TimeRestriction, "id">) => void;
   updateTimeRestriction: (id: string, restriction: Partial<TimeRestriction>) => void;
@@ -126,7 +126,7 @@ const defaultContextValue: AppContextType = {
 
 export const AppContext = createContext<AppContextType>(defaultContextValue);
 
-export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export function AppProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   
   const [clients, setClients] = useState<Client[]>([]);
@@ -826,126 +826,147 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const updateSequence = async (id: string, update: Partial<Sequence>) => {
+  const updateSequence = async (id: string, updates: Partial<Sequence>): Promise<{ success: boolean, error?: string }> => {
     try {
-      setLoading(true);
+      console.log("Updating sequence with ID:", id);
+      console.log("Update payload:", JSON.stringify(updates, null, 2));
       
-      // Se os estágios estiverem sendo atualizados, precisamos verificar se algum está em uso
-      if (update.stages) {
-        const currentSequence = sequences.find(s => s.id === id);
-        
-        if (!currentSequence) {
-          throw new Error("Sequência não encontrada");
-        }
-
-        // Identificar estágios que serão removidos
-        const currentStageIds = currentSequence.stages.map(s => s.id);
-        const updatedStageIds = update.stages.map(s => s.id);
-        const stagesToRemove = currentSequence.stages.filter(
-          stage => !updatedStageIds.includes(stage.id)
-        );
-        
-        if (stagesToRemove.length > 0) {
-          // Verificar se algum estágio a ser removido está em uso
-          const stageIdsToCheck = stagesToRemove.map(s => s.id);
-          const { inUse, stageIds } = await checkStagesInUse(stageIdsToCheck);
-          
-          if (inUse) {
-            // Alguns estágios não podem ser removidos
-            const stageNames = stagesToRemove
-              .filter(s => stageIds.includes(s.id))
-              .map(s => s.name);
-              
-            throw new Error(
-              `Os seguintes estágios não podem ser removidos porque estão em uso por contatos ativos: ${stageNames.join(", ")}`
-            );
-          }
-        }
+      if (!id || !isValidUUID(id)) {
+        console.error("Invalid sequence ID:", id);
+        return { success: false, error: "ID de sequência inválido" };
       }
-
-      // Atualizar a sequência na base de dados
-      const { data, error } = await supabase
-        .from("sequences")
+      
+      // Start by updating the main sequence record
+      const { error: seqError } = await supabase
+        .from('sequences')
         .update({
-          name: update.name,
-          status: update.status,
-          start_condition_type: update.startCondition?.type,
-          start_condition_tags: update.startCondition?.tags,
-          stop_condition_type: update.stopCondition?.type,
-          stop_condition_tags: update.stopCondition?.tags,
-          updated_at: new Date().toISOString()
+          name: updates.name,
+          status: updates.status,
+          start_condition_type: updates.startCondition?.type,
+          start_condition_tags: updates.startCondition?.tags,
+          stop_condition_type: updates.stopCondition?.type,
+          stop_condition_tags: updates.stopCondition?.tags,
+          updated_at: new Date().toISOString(),
+          // Don't update instanceId as this shouldn't change
         })
-        .eq("id", id)
-        .select();
+        .eq('id', id);
       
-      if (error) throw error;
+      if (seqError) {
+        console.error("Error updating sequence:", seqError);
+        return { success: false, error: seqError.message };
+      }
       
-      // Processar estágios se estiverem incluídos na atualização
-      if (update.stages) {
-        // Primeiro, vamos atualizar ou criar os estágios
-        for (let i = 0; i < update.stages.length; i++) {
-          const stage = update.stages[i];
-          
-          // Verificar se o estágio já existe
-          if (isValidUUID(stage.id)) {
-            // Atualizar estágio existente
-            const { error: stageError } = await supabase
-              .from("sequence_stages")
-              .update({
-                name: stage.name,
-                type: stage.type,
-                content: stage.content,
-                typebot_stage: stage.typebotStage,
-                delay: stage.delay,
-                delay_unit: stage.delayUnit,
-                order_index: i
-              })
-              .eq("id", stage.id);
-            
-            if (stageError) throw stageError;
+      // Handle stages update if provided
+      if (updates.stages) {
+        console.log("Processing stages update for sequence:", id);
+        console.log("Total stages to process:", updates.stages.length);
+        
+        // Get current stages from database to compare
+        const { data: existingStages, error: stagesQueryError } = await supabase
+          .from('sequence_stages')
+          .select('*')
+          .eq('sequence_id', id);
+        
+        if (stagesQueryError) {
+          console.error("Error fetching existing stages:", stagesQueryError);
+          return { success: false, error: stagesQueryError.message };
+        }
+        
+        console.log("Existing stages in DB:", existingStages?.length || 0);
+        
+        // Track stages to update, delete, and insert
+        const stagesToUpdate = [];
+        const stageIdsToDelete = [];
+        const stagesToInsert = [];
+        
+        // Find existing stage IDs
+        const existingStageIds = new Set(existingStages?.map(stage => stage.id) || []);
+        const updatedStageIds = new Set(updates.stages.map(stage => stage.id));
+        
+        // Determine stages to delete (exist in DB but not in the update)
+        existingStages?.forEach(existingStage => {
+          if (!updatedStageIds.has(existingStage.id)) {
+            stageIdsToDelete.push(existingStage.id);
+          }
+        });
+        
+        // Process each stage in the update
+        updates.stages.forEach((stage, index) => {
+          // Check if the stage already exists in the database
+          if (existingStageIds.has(stage.id)) {
+            // Update existing stage
+            stagesToUpdate.push({
+              id: stage.id,
+              name: stage.name,
+              type: stage.type,
+              content: stage.content,
+              typebot_stage: stage.typebotStage,
+              delay: stage.delay,
+              delay_unit: stage.delayUnit,
+              order_index: index
+            });
           } else {
-            // Criar novo estágio
-            const { error: stageError } = await supabase
-              .from("sequence_stages")
-              .insert({
-                sequence_id: id,
-                name: stage.name,
-                type: stage.type,
-                content: stage.content,
-                typebot_stage: stage.typebotStage,
-                delay: stage.delay,
-                delay_unit: stage.delayUnit,
-                order_index: i
-              });
-            
-            if (stageError) throw stageError;
+            // Insert new stage
+            stagesToInsert.push({
+              id: stage.id,
+              sequence_id: id,
+              name: stage.name,
+              type: stage.type,
+              content: stage.content,
+              typebot_stage: stage.typebotStage,
+              delay: stage.delay,
+              delay_unit: stage.delayUnit,
+              order_index: index
+            });
+          }
+        });
+        
+        console.log("Stages to update:", stagesToUpdate.length);
+        console.log("Stages to insert:", stagesToInsert.length);
+        console.log("Stage IDs to delete:", stageIdsToDelete.length);
+        
+        // Process deletions
+        if (stageIdsToDelete.length > 0) {
+          const { error: deleteError } = await supabase
+            .from('sequence_stages')
+            .delete()
+            .in('id', stageIdsToDelete);
+          
+          if (deleteError) {
+            console.error("Error deleting stages:", deleteError);
+            return { success: false, error: deleteError.message };
           }
         }
         
-        // Agora podemos remover com segurança os estágios que não estão mais na lista
-        // e que verificamos que não estão em uso
-        const currentSequence = sequences.find(s => s.id === id);
-        if (currentSequence) {
-          const currentStageIds = currentSequence.stages.map(s => s.id);
-          const updatedStageIds = update.stages.map(s => s.id);
-          const stageIdsToRemove = currentStageIds.filter(
-            currentId => !updatedStageIds.includes(currentId)
-          );
+        // Process updates (one at a time to avoid conflicts)
+        for (const stage of stagesToUpdate) {
+          const { error: updateError } = await supabase
+            .from('sequence_stages')
+            .update(stage)
+            .eq('id', stage.id);
           
-          if (stageIdsToRemove.length > 0) {
-            const { error: deleteError } = await supabase
-              .from("sequence_stages")
-              .delete()
-              .in("id", stageIdsToRemove);
-            
-            if (deleteError) throw deleteError;
+          if (updateError) {
+            console.error(`Error updating stage ${stage.id}:`, updateError);
+            return { success: false, error: updateError.message };
+          }
+        }
+        
+        // Process inserts (in batch)
+        if (stagesToInsert.length > 0) {
+          const { error: insertError } = await supabase
+            .from('sequence_stages')
+            .insert(stagesToInsert);
+          
+          if (insertError) {
+            console.error("Error inserting new stages:", insertError);
+            return { success: false, error: insertError.message };
           }
         }
       }
       
-      // Atualizar restrições de tempo se estiverem incluídas na atualização
-      if (update.timeRestrictions) {
-        // Primeiro remover todas as restrições existentes
+      // Handle time restrictions update if provided
+      if (updates.timeRestrictions) {
+        // First remove all existing time restrictions
         const { error: deleteLocalError } = await supabase
           .from("sequence_local_restrictions")
           .delete()
@@ -960,8 +981,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         
         if (deleteGlobalError) throw deleteGlobalError;
         
-        // Adicionar novas restrições locais
-        const localRestrictions = update.timeRestrictions.filter(r => !r.isGlobal);
+        // Add new local restrictions
+        const localRestrictions = updates.timeRestrictions.filter(r => !r.isGlobal);
         if (localRestrictions.length > 0 && user) {
           // Corrigido: precisamos passar cada restrição individual com o campo created_by
           for (const restriction of localRestrictions) {
@@ -983,8 +1004,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         }
         
-        // Adicionar novas restrições globais
-        const globalRestrictions = update.timeRestrictions.filter(r => r.isGlobal);
+        // Add new global restrictions
+        const globalRestrictions = updates.timeRestrictions.filter(r => r.isGlobal);
         if (globalRestrictions.length > 0) {
           const globalRestrictionsData = globalRestrictions.map(r => ({
             sequence_id: id,
@@ -999,26 +1020,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
       
-      // Atualizar o estado local
-      setSequences(prev => 
-        prev.map(sequence => 
-          sequence.id === id ? { 
-            ...sequence, 
-            ...update, 
-            updatedAt: new Date().toISOString() 
-          } : sequence
-        )
-      );
+      // Update the sequence in local state
+      setSequences(prevSequences => prevSequences.map(seq => 
+        seq.id === id ? { ...seq, ...updates } : seq
+      ));
       
+      console.log("Sequence updated successfully");
       return { success: true };
-    } catch (error: any) {
-      console.error("Erro ao atualizar sequência:", error);
-      return { 
-        success: false, 
-        error: `Erro ao atualizar sequência: ${error.message}` 
-      };
-    } finally {
-      setLoading(false);
+    } catch (error) {
+      console.error("Error in updateSequence:", error);
+      return { success: false, error: error.message };
     }
   };
 
