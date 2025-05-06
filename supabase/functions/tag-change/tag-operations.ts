@@ -1,121 +1,99 @@
 
-// Make sure to add any imports and update function signatures as needed
+import { corsHeaders } from '../_shared/cors.ts';
 
 export async function handleTags(supabase: any, tags: string[], client: any, contact: any) {
-  console.log(`[TAGS] Processando ${tags.length} tags para o contato ${contact.id}`);
+  // Estatísticas para o payload de resposta
+  let tagsAdded = 0;
+  let existingTags = 0;
+  let tagErrors = 0;
   
-  try {
-    // Manter um conjunto de tags atuais para comparação
-    const { data: currentTags, error: currentTagsError } = await supabase
+  // 1. Verificar se as tags existem e criar as que não existem
+  if (tags.length > 0) {
+    console.log(`[4. TAGS] Processando ${tags.length} tags...`);
+    for (const tagName of tags) {
+      // Verificar se a tag já existe
+      const { data: existingTag, error: tagQueryError } = await supabase
+        .from('tags')
+        .select('*')
+        .eq('name', tagName)
+        .eq('created_by', client.created_by);
+      
+      if (tagQueryError) {
+        console.error(`[4. TAGS] Erro ao consultar tag ${tagName}: ${JSON.stringify(tagQueryError)}`);
+        tagErrors++;
+        continue;
+      }
+      
+      // Se a tag não existe, criá-la
+      if (!existingTag || existingTag.length === 0) {
+        try {
+          console.log(`[4. TAGS] Criando nova tag: ${tagName} (criador: ${client.created_by})`);
+          // Inserir tag usando a função RPC com os parâmetros na ordem correta
+          const { error: upsertError } = await supabase.rpc('insert_tag_if_not_exists_for_user', {
+            p_name: tagName,
+            p_created_by: client.created_by
+          });
+          
+          if (upsertError) {
+            console.error(`[4. TAGS] Erro ao criar tag ${tagName}: ${JSON.stringify(upsertError)}`);
+            tagErrors++;
+            continue;
+          } else {
+            tagsAdded++;
+          }
+        } catch (err) {
+          console.error(`[4. TAGS] Exceção ao criar tag ${tagName}: ${JSON.stringify(err)}`);
+          tagErrors++;
+          continue;
+        }
+      } else {
+        console.log(`[4. TAGS] Tag já existente: ${tagName}`);
+        existingTags++;
+      }
+    }
+  }
+  
+  // Atualizar tags do contato
+  if (tags.length > 0) {
+    console.log(`[4. TAGS] Atualizando tags do contato: ${contact.id}`);
+    // Primeiro remover tags existentes
+    const { error: deleteTagsError } = await supabase
       .from('contact_tags')
-      .select('tag_name')
+      .delete()
       .eq('contact_id', contact.id);
     
-    if (currentTagsError) {
-      console.error(`[TAGS] Erro ao buscar tags atuais: ${JSON.stringify(currentTagsError)}`);
-      return { 
-        success: false, 
-        error: 'Falha ao buscar tags atuais', 
-        details: currentTagsError
-      };
+    if (deleteTagsError) {
+      console.error(`[4. TAGS] Erro ao remover tags existentes: ${JSON.stringify(deleteTagsError)}`);
+      tagErrors++;
     }
     
-    const currentTagNames = new Set(currentTags.map((t: any) => t.tag_name));
-    const newTagNames = new Set(tags);
+    // Inserir novas tags
+    const tagInserts = tags.map(tag => ({
+      contact_id: contact.id,
+      tag_name: tag
+    }));
     
-    let tagsAdded = 0;
-    let tagsRemoved = 0;
-    let tagsMaintained = 0;
-    
-    // Identificar tags para adicionar (estão em newTagNames mas não em currentTagNames)
-    const tagsToAdd = [...newTagNames].filter(tag => !currentTagNames.has(tag));
-    
-    // Identificar tags para remover (estão em currentTagNames mas não em newTagNames)
-    const tagsToRemove = [...currentTagNames].filter(tag => !newTagNames.has(tag));
-    
-    // Identificar tags mantidas (estão em ambos os conjuntos)
-    const tagsMaintainedList = [...currentTagNames].filter(tag => newTagNames.has(tag));
-    tagsMaintained = tagsMaintainedList.length;
-    
-    console.log(`[TAGS] Tags a adicionar: ${tagsToAdd.join(', ')}`);
-    console.log(`[TAGS] Tags a remover: ${tagsToRemove.join(', ')}`);
-    
-    // Adicionar novas tags
-    if (tagsToAdd.length > 0) {
-      const tagInserts = tagsToAdd.map(tagName => ({
-        contact_id: contact.id,
-        tag_name: tagName
-      }));
-      
-      const { error: insertError } = await supabase
+    if (tagInserts.length > 0) {
+      console.log(`[4. TAGS] Inserindo ${tagInserts.length} novas tags para o contato`);
+      const { error: insertTagsError } = await supabase
         .from('contact_tags')
         .insert(tagInserts);
       
-      if (insertError) {
-        console.error(`[TAGS] Erro ao inserir tags: ${JSON.stringify(insertError)}`);
-        return { 
-          success: false, 
-          error: 'Falha ao inserir tags novas', 
-          details: insertError
-        };
-      }
-      
-      tagsAdded = tagsToAdd.length;
-      
-      // Inserir cada tag no sistema global de tags (se não existir)
-      for (const tagName of tagsToAdd) {
-        // Usar uma função RPC que faz um insert condicional
-        const { error: rpcError } = await supabase.rpc(
-          'insert_tag_if_not_exists_for_user',
-          { 
-            p_name: tagName, 
-            p_created_by: client.created_by || 'system' 
-          }
-        );
-        
-        if (rpcError) {
-          console.warn(`[TAGS] Aviso: não foi possível inserir tag global: ${tagName}`, rpcError);
-        }
+      if (insertTagsError) {
+        console.error(`[4. TAGS] Erro ao inserir novas tags: ${JSON.stringify(insertTagsError)}`);
+        tagErrors++;
+      } else {
+        console.log(`[4. TAGS] Tags adicionadas com sucesso`);
       }
     }
-    
-    // Remover tags que não estão mais presentes
-    if (tagsToRemove.length > 0) {
-      const { error: deleteError } = await supabase
-        .from('contact_tags')
-        .delete()
-        .eq('contact_id', contact.id)
-        .in('tag_name', tagsToRemove);
-      
-      if (deleteError) {
-        console.error(`[TAGS] Erro ao remover tags: ${JSON.stringify(deleteError)}`);
-        return { 
-          success: false, 
-          error: 'Falha ao remover tags antigas', 
-          details: deleteError
-        };
-      }
-      
-      tagsRemoved = tagsToRemove.length;
-    }
-    
-    console.log(`[TAGS] Tags processadas com sucesso: ${tagsAdded} adicionadas, ${tagsRemoved} removidas, ${tagsMaintained} mantidas`);
-    
-    return {
-      success: true,
-      stats: {
-        tagsAdded,
-        tagsRemoved,
-        tagsMaintained
-      }
-    };
-    
-  } catch (error) {
-    console.error(`[TAGS] Erro ao processar tags: ${JSON.stringify(error)}`);
-    return { 
-      success: false, 
-      error: 'Erro interno ao processar tags', 
-      details: error 
-    };
   }
+  
+  return {
+    success: true,
+    stats: {
+      tagsAdded,
+      existingTags,
+      tagErrors
+    }
+  };
 }

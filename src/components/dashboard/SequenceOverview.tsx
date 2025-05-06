@@ -38,11 +38,6 @@ export function SequenceOverview() {
     }
   };
   
-  // Helper to get all tags from all groups
-  const getAllTags = (conditionStructure: { operator: string, groups: { operator: string, tags: string[] }[] }) => {
-    return conditionStructure.groups.flatMap(group => group.tags);
-  };
-  
   return (
     <Card className="col-span-full">
       <CardHeader className="pb-3">
@@ -101,26 +96,26 @@ export function SequenceOverview() {
                     <div>
                       <p className="text-sm text-muted-foreground">Condições de Início</p>
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {getAllTags(sequence.startCondition).map((tag, idx) => (
-                          <Badge key={`${tag}-${idx}`} variant="secondary" className="bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30">
+                        {sequence.startCondition.tags.map(tag => (
+                          <Badge key={tag} variant="secondary" className="bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30">
                             {tag}
                           </Badge>
                         ))}
                         <Badge variant="secondary" className="bg-secondary text-secondary-foreground">
-                          {sequence.startCondition.operator}
+                          {sequence.startCondition.type}
                         </Badge>
                       </div>
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Condições de Parada</p>
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {getAllTags(sequence.stopCondition).map((tag, idx) => (
-                          <Badge key={`${tag}-${idx}`} variant="secondary" className="bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30">
+                        {sequence.stopCondition.tags.map(tag => (
+                          <Badge key={tag} variant="secondary" className="bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30">
                             {tag}
                           </Badge>
                         ))}
                         <Badge variant="secondary" className="bg-secondary text-secondary-foreground">
-                          {sequence.stopCondition.operator}
+                          {sequence.stopCondition.type}
                         </Badge>
                       </div>
                     </div>

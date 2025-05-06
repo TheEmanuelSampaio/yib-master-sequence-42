@@ -1,5 +1,4 @@
-
-import { Instance, Sequence, User, Contact, DailyStats, TimeRestriction, TagCondition, ConditionStructure, ConditionGroup } from '@/types';
+import { Instance, Sequence, User, Contact, DailyStats, TimeRestriction, TagCondition } from '@/types';
 
 // User mock data
 export const user: User = {
@@ -49,23 +48,13 @@ export const sequences: Sequence[] = [
     name: "Follow-up Inicial",
     type: "message",
     startCondition: {
-      operator: "OR",
-      groups: [
-        {
-          operator: "OR",
-          tags: ["lead", "interessado", "novo"]
-        }
-      ]
-    },
+      type: "OR",
+      tags: ["lead", "interessado", "novo"]
+    } as TagCondition,
     stopCondition: {
-      operator: "OR",
-      groups: [
-        {
-          operator: "OR",
-          tags: ["abandonou", "comprou"]
-        }
-      ]
-    },
+      type: "OR",
+      tags: ["abandonou", "comprou"]
+    } as TagCondition,
     stages: [
       {
         id: "stage-1",
@@ -115,23 +104,13 @@ export const sequences: Sequence[] = [
     name: "Recuperação de Leads",
     type: "typebot",
     startCondition: {
-      operator: "AND",
-      groups: [
-        {
-          operator: "AND",
-          tags: ["interessado", "orçamento"]
-        }
-      ]
-    },
+      type: "AND",
+      tags: ["interessado", "orçamento"]
+    } as TagCondition,
     stopCondition: {
-      operator: "OR",
-      groups: [
-        {
-          operator: "OR",
-          tags: ["comprou", "abandonou"]
-        }
-      ]
-    },
+      type: "OR", 
+      tags: ["comprou", "abandonou"]
+    } as TagCondition,
     stages: [
       {
         id: "stage-1",

@@ -1,3 +1,4 @@
+
 // User related types
 export interface User {
   id: string;
@@ -34,14 +35,13 @@ export interface Instance {
   updatedAt: string;
 }
 
-// Sequence related types
 export interface Sequence {
   id: string;
   instanceId: string;
   name: string;
-  type: "message" | "pattern" | "typebot";
-  startCondition: ConditionStructure;
-  stopCondition: ConditionStructure;
+  type: "message" | "pattern" | "typebot"; // Adicionado tipo à interface Sequence
+  startCondition: TagCondition;
+  stopCondition: TagCondition;
   stages: SequenceStage[];
   timeRestrictions: TimeRestriction[];
   status: "active" | "inactive";
@@ -49,17 +49,6 @@ export interface Sequence {
   updatedAt: string;
 }
 
-export interface ConditionStructure {
-  operator: "AND" | "OR";
-  groups: ConditionGroup[];
-}
-
-export interface ConditionGroup {
-  operator: "AND" | "OR";
-  tags: string[];
-}
-
-// Legacy type - keeping for backward compatibility
 export interface TagCondition {
   type: "AND" | "OR";
   tags: string[];
