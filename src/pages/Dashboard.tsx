@@ -5,7 +5,7 @@ import { SequenceOverview } from '@/components/dashboard/SequenceOverview';
 import { MessagesChart } from '@/components/dashboard/MessagesChart';
 import { RecentContacts } from '@/components/dashboard/RecentContacts';
 import { TagDistributionChart } from '@/components/dashboard/TagDistributionChart';
-import { LayoutDashboard, Users, MessageSquare, CheckCheck, Clock } from 'lucide-react';
+import { LayoutDashboard, Users, MessageSquare, CheckCheck } from 'lucide-react';
 
 export default function Dashboard() {
   const { currentInstance, sequences, contacts, stats } = useApp();
@@ -21,15 +21,22 @@ export default function Dashboard() {
   
   const contactCount = contacts.length;
   
-  // Get today's stats
+  // Get today's stats - fixing the stats.find issue by checking if stats is an array first
   const today = new Date().toISOString().split('T')[0];
-  const todayStats = stats.find(s => s.date === today) || {
+  
+  // Default stats object if no stats are found for today
+  const defaultStats = {
     messagesSent: 0,
     messagesScheduled: 0,
     messagesFailed: 0,
     newContacts: 0,
     completedSequences: 0,
   };
+  
+  // Check if stats is an array before using find
+  const todayStats = Array.isArray(stats) 
+    ? stats.find(s => s.date === today) || defaultStats
+    : defaultStats;
   
   // Calculate message success rate
   const successRate = todayStats.messagesSent > 0 
@@ -84,11 +91,11 @@ export default function Dashboard() {
         />
       </div>
 
-      <div className="grid gap-4 grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">
         <MessagesChart />
       </div>
 
-      <div className="grid gap-4 grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">
         <RecentContacts />
         <TagDistributionChart />
       </div>
