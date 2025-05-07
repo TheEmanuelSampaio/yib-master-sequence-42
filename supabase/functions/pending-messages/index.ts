@@ -91,6 +91,64 @@ Deno.serve(async (req) => {
     console.log(`[QUERY] Buscando mensagens pendentes...`);
     const now = new Date();
     
+    // Definir qual admin ID usar para filtragem
+    const filterAdminId = (adminId && admin.role === 'super_admin') ? adminId : admin.id;
+    
+    // Se não for super_admin e adminId é fornecido, filtrar apenas para esse admin
+    let clientIds = [];
+    let clientIdsQuery;
+    
+    if (admin.role !== 'super_admin' || (adminId && admin.role === 'super_admin')) {
+      console.log(`[QUERY] Filtrando mensagens para admin_id=${filterAdminId}`);
+      
+      // Primeiro, obter os IDs dos clientes associados a este admin
+      const { data: clientsData, error: clientsError } = await supabase
+        .from('clients')
+        .select('id')
+        .eq('created_by', filterAdminId);
+      
+      if (clientsError) {
+        console.error(`[QUERY] Erro ao buscar clientes do admin: ${clientsError.message}`);
+        return new Response(
+          JSON.stringify({ 
+            error: 'Erro ao buscar clientes do admin', 
+            details: clientsError.message 
+          }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      // Extrair os IDs dos clientes
+      clientIds = clientsData?.map(client => client.id) || [];
+      console.log(`[QUERY] Encontrados ${clientIds.length} clientes para o admin ${filterAdminId}`);
+      
+      // Se não houver clientes para este admin, retornar array vazio
+      if (clientIds.length === 0) {
+        console.log(`[RESULT] Nenhum cliente encontrado para o admin ${filterAdminId}`);
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            messages: [],
+            meta: {
+              count: 0,
+              processedAt: now.toISOString(),
+              admin: {
+                id: admin.id,
+                role: admin.role,
+                name: admin.account_name
+              }
+            }
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      clientIdsQuery = clientIds;
+    } else {
+      console.log(`[QUERY] Admin é super_admin e não especificou adminId, buscando todas as mensagens pendentes`);
+    }
+    
+    // Construir a consulta principal para buscar mensagens pendentes
     let pendingMessagesQuery = supabase
       .from('scheduled_messages')
       .select(`
@@ -129,20 +187,10 @@ Deno.serve(async (req) => {
       .eq('status', 'pending')
       .lt('scheduled_time', now.toISOString())
       .order('scheduled_time', { ascending: true });
-      
-    // Se não for super_admin e adminId é fornecido, filtrar apenas para esse admin
-    if (admin.role !== 'super_admin' || (adminId && admin.role === 'super_admin')) {
-      const filterAdminId = adminId || admin.id;
-      console.log(`[QUERY] Filtrando mensagens para admin_id=${filterAdminId}`);
-      
-      pendingMessagesQuery = pendingMessagesQuery.filter('contacts.client_id.in', (subquery) => {
-        return subquery
-          .from('clients')
-          .select('id')
-          .eq('created_by', filterAdminId);
-      });
-    } else {
-      console.log(`[QUERY] Admin é super_admin e não especificou adminId, buscando todas as mensagens pendentes`);
+    
+    // Se temos clientIds para filtrar, adicionar à consulta
+    if (clientIdsQuery && clientIdsQuery.length > 0) {
+      pendingMessagesQuery = pendingMessagesQuery.in('contacts.client_id', clientIdsQuery);
     }
       
     // Limitar a 10 mensagens por vez para evitar sobrecarga
