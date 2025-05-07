@@ -209,25 +209,7 @@ export function BasicInfoSection({
             </div>
           </div>
           
-          <div className="space-y-2">
-            <Label htmlFor="status">Status</Label>
-            <div className="mt-2">
-              <Switch
-                id="status"
-                checked={status === "active"}
-                onCheckedChange={(checked) => {
-                  setStatus(checked ? "active" : "inactive");
-                  notifyChanges();
-                }}
-                className="data-[state=checked]:bg-primary"
-              />
-              <span className="ml-2 text-sm">
-                {status === "active" ? "Sequência ativa" : "Sequência inativa"}
-              </span>
-            </div>
-          </div>
-
-          {/* Webhook Configuration Section */}
+          {/* Webhook Configuration Section - Movido para ANTES do toggle de status */}
           <div className="border-t pt-4 mt-4">
             <div className="space-y-2">
               <Label htmlFor="webhook-enabled">Webhook de Disparo</Label>
@@ -278,6 +260,27 @@ export function BasicInfoSection({
                 </p>
               </div>
             )}
+          </div>
+
+          {/* Status Toggle - Movido para DEPOIS do webhook */}
+          <div className="border-t pt-4 mt-4">
+            <div className="space-y-2">
+              <Label htmlFor="status">Status</Label>
+              <div className="mt-2">
+                <Switch
+                  id="status"
+                  checked={status === "active"}
+                  onCheckedChange={(checked) => {
+                    setStatus(checked ? "active" : "inactive");
+                    notifyChanges();
+                  }}
+                  className="data-[state=checked]:bg-primary"
+                />
+                <span className="ml-2 text-sm">
+                  {status === "active" ? "Sequência ativa" : "Sequência inativa"}
+                </span>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>

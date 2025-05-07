@@ -1,3 +1,4 @@
+
 import { Instance, Sequence, User, Contact, DailyStats, TimeRestriction, TagCondition } from '@/types';
 
 // User mock data
@@ -98,7 +99,7 @@ export const sequences: Sequence[] = [
     createdBy: "user-1",
     createdAt: "2023-12-02T10:15:00Z",
     updatedAt: "2023-12-10T16:45:00Z",
-    webhookEnabled: false, // Add webhook fields to mock data
+    webhookEnabled: false,
     webhookId: undefined
   },
   {
@@ -158,7 +159,7 @@ export const sequences: Sequence[] = [
     createdBy: "user-1",
     createdAt: "2023-12-05T09:20:00Z",
     updatedAt: "2023-12-12T11:30:00Z",
-    webhookEnabled: false, // Add webhook fields to mock data
+    webhookEnabled: false,
     webhookId: undefined
   }
 ];
