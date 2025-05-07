@@ -35,25 +35,13 @@ export interface Instance {
   updatedAt: string;
 }
 
-// New condition structure with support for groups
-export interface TagGroup {
-  id: string;
-  tags: string[];
-  operator: "AND" | "OR";
-}
-
-export interface ConditionStructure {
-  groups: TagGroup[];
-  operator: "AND" | "OR"; // Top-level operator between groups
-}
-
 export interface Sequence {
   id: string;
   instanceId: string;
   name: string;
   type: "message" | "pattern" | "typebot"; // Adicionado tipo à interface Sequence
-  startCondition: ConditionStructure;
-  stopCondition: ConditionStructure;
+  startCondition: TagCondition;
+  stopCondition: TagCondition;
   stages: SequenceStage[];
   timeRestrictions: TimeRestriction[];
   status: "active" | "inactive";
@@ -61,7 +49,6 @@ export interface Sequence {
   updatedAt: string;
 }
 
-// Legacy TagCondition type for backwards compatibility
 export interface TagCondition {
   type: "AND" | "OR";
   tags: string[];
@@ -76,7 +63,6 @@ export interface SequenceStage {
   delay: number;
   delayUnit: "minutes" | "hours" | "days";
   orderIndex?: number;
-  sequenceId?: string;
 }
 
 export interface TimeRestriction {

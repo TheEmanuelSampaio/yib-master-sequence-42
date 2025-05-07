@@ -1,19 +1,37 @@
 
-import { useState, useMemo, useEffect } from "react";
+import { useState } from "react";
 import { useApp } from '@/context/AppContext';
+import { Search, Filter, Calendar, CheckCircle, XCircle, AlertCircle, MessageCircle, FileCode, Bot, Clock, Hourglass, XOctagon } from "lucide-react";
 import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-} from "@/components/ui/alert";
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -21,276 +39,451 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
-import {
-  Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { ScheduledMessage, Sequence, Contact } from "@/types";
-import { formatDistanceToNow, format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { 
-  AlertCircle, 
-  MoreVertical, 
-  RefreshCw, 
-  CheckCircle,
-  XCircle,
-  Clock,
-  AlertTriangle,
-  Search,
-  MessageSquare
-} from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { cn } from '@/lib/utils';
+import { formatDistanceToNow } from "date-fns";
+import { ptBR } from "date-fns/locale";
+
+type MessageStatus = 'waiting' | 'pending' | 'processing' | 'sent' | 'failed' | 'persistent_error';
 
 export default function Messages() {
-  const { currentInstance, scheduledMessages, contacts, sequences, refreshData } = useApp();
-  const [filter, setFilter] = useState('all');
+  const { scheduledMessages, contacts, sequences } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  useEffect(() => {
-    if (currentInstance) {
-      refreshData();
+  const [statusFilters, setStatusFilters] = useState<MessageStatus[]>([]);
+  const [showMessageContent, setShowMessageContent] = useState(false);
+  const [selectedMessage, setSelectedMessage] = useState<any>(null);
+  
+  const messagesWithDetails = scheduledMessages.map(message => {
+    const contact = contacts.find(c => c.id === message.contactId);
+    const sequence = sequences.find(s => s.id === message.sequenceId);
+    const stage = sequence?.stages.find(s => s.id === message.stageId);
+    
+    // Add waiting status if the scheduled time is in the future
+    let status = message.status;
+    if (status === 'pending') {
+      if (new Date(message.scheduledTime) > new Date()) {
+        status = 'waiting';
+      }
     }
-  }, [currentInstance, refreshData]);
-
-  const handleRefresh = () => {
-    setIsRefreshing(true);
-    refreshData().then(() => {
-      setIsRefreshing(false);
+    
+    return {
+      ...message,
+      status,
+      contactName: contact?.name || "Desconhecido",
+      contactPhone: contact?.phoneNumber || "",
+      sequenceName: sequence?.name || "Desconhecida",
+      stageName: stage?.name || "Desconhecido",
+      stageType: stage?.type || "message",
+      content: stage?.content || "",
+    };
+  });
+  
+  const filteredMessages = messagesWithDetails.filter(message => {
+    // If we have status filters and the message status is not in the filter list
+    if (statusFilters.length > 0 && !statusFilters.includes(message.status as MessageStatus)) {
+      return false;
+    }
+    
+    if (searchQuery) {
+      const searchLower = searchQuery.toLowerCase();
+      return (
+        message.contactName.toLowerCase().includes(searchLower) ||
+        message.contactPhone.includes(searchLower) ||
+        message.sequenceName.toLowerCase().includes(searchLower) ||
+        message.stageName.toLowerCase().includes(searchLower)
+      );
+    }
+    
+    return true;
+  });
+  
+  const sortedMessages = [...filteredMessages].sort(
+    (a, b) => new Date(b.scheduledTime).getTime() - new Date(a.scheduledTime).getTime()
+  );
+  
+  const handleToggleStatusFilter = (status: MessageStatus) => {
+    setStatusFilters(prev => {
+      if (prev.includes(status)) {
+        return prev.filter(s => s !== status);
+      } else {
+        return [...prev, status];
+      }
     });
   };
-
-  const filteredMessages = useMemo(() => {
-    if (!scheduledMessages || !currentInstance) return [];
-    
-    // Get sequences for current instance
-    const instanceSequenceIds = sequences
-      .filter(seq => seq.instanceId === currentInstance.id)
-      .map(seq => seq.id);
-    
-    // Filter messages by current instance and status
-    let filtered = scheduledMessages.filter(msg => 
-      instanceSequenceIds.includes(msg.sequenceId)
-    );
-    
-    // Apply status filter
-    if (filter !== 'all') {
-      filtered = filtered.filter(msg => msg.status === filter);
-    }
-    
-    // Apply search filter (by contact name or phone)
-    if (searchQuery) {
-      const lowerSearch = searchQuery.toLowerCase();
-      filtered = filtered.filter(msg => {
-        const contact = contacts.find(c => c.id === msg.contactId);
-        return contact && (
-          contact.name.toLowerCase().includes(lowerSearch) ||
-          contact.phoneNumber.toLowerCase().includes(lowerSearch)
-        );
-      });
-    }
-    
-    return filtered;
-  }, [scheduledMessages, currentInstance, filter, searchQuery, sequences, contacts]);
   
-  const getStatusBadge = (status: string) => {
+  const StatusBadge = ({ status }: { status: string }) => {
     switch (status) {
       case 'waiting':
-        return <Badge variant="outline" className="bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-500/30"><Clock className="mr-1 h-3 w-3" />Aguardando</Badge>;
+        return (
+          <Badge variant="outline" className="bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-500/30">
+            <Hourglass className="h-3 w-3 mr-1" />
+            Aguardando
+          </Badge>
+        );
       case 'pending':
-        return <Badge variant="outline" className="bg-orange-500/20 text-orange-700 dark:text-orange-400 border-orange-500/30"><Clock className="mr-1 h-3 w-3" />Pendente</Badge>;
+        return (
+          <Badge variant="outline" className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30">
+            <Clock className="h-3 w-3 mr-1" />
+            Pendente
+          </Badge>
+        );
       case 'processing':
-        return <Badge variant="outline" className="bg-purple-500/20 text-purple-700 dark:text-purple-400 border-purple-500/30"><RefreshCw className="mr-1 h-3 w-3 animate-spin" />Processando</Badge>;
+        return (
+          <Badge variant="outline" className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30">
+            <Clock className="h-3 w-3 mr-1" />
+            Processando
+          </Badge>
+        );
       case 'sent':
-        return <Badge variant="outline" className="bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30"><CheckCircle className="mr-1 h-3 w-3" />Enviado</Badge>;
+        return (
+          <Badge variant="outline" className="bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30">
+            <CheckCircle className="h-3 w-3 mr-1" />
+            Enviada
+          </Badge>
+        );
       case 'failed':
-        return <Badge variant="outline" className="bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30"><XCircle className="mr-1 h-3 w-3" />Falhou</Badge>;
+        return (
+          <Badge variant="outline" className="bg-neutral-500/20 text-neutral-700 dark:text-neutral-400 border-neutral-500/30">
+            <Hourglass className="h-3 w-3 mr-1" />
+            Falhou
+          </Badge>
+        );
       case 'persistent_error':
-        return <Badge variant="outline" className="bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30"><AlertTriangle className="mr-1 h-3 w-3" />Erro Persistente</Badge>;
+        return (
+          <Badge variant="outline" className="bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30">
+            <XOctagon className="h-3 w-3 mr-1" />
+            Erro Persistente
+          </Badge>
+        );
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
   };
   
-  const getContactName = (contactId: string) => {
-    const contact = contacts.find(c => c.id === contactId);
-    return contact ? contact.name : 'Contato desconhecido';
+  const getStageTypeIcon = (type: string) => {
+    switch (type) {
+      case "message":
+        return <MessageCircle className="h-4 w-4" />;
+      case "pattern":
+        return <FileCode className="h-4 w-4" />;
+      case "typebot":
+        return <Bot className="h-4 w-4" />;
+      default:
+        return <MessageCircle className="h-4 w-4" />;
+    }
   };
   
-  const getSequenceName = (sequenceId: string) => {
-    const sequence = sequences.find(s => s.id === sequenceId);
-    return sequence ? sequence.name : 'Sequência desconhecida';
+  const handleViewMessage = (message: any) => {
+    setSelectedMessage(message);
+    setShowMessageContent(true);
   };
   
-  const getStageName = (sequenceId: string, stageId: string) => {
-    const sequence = sequences.find(s => s.id === sequenceId);
-    if (!sequence) return 'Estágio desconhecido';
-    
-    const stage = sequence.stages.find(s => s.id === stageId);
-    return stage ? stage.name : 'Estágio desconhecido';
+  const formatDate = (isoString: string) => {
+    return new Date(isoString).toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
-  
-  if (!currentInstance) {
-    return (
-      <Alert>
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription>
-          Selecione uma instância para visualizar as mensagens
-        </AlertDescription>
-      </Alert>
-    );
-  }
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col">
         <h1 className="text-2xl font-bold tracking-tight">Mensagens</h1>
         <p className="text-muted-foreground">
-          Gerencie as mensagens agendadas para envio
+          Visualize e gerencie as mensagens agendadas e enviadas
         </p>
       </div>
       
-      <div className="flex justify-between items-center gap-4 flex-col sm:flex-row">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center w-full max-w-sm space-x-2">
           <Input
-            placeholder="Buscar por contato..."
+            placeholder="Buscar mensagens..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="h-9"
           />
-          <Button variant="ghost" size="sm" className="h-9 px-2 text-muted-foreground">
+          <Button variant="ghost" className="h-9 px-2 text-muted-foreground">
             <Search className="h-4 w-4" />
           </Button>
         </div>
         
-        <div className="flex items-center space-x-2 w-full sm:w-auto">
-          <Select value={filter} onValueChange={setFilter}>
-            <SelectTrigger className="w-full sm:w-[180px] h-9">
-              <SelectValue placeholder="Filtrar por status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os status</SelectItem>
-              <SelectItem value="waiting">Aguardando</SelectItem>
-              <SelectItem value="pending">Pendente</SelectItem>
-              <SelectItem value="processing">Processando</SelectItem>
-              <SelectItem value="sent">Enviado</SelectItem>
-              <SelectItem value="failed">Falhou</SelectItem>
-              <SelectItem value="persistent_error">Erro Persistente</SelectItem>
-            </SelectContent>
-          </Select>
-          
-          <Button 
-            variant="outline" 
-            size="icon"
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-          >
-            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-          </Button>
+        <div className="flex items-center space-x-2">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="flex space-x-1">
+                <Filter className="h-4 w-4" />
+                <span>Filtrar por Status</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-56">
+              <div className="space-y-2">
+                <h4 className="font-medium text-sm">Status da Mensagem</h4>
+                <div className="space-y-1">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="waiting" 
+                      checked={statusFilters.includes('waiting')} 
+                      onCheckedChange={() => handleToggleStatusFilter('waiting')}
+                    />
+                    <label htmlFor="waiting" className="text-sm">
+                      <Badge variant="outline" className="bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-500/30">
+                        <Hourglass className="h-3 w-3 mr-1" />
+                        Aguardando
+                      </Badge>
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="pending" 
+                      checked={statusFilters.includes('pending')} 
+                      onCheckedChange={() => handleToggleStatusFilter('pending')}
+                    />
+                    <label htmlFor="pending" className="text-sm">
+                      <Badge variant="outline" className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30">
+                        <Clock className="h-3 w-3 mr-1" />
+                        Pendente
+                      </Badge>
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="processing" 
+                      checked={statusFilters.includes('processing')} 
+                      onCheckedChange={() => handleToggleStatusFilter('processing')}
+                    />
+                    <label htmlFor="processing" className="text-sm">
+                      <Badge variant="outline" className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30">
+                        <Clock className="h-3 w-3 mr-1" />
+                        Processando
+                      </Badge>
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="sent" 
+                      checked={statusFilters.includes('sent')} 
+                      onCheckedChange={() => handleToggleStatusFilter('sent')}
+                    />
+                    <label htmlFor="sent" className="text-sm">
+                      <Badge variant="outline" className="bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Enviada
+                      </Badge>
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="failed" 
+                      checked={statusFilters.includes('failed')} 
+                      onCheckedChange={() => handleToggleStatusFilter('failed')}
+                    />
+                    <label htmlFor="failed" className="text-sm">
+                      <Badge variant="outline" className="bg-neutral-500/20 text-neutral-700 dark:text-neutral-400 border-neutral-500/30">
+                        <Hourglass className="h-3 w-3 mr-1" />
+                        Falhou
+                      </Badge>
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="persistent_error" 
+                      checked={statusFilters.includes('persistent_error')} 
+                      onCheckedChange={() => handleToggleStatusFilter('persistent_error')}
+                    />
+                    <label htmlFor="persistent_error" className="text-sm">
+                      <Badge variant="outline" className="bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30">
+                        <XOctagon className="h-3 w-3 mr-1" />
+                        Erro Persistente
+                      </Badge>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
       
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle>Mensagens Agendadas</CardTitle>
+          <CardTitle>Mensagens</CardTitle>
           <CardDescription>
             {filteredMessages.length} mensagens encontradas
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {filteredMessages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <MessageSquare className="h-10 w-10 text-muted-foreground mb-3" />
-              <h3 className="text-lg font-medium">Nenhuma mensagem encontrada</h3>
-              <p className="text-muted-foreground mt-1">
-                {filter !== 'all' 
-                  ? "Tente alterar os filtros aplicados."
-                  : "Não existem mensagens agendadas para esta instância."}
-              </p>
-            </div>
-          ) : (
-            <div className="relative overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Contato</TableHead>
-                    <TableHead>Sequência</TableHead>
-                    <TableHead>Estágio</TableHead>
-                    <TableHead>Agendado para</TableHead>
-                    <TableHead className="w-[80px]"></TableHead>
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[200px]">Contato</TableHead>
+                  <TableHead>Sequência</TableHead>
+                  <TableHead>Estágio</TableHead>
+                  <TableHead>Agendada para</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sortedMessages.length > 0 ? sortedMessages.map(message => (
+                  <TableRow key={message.id}>
+                    <TableCell>
+                      <div>
+                        <div className="font-medium">{message.contactName}</div>
+                        <div className="text-xs text-muted-foreground">{message.contactPhone}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell>{message.sequenceName}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-1">
+                        <Badge variant="outline" className={cn(
+                          "flex items-center px-1.5 text-xs",
+                          message.stageType === "message" && "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/30",
+                          message.stageType === "pattern" && "bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/30",
+                          message.stageType === "typebot" && "bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/30"
+                        )}>
+                          {getStageTypeIcon(message.stageType)}
+                        </Badge>
+                        <span>{message.stageName}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span>
+                          {formatDistanceToNow(new Date(message.scheduledTime), {
+                            addSuffix: true,
+                            locale: ptBR
+                          })}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {formatDate(message.scheduledTime)}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-2">
+                        <StatusBadge status={message.status} />
+                        {message.attempts > 0 && (
+                          <span className="text-xs text-muted-foreground">
+                            {message.attempts} tentativa{message.attempts > 1 && 's'}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleViewMessage(message)}
+                      >
+                        Ver Conteúdo
+                      </Button>
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredMessages.map((message) => (
-                    <TableRow key={message.id}>
-                      <TableCell>{getStatusBadge(message.status)}</TableCell>
-                      <TableCell>{getContactName(message.contactId)}</TableCell>
-                      <TableCell>{getSequenceName(message.sequenceId)}</TableCell>
-                      <TableCell>{getStageName(message.sequenceId, message.stageId)}</TableCell>
-                      <TableCell>
-                        {message.scheduledTime 
-                          ? formatDistanceToNow(new Date(message.scheduledTime), { 
-                              addSuffix: true,
-                              locale: ptBR
-                            })
-                          : 'Não agendado'}
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Ações</DropdownMenuLabel>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem className="cursor-pointer">
-                              Ver detalhes
-                            </DropdownMenuItem>
-                            {(message.status === 'waiting' || message.status === 'pending') && (
-                              <DropdownMenuItem className="cursor-pointer text-red-600">
-                                Cancelar envio
-                              </DropdownMenuItem>
-                            )}
-                            {(message.status === 'failed') && (
-                              <DropdownMenuItem className="cursor-pointer">
-                                Tentar novamente
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
+                )) : (
+                  <TableRow>
+                    <TableCell colSpan={6} className="h-24 text-center">
+                      <div className="flex flex-col items-center justify-center space-y-1">
+                        <MessageCircle className="h-6 w-6 text-muted-foreground" />
+                        <div className="text-muted-foreground">Nenhuma mensagem encontrada</div>
+                        {searchQuery && (
+                          <div className="text-sm text-muted-foreground">
+                            Tente alterar os filtros ou a busca
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
+      
+      <Dialog open={showMessageContent} onOpenChange={setShowMessageContent}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center">
+              {selectedMessage?.stageType === "message" && <MessageCircle className="h-5 w-5 mr-2" />}
+              {selectedMessage?.stageType === "pattern" && <FileCode className="h-5 w-5 mr-2" />}
+              {selectedMessage?.stageType === "typebot" && <Bot className="h-5 w-5 mr-2" />}
+              {selectedMessage?.stageName}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedMessage?.sequenceName} para {selectedMessage?.contactName}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <h4 className="text-sm font-medium mb-1">Status</h4>
+                <StatusBadge status={selectedMessage?.status || ""} />
+                {selectedMessage?.attempts > 0 && (
+                  <div className="mt-1 text-sm">
+                    <span className="text-muted-foreground">
+                      {selectedMessage?.attempts} tentativa{selectedMessage?.attempts > 1 && 's'}
+                    </span>
+                  </div>
+                )}
+              </div>
+              <div>
+                <h4 className="text-sm font-medium mb-1">Agendada para</h4>
+                <div className="text-sm">
+                  {selectedMessage?.scheduledTime ? formatDate(selectedMessage?.scheduledTime) : ""}
+                </div>
+                {selectedMessage?.sentAt && (
+                  <div className="mt-1 text-sm">
+                    <span className="text-muted-foreground">
+                      Enviada em: {formatDate(selectedMessage?.sentAt)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <div>
+              <h4 className="text-sm font-medium mb-1">Tipo de Conteúdo</h4>
+              <Badge variant="outline" className={cn(
+                "flex items-center px-1.5 text-xs",
+                selectedMessage?.stageType === "message" && "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/30",
+                selectedMessage?.stageType === "pattern" && "bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/30",
+                selectedMessage?.stageType === "typebot" && "bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/30"
+              )}>
+                {getStageTypeIcon(selectedMessage?.stageType || "message")}
+                <span className="ml-1 capitalize">{selectedMessage?.stageType}</span>
+              </Badge>
+            </div>
+            
+            <div>
+              <h4 className="text-sm font-medium mb-1">Conteúdo</h4>
+              <div className="bg-muted/50 p-3 rounded-md border text-sm overflow-x-auto">
+                {selectedMessage?.stageType === "typebot" ? (
+                  <div className="flex items-center">
+                    <Bot className="h-4 w-4 mr-2 text-muted-foreground" />
+                    <a 
+                      href={selectedMessage?.content} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-blue-500 hover:underline"
+                    >
+                      {selectedMessage?.content}
+                    </a>
+                  </div>
+                ) : (
+                  <div className="whitespace-pre-line">
+                    {selectedMessage?.content?.replace(/\$\{name\}/g, selectedMessage?.contactName)}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+

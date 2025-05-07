@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useApp } from '@/context/AppContext';
 import {
@@ -36,7 +35,7 @@ import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SequenceBuilder } from '@/components/sequences/SequenceBuilder';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Sequence, TagGroup } from "@/types";
+import { Sequence } from "@/types";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -144,57 +143,6 @@ export default function Sequences() {
     }
     
     setHasUnsavedChanges(false);
-  };
-  
-  // Helper function to render condition tags display
-  const renderConditionTags = (sequence: Sequence, conditionType: 'start' | 'stop') => {
-    const condition = conditionType === 'start' ? sequence.startCondition : sequence.stopCondition;
-    
-    // Check if condition has groups (new format)
-    if (condition && condition.groups && condition.groups.length > 0) {
-      return (
-        <div>
-          <span className="text-xs text-muted-foreground">
-            {`${condition.groups.length} ${condition.groups.length === 1 ? 'grupo' : 'grupos'} (${condition.operator})`}:
-          </span>
-          <div className="flex flex-wrap gap-1 mt-1">
-            {condition.groups.map((group: TagGroup, index: number) => (
-              <div key={group.id} className="border rounded px-1 py-0.5 text-xs">
-                <span className="text-xs font-semibold">{group.operator}</span>
-                {group.tags.map((tag, idx) => (
-                  <Badge 
-                    key={`${tag}-${idx}`}
-                    variant="outline"
-                    className={cn(
-                      "text-xs py-0 mx-0.5",
-                      conditionType === 'start' 
-                        ? "bg-green-500/10 text-green-700 dark:text-green-400"
-                        : "bg-red-500/10 text-red-700 dark:text-red-400"
-                    )}
-                  >
-                    {tag}
-                  </Badge>
-                ))}
-              </div>
-            ))}
-            {condition.groups.length === 0 && (
-              <span className="text-xs text-muted-foreground italic">Nenhum grupo</span>
-            )}
-          </div>
-        </div>
-      );
-    }
-    
-    // Fallback for legacy format
-    return (
-      <div>
-        <span className="text-xs text-muted-foreground">Condição simples:</span>
-        <div className="flex flex-wrap gap-1 mt-1">
-          {/* No tags to display in this case */}
-          <span className="text-xs text-muted-foreground italic">Formato legado</span>
-        </div>
-      </div>
-    );
   };
 
   if (isCreateMode) {
@@ -404,12 +352,27 @@ export default function Sequences() {
                   </div>
                   <div className="flex flex-col space-y-2">
                     <div>
-                      <span className="text-xs text-muted-foreground">Início:</span>
-                      {renderConditionTags(sequence, 'start')}
+                      <span className="text-xs text-muted-foreground">Início ({sequence.startCondition.type}):</span>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {sequence.startCondition.tags.map(tag => (
+                          <Badge key={tag} variant="outline" className="bg-green-500/10 text-green-700 dark:text-green-400 text-xs py-0">
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
                     </div>
                     <div>
-                      <span className="text-xs text-muted-foreground">Parada:</span>
-                      {renderConditionTags(sequence, 'stop')}
+                      <span className="text-xs text-muted-foreground">Parada ({sequence.stopCondition.type}):</span>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {sequence.stopCondition.tags.map(tag => (
+                          <Badge key={tag} variant="outline" className="bg-red-500/10 text-red-700 dark:text-red-400 text-xs py-0">
+                            {tag}
+                          </Badge>
+                        ))}
+                        {sequence.stopCondition.tags.length === 0 && (
+                          <span className="text-xs text-muted-foreground italic">Nenhuma</span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>

@@ -364,67 +364,6 @@ export type Database = {
           },
         ]
       }
-      sequence_condition_groups: {
-        Row: {
-          condition_type: string
-          created_at: string | null
-          group_operator: Database["public"]["Enums"]["logical_operator"]
-          id: string
-          sequence_id: string
-        }
-        Insert: {
-          condition_type: string
-          created_at?: string | null
-          group_operator?: Database["public"]["Enums"]["logical_operator"]
-          id?: string
-          sequence_id: string
-        }
-        Update: {
-          condition_type?: string
-          created_at?: string | null
-          group_operator?: Database["public"]["Enums"]["logical_operator"]
-          id?: string
-          sequence_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sequence_condition_groups_sequence_id_fkey"
-            columns: ["sequence_id"]
-            isOneToOne: false
-            referencedRelation: "sequences"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      sequence_condition_tags: {
-        Row: {
-          created_at: string | null
-          group_id: string
-          id: string
-          tag_name: string
-        }
-        Insert: {
-          created_at?: string | null
-          group_id: string
-          id?: string
-          tag_name: string
-        }
-        Update: {
-          created_at?: string | null
-          group_id?: string
-          id?: string
-          tag_name?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sequence_condition_tags_group_id_fkey"
-            columns: ["group_id"]
-            isOneToOne: false
-            referencedRelation: "sequence_condition_groups"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       sequence_local_restrictions: {
         Row: {
           active: boolean
@@ -740,7 +679,6 @@ export type Database = {
       }
     }
     Enums: {
-      logical_operator: "AND" | "OR"
       user_role: "super_admin" | "admin"
     }
     CompositeTypes: {
@@ -857,7 +795,6 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      logical_operator: ["AND", "OR"],
       user_role: ["super_admin", "admin"],
     },
   },
