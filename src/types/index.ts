@@ -1,4 +1,3 @@
-
 // User related types
 export interface User {
   id: string;
@@ -35,6 +34,24 @@ export interface Instance {
   updatedAt: string;
 }
 
+// Atualizando o tipo TagCondition para suportar a estrutura aninhada
+export interface TagCondition {
+  type: "AND" | "OR";
+  tags: string[];
+}
+
+// Novas interfaces para a estrutura de condições avançadas
+export interface ConditionGroup {
+  id: string;
+  operator: "AND" | "OR";
+  tags: string[];
+}
+
+export interface ConditionStructure {
+  groups: ConditionGroup[];
+  mainOperator: "AND" | "OR"; // Operador que conecta grupos
+}
+
 export interface Sequence {
   id: string;
   instanceId: string;
@@ -42,16 +59,14 @@ export interface Sequence {
   type: "message" | "pattern" | "typebot"; // Adicionado tipo à interface Sequence
   startCondition: TagCondition;
   stopCondition: TagCondition;
+  // Novos campos para condições avançadas
+  advancedStartCondition?: ConditionStructure;
+  advancedStopCondition?: ConditionStructure;
   stages: SequenceStage[];
   timeRestrictions: TimeRestriction[];
   status: "active" | "inactive";
   createdAt: string;
   updatedAt: string;
-}
-
-export interface TagCondition {
-  type: "AND" | "OR";
-  tags: string[];
 }
 
 export interface SequenceStage {

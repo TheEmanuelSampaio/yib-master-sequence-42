@@ -5,6 +5,7 @@ import { SequenceOverview } from '@/components/dashboard/SequenceOverview';
 import { MessagesChart } from '@/components/dashboard/MessagesChart';
 import { RecentContacts } from '@/components/dashboard/RecentContacts';
 import { TagDistributionChart } from '@/components/dashboard/TagDistributionChart';
+import { DashboardStats } from '@/components/dashboard/DashboardStats';
 import { LayoutDashboard, Users, MessageSquare, CheckCheck } from 'lucide-react';
 
 export default function Dashboard() {
@@ -87,11 +88,12 @@ export default function Dashboard() {
         />
       </div>
 
-      <div className="grid gap-4 grid-cols-3">
-        <MessagesChart />
+      <div className="grid gap-4 grid-cols-1 lg:grid-cols-4">
+        <DashboardStats />
       </div>
 
-      <div className="grid gap-4 grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+        <MessagesChart />
         <RecentContacts />
         <TagDistributionChart />
       </div>
