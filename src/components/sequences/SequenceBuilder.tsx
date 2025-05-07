@@ -53,6 +53,8 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
   const [webhookId, setWebhookId] = useState<string | undefined>(
     sequence?.webhookId
   );
+  const [isValidatingWebhookId, setIsValidatingWebhookId] = useState(false);
+  const [isWebhookIdUnique, setIsWebhookIdUnique] = useState(true);
   
   const [showTagSelector, setShowTagSelector] = useState<"start" | "stop" | null>(null);
   const [newTag, setNewTag] = useState("");
@@ -439,7 +441,44 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
     }
   };
   
-  // Update the handleSubmit function to include webhook fields
+  // Add useEffect to validate webhook uniqueness similar to what we have in BasicInfoSection
+  useEffect(() => {
+    if (webhookEnabled && webhookId && currentInstance?.id) {
+      const timeoutId = setTimeout(() => {
+        validateWebhookId(webhookId);
+      }, 500);
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [webhookId, webhookEnabled, currentInstance?.id]);
+  
+  // Add validateWebhookId function
+  const validateWebhookId = async (id: string) => {
+    if (!id || !currentInstance?.id) return;
+    
+    setIsValidatingWebhookId(true);
+    
+    try {
+      const { data, error } = await supabase.rpc('is_webhook_id_unique_for_client', {
+        p_webhook_id: id,
+        p_instance_id: currentInstance.id
+      });
+
+      if (error) {
+        console.error('Error validating webhook ID:', error);
+        setIsWebhookIdUnique(true); // Assume unique in case of error
+      } else {
+        setIsWebhookIdUnique(!!data);
+      }
+    } catch (error) {
+      console.error('Error validating webhook ID:', error);
+      setIsWebhookIdUnique(true); // Assume unique in case of error
+    } finally {
+      setIsValidatingWebhookId(false);
+    }
+  };
+  
+  // Update the handleSubmit function to include webhook fields validation
   const handleSubmit = () => {
     try {
       if (!name) {
