@@ -31,6 +31,12 @@ type WebhookPayload = {
   authToken: string;
 };
 
+// Função auxiliar para sanitizar tokens antes de comparar
+const sanitizeToken = (token: string): string => {
+  // Remove espaços, quebras de linha e outros caracteres que possam ser inseridos por erro
+  return token.trim().replace(/\s+/g, '');
+};
+
 serve(async (req) => {
   console.log("[REQUEST] Método: " + req.method + ", URL: " + req.url);
   
@@ -80,19 +86,46 @@ serve(async (req) => {
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     console.log("[CLIENT] Cliente Supabase criado com sucesso");
 
+    // Sanitize the token for consistent comparison
+    const sanitizedToken = sanitizeToken(authToken);
+    
     // Authenticate with token
     console.log("[SEGURANÇA] Verificando token de autenticação...");
     
-    // Debug: Log the token prefix to help debug without revealing full token
-    console.log("[SEGURANÇA] Token prefix recebido: " + authToken.substring(0, 5) + "..." + 
-                authToken.substring(authToken.length - 5));
+    // Log token for debug purposes (masked for security)
+    const maskedToken = sanitizedToken.substring(0, 5) + "..." + 
+                sanitizedToken.substring(sanitizedToken.length - 5);
+    console.log("[SEGURANÇA] Token sanitizado (masked): " + maskedToken);
+    console.log("[SEGURANÇA] Comprimento do token: " + sanitizedToken.length);
     
     // First check profiles table
-    const { data: profileData, error: profileError } = await supabase
+    let { data: profileData, error: profileError } = await supabase
       .from("profiles")
       .select("id, account_name, role, auth_token")
-      .eq("auth_token", authToken)
+      .eq("auth_token", sanitizedToken)
       .maybeSingle();
+
+    // Primeira tentativa não encontrou - tente novamente sem precisar ser exato (apenas para debug)
+    if (!profileData && sanitizedToken.length > 10) {
+      console.log("[SEGURANÇA] Tentando busca alternativa em profiles com ILIKE...");
+      const { data: debugData } = await supabase
+        .from("profiles")
+        .select("auth_token")
+        .ilike("auth_token", `%${sanitizedToken.substring(5, 15)}%`)
+        .limit(5);
+
+      if (debugData && debugData.length > 0) {
+        console.log("[SEGURANÇA] Encontradas possíveis correspondências em profiles:");
+        for (const item of debugData) {
+          const storedToken = item.auth_token || '';
+          const storedMasked = storedToken.substring(0, 5) + "..." + 
+                  (storedToken.length > 5 ? storedToken.substring(storedToken.length - 5) : '');
+          console.log(`- Token armazenado (masked): ${storedMasked}, comprimento: ${storedToken.length}`);
+        }
+      } else {
+        console.log("[SEGURANÇA] Nenhuma correspondência parcial encontrada em profiles");
+      }
+    }
       
     console.log("[SEGURANÇA] Resultado da busca em profiles:", 
                 profileError ? "ERRO: " + profileError.message : 
@@ -102,12 +135,34 @@ serve(async (req) => {
       console.log("[SEGURANÇA] Falha na autenticação por profile, tentando client token");
       
       // Check if token is a client token
-      const { data: clientData, error: clientError } = await supabase
+      let { data: clientData, error: clientError } = await supabase
         .from("clients")
         .select("id, account_name, auth_token")
-        .eq("auth_token", authToken)
+        .eq("auth_token", sanitizedToken)
         .maybeSingle();
         
+      // Tentativa alternativa não encontrou - tente novamente sem precisar ser exato (apenas para debug)
+      if (!clientData && sanitizedToken.length > 10) {
+        console.log("[SEGURANÇA] Tentando busca alternativa em clients com ILIKE...");
+        const { data: debugData } = await supabase
+          .from("clients")
+          .select("auth_token")
+          .ilike("auth_token", `%${sanitizedToken.substring(5, 15)}%`)
+          .limit(5);
+
+        if (debugData && debugData.length > 0) {
+          console.log("[SEGURANÇA] Encontradas possíveis correspondências em clients:");
+          for (const item of debugData) {
+            const storedToken = item.auth_token || '';
+            const storedMasked = storedToken.substring(0, 5) + "..." + 
+                    (storedToken.length > 5 ? storedToken.substring(storedToken.length - 5) : '');
+            console.log(`- Token armazenado (masked): ${storedMasked}, comprimento: ${storedToken.length}`);
+          }
+        } else {
+          console.log("[SEGURANÇA] Nenhuma correspondência parcial encontrada em clients");
+        }
+      }
+
       console.log("[SEGURANÇA] Resultado da busca em clients:", 
                   clientError ? "ERRO: " + clientError.message : 
                   (clientData ? "ENCONTRADO" : "NÃO ENCONTRADO"));
