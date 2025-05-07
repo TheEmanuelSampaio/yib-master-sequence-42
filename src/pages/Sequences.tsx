@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useApp } from '@/context/AppContext';
 import {
   Activity,
@@ -11,8 +11,7 @@ import {
   MoreVertical,
   MessageCircle,
   FileCode,
-  Bot,
-  RefreshCw
+  Bot
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,63 +40,52 @@ import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { isValidUUID } from "@/integrations/supabase/client";
-import { useSequences } from "@/hooks/useSequences";
-import { useRealtime } from "@/hooks/useRealtime";
-import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Sequences() {
-  const { currentInstance } = useApp();
+  const { sequences, currentInstance, addSequence, updateSequence, deleteSequence, refreshData, isDataInitialized } = useApp();
   const [isCreateMode, setIsCreateMode] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [currentSequence, setCurrentSequence] = useState<Sequence | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   
-  // Use the React Query hooks
-  const { 
-    sequences, 
-    isLoading, 
-    refetch,
-    toggleSequenceStatus, 
-    deleteSequence,
-    addSequence: addSequenceMutation,
-    updateSequence: updateSequenceMutation
-  } = useSequences(currentInstance?.id);
+  // Fetch data only if not initialized yet
+  useEffect(() => {
+    if (!isDataInitialized && currentInstance) {
+      console.log("Sequences page - loading initial data");
+      refreshData();
+    }
+  }, [refreshData, currentInstance, isDataInitialized]);
   
-  // Setup realtime updates
-  useRealtime({
-    showToasts: true
-  });
-  
-  // Filter sequences based on search query
-  const filteredSequences = sequences.filter(seq => 
-    searchQuery === '' || 
-    seq.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const instanceSequences = sequences
+    .filter(seq => seq.instanceId === currentInstance?.id)
+    .filter(seq => 
+      searchQuery === '' || 
+      seq.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
     
-  const activeSequences = filteredSequences.filter(seq => seq.status === 'active');
-  const inactiveSequences = filteredSequences.filter(seq => seq.status === 'inactive');
+  const activeSequences = instanceSequences.filter(seq => seq.status === 'active');
+  const inactiveSequences = instanceSequences.filter(seq => seq.status === 'inactive');
   
   const handleSaveSequence = async (sequence: Omit<Sequence, "id" | "createdAt" | "updatedAt">) => {
     if (isEditMode && currentSequence) {
-      try {
-        // Use the new update mutation
-        await updateSequenceMutation(currentSequence.id, sequence);
+      const result = await updateSequence(currentSequence.id, sequence);
+      
+      if (result.success) {
         setIsEditMode(false);
         setCurrentSequence(null);
+        toast.success("Sequência atualizada com sucesso");
         setHasUnsavedChanges(false);
-      } catch (error: any) {
-        toast.error(error.message || "Erro ao atualizar sequência");
+      } else {
+        // Exibir mensagem de erro específica
+        toast.error(result.error || "Erro ao atualizar sequência");
+        // Não fechamos o modo de edição aqui, permitindo que o usuário corrija o problema
       }
     } else {
-      try {
-        // Use the new add mutation
-        await addSequenceMutation(sequence);
-        setIsCreateMode(false);
-        setHasUnsavedChanges(false);
-      } catch (error: any) {
-        toast.error(error.message || "Erro ao criar sequência");
-      }
+      await addSequence(sequence);
+      setIsCreateMode(false);
+      toast.success("Sequência criada com sucesso");
+      setHasUnsavedChanges(false);
     }
   };
   
@@ -107,23 +95,25 @@ export default function Sequences() {
     setHasUnsavedChanges(false);
   };
   
-  const handleToggleStatus = async (sequence: Sequence) => {
-    try {
-      await toggleSequenceStatus.mutateAsync({ 
-        id: sequence.id, 
-        status: sequence.status === 'active' ? 'inactive' : 'active' 
-      });
-    } catch (error: any) {
-      toast.error(error.message || "Erro ao alterar status da sequência");
-    }
+  const handleToggleStatus = (sequence: Sequence) => {
+    updateSequence(sequence.id, {
+      status: sequence.status === 'active' ? 'inactive' : 'active'
+    }).then(result => {
+      if (result.success) {
+        toast.success(
+          sequence.status === 'active' 
+            ? "Sequência desativada com sucesso" 
+            : "Sequência ativada com sucesso"
+        );
+      } else {
+        toast.error(result.error || "Erro ao alterar status da sequência");
+      }
+    });
   };
   
-  const handleDeleteSequence = async (id: string) => {
-    try {
-      await deleteSequence(id);
-    } catch (error: any) {
-      toast.error(error.message || "Erro ao excluir sequência");
-    }
+  const handleDeleteSequence = (id: string) => {
+    deleteSequence(id);
+    toast.success("Sequência excluída com sucesso");
   };
   
   const getStageIcon = (type: string) => {
@@ -153,11 +143,6 @@ export default function Sequences() {
     }
     
     setHasUnsavedChanges(false);
-  };
-
-  const handleRefresh = () => {
-    refetch();
-    toast.info("Dados atualizados");
   };
 
   if (isCreateMode) {
@@ -210,20 +195,15 @@ export default function Sequences() {
       </div>
       
       <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-2">
-          <div className="flex items-center w-full max-w-sm space-x-2">
-            <Input
-              placeholder="Buscar sequências..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-9"
-            />
-            <Button variant="ghost" className="h-9 px-2 text-muted-foreground">
-              <Search className="h-4 w-4" />
-            </Button>
-          </div>
-          <Button variant="outline" size="icon" onClick={handleRefresh} title="Atualizar dados">
-            <RefreshCw className="h-4 w-4" />
+        <div className="flex items-center w-full max-w-sm space-x-2">
+          <Input
+            placeholder="Buscar sequências..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="h-9"
+          />
+          <Button variant="ghost" className="h-9 px-2 text-muted-foreground">
+            <Search className="h-4 w-4" />
           </Button>
         </div>
         
@@ -235,27 +215,27 @@ export default function Sequences() {
       
       <Tabs defaultValue="all">
         <TabsList>
-          <TabsTrigger value="all">Todas ({filteredSequences.length})</TabsTrigger>
+          <TabsTrigger value="all">Todas ({instanceSequences.length})</TabsTrigger>
           <TabsTrigger value="active">Ativas ({activeSequences.length})</TabsTrigger>
           <TabsTrigger value="inactive">Inativas ({inactiveSequences.length})</TabsTrigger>
         </TabsList>
         
         <TabsContent value="all" className="mt-4">
-          {isLoading ? <SequenceSkeletons count={3} /> : renderSequenceList(filteredSequences)}
+          {renderSequenceList(instanceSequences)}
         </TabsContent>
         
         <TabsContent value="active" className="mt-4">
-          {isLoading ? <SequenceSkeletons count={2} /> : renderSequenceList(activeSequences)}
+          {renderSequenceList(activeSequences)}
         </TabsContent>
         
         <TabsContent value="inactive" className="mt-4">
-          {isLoading ? <SequenceSkeletons count={1} /> : renderSequenceList(inactiveSequences)}
+          {renderSequenceList(inactiveSequences)}
         </TabsContent>
       </Tabs>
     </div>
   );
   
-  function renderSequenceList(sequenceList: any[]) {
+  function renderSequenceList(sequenceList: Sequence[]) {
     if (sequenceList.length === 0) {
       return (
         <Card className="p-8 flex flex-col items-center justify-center text-center">
@@ -286,7 +266,7 @@ export default function Sequences() {
     
     return (
       <div className="grid gap-6 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
-        {sequenceList.map((sequence: any) => (
+        {sequenceList.map(sequence => (
           <Card key={sequence.id} className="overflow-hidden">
             <CardHeader className="pb-3">
               <div className="flex justify-between items-center">
@@ -374,7 +354,7 @@ export default function Sequences() {
                     <div>
                       <span className="text-xs text-muted-foreground">Início ({sequence.startCondition.type}):</span>
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {sequence.startCondition.tags.map((tag: string) => (
+                        {sequence.startCondition.tags.map(tag => (
                           <Badge key={tag} variant="outline" className="bg-green-500/10 text-green-700 dark:text-green-400 text-xs py-0">
                             {tag}
                           </Badge>
@@ -384,7 +364,7 @@ export default function Sequences() {
                     <div>
                       <span className="text-xs text-muted-foreground">Parada ({sequence.stopCondition.type}):</span>
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {sequence.stopCondition.tags.map((tag: string) => (
+                        {sequence.stopCondition.tags.map(tag => (
                           <Badge key={tag} variant="outline" className="bg-red-500/10 text-red-700 dark:text-red-400 text-xs py-0">
                             {tag}
                           </Badge>
@@ -403,7 +383,7 @@ export default function Sequences() {
                     Estágios ({sequence.stages.length})
                   </div>
                   <div className="flex items-center mt-1">
-                    {sequence.stages.map((stage: any, idx: number) => (
+                    {sequence.stages.map((stage, idx) => (
                       <div 
                         key={stage.id}
                         className="flex items-center"
@@ -450,51 +430,4 @@ export default function Sequences() {
       </div>
     );
   }
-}
-
-// Skeleton component for loading state
-function SequenceSkeletons({ count = 3 }: { count?: number }) {
-  return (
-    <div className="grid gap-6 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
-      {Array(count).fill(0).map((_, i) => (
-        <Card key={i} className="overflow-hidden">
-          <CardHeader className="pb-3">
-            <div className="flex justify-between items-start">
-              <div className="space-y-2">
-                <Skeleton className="h-6 w-40" />
-                <Skeleton className="h-4 w-24" />
-              </div>
-              <Skeleton className="h-8 w-8 rounded-full" />
-            </div>
-          </CardHeader>
-          <CardContent className="pb-3 space-y-4">
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-20" />
-              <div className="flex space-x-2">
-                <Skeleton className="h-6 w-16 rounded-full" />
-                <Skeleton className="h-6 w-16 rounded-full" />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-24" />
-              <div className="flex space-x-2">
-                <Skeleton className="h-4 w-4 rounded-full" />
-                <Skeleton className="h-1 w-8" />
-                <Skeleton className="h-4 w-4 rounded-full" />
-                <Skeleton className="h-1 w-8" />
-                <Skeleton className="h-4 w-4 rounded-full" />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-16" />
-              <Skeleton className="h-6 w-16 rounded-full" />
-            </div>
-          </CardContent>
-          <CardFooter>
-            <Skeleton className="h-10 w-full" />
-          </CardFooter>
-        </Card>
-      ))}
-    </div>
-  );
 }

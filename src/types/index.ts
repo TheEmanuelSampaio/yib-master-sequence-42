@@ -1,11 +1,11 @@
 // User related types
 export interface User {
   id: string;
-  email: string;
   accountName: string;
-  role: string;
-  avatar: string;
-  authToken?: string;
+  email: string;
+  role: 'super_admin' | 'admin';
+  avatar?: string;
+  authToken?: string; // Adicionado global token para usuários
 }
 
 export interface Client {
@@ -40,15 +40,14 @@ export interface Sequence {
   id: string;
   instanceId: string;
   name: string;
-  type: "message" | "pattern" | "typebot"; // Make type required
+  type: "message" | "pattern" | "typebot"; 
   startCondition: TagCondition;
   stopCondition: TagCondition;
   stages: SequenceStage[];
-  timeRestrictions: TimeRestriction[]; // Make timeRestrictions required
+  timeRestrictions: TimeRestriction[];
   status: "active" | "inactive";
   createdAt: string;
   updatedAt: string;
-  createdBy: string; // This is required
 }
 
 export interface TagCondition {
@@ -325,16 +324,4 @@ export interface Database {
       };
     };
   };
-}
-
-export interface AuthContextValue {
-  user: User | null;
-  loading: boolean;
-  isSuper: boolean;
-  setupCompleted: boolean | null;
-  login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string, accountName: string, isSuper: boolean) => Promise<void>;
-  logout: () => Promise<void>;
-  completeSetup: () => Promise<void>;
-  updateUser: (updates: Partial<User>) => Promise<void>;
 }
