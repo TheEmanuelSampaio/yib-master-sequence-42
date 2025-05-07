@@ -9,17 +9,13 @@ import { ptBR } from 'date-fns/locale';
 export function RecentContacts() {
   const { contacts, contactSequences } = useApp();
 
-  // Ensure contacts and contactSequences are arrays
-  const contactsArray = Array.isArray(contacts) ? contacts : [];
-  const contactSequencesArray = Array.isArray(contactSequences) ? contactSequences : [];
-
   // Helper function to get contact sequences
   const getContactSequences = (contactId: string) => {
-    return contactSequencesArray.filter(seq => seq.contactId === contactId);
+    return contactSequences.filter(seq => seq.contactId === contactId);
   };
 
   // Get contacts with recent activity
-  const contactsWithActivity = contactsArray
+  const contactsWithActivity = contacts
     .map(contact => {
       const sequences = getContactSequences(contact.id);
       if (sequences.length === 0) return null;
@@ -36,7 +32,7 @@ export function RecentContacts() {
           new Date(b).getTime() - new Date(a).getTime()
         )[0];
         
-        if (!latest || (mostRecent && new Date(mostRecent) > new Date(latest))) {
+        if (!latest || new Date(mostRecent) > new Date(latest)) {
           return mostRecent;
         }
         
@@ -79,12 +75,12 @@ export function RecentContacts() {
                     <p className="font-medium">{contact.name}</p>
                     <p className="text-sm text-muted-foreground">{contact.phoneNumber}</p>
                     <div className="flex flex-wrap gap-1.5 pt-1">
-                      {contact.tags?.slice(0, 3).map(tag => (
+                      {contact.tags.slice(0, 3).map(tag => (
                         <Badge key={tag} variant="outline" className="text-xs py-0 font-normal">
                           {tag}
                         </Badge>
                       ))}
-                      {contact.tags?.length > 3 && (
+                      {contact.tags.length > 3 && (
                         <Badge variant="outline" className="text-xs py-0 font-normal">
                           +{contact.tags.length - 3}
                         </Badge>

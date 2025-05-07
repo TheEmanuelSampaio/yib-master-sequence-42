@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -55,16 +56,16 @@ export function TagConditionSection({
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [groupNewTag, setGroupNewTag] = useState<string>("");
   
-  // Generate a unique ID for new groups
+  // Gerar um ID único para novos grupos
   const generateGroupId = () => `group_${Math.random().toString(36).substr(2, 9)}`;
 
-  // Add a new condition group
+  // Adicionar um novo grupo de condições
   const addConditionGroup = () => {
     if (!advancedCondition || !setAdvancedCondition) return;
 
     const newGroup: ConditionGroup = {
       id: generateGroupId(),
-      operator: "AND", // Explicitly using "AND" as a literal type
+      operator: "AND",
       tags: []
     };
 
@@ -78,7 +79,7 @@ export function TagConditionSection({
     notifyChanges();
   };
 
-  // Remove a condition group
+  // Remover um grupo de condições
   const removeConditionGroup = (groupId: string) => {
     if (!advancedCondition || !setAdvancedCondition) return;
 
@@ -95,7 +96,7 @@ export function TagConditionSection({
     notifyChanges();
   };
 
-  // Add tag to a specific group
+  // Adicionar tag a um grupo específico
   const addTagToGroup = (groupId: string, tag: string) => {
     if (!tag.trim() || !advancedCondition || !setAdvancedCondition) return;
 
@@ -118,7 +119,7 @@ export function TagConditionSection({
     notifyChanges();
   };
 
-  // Remove tag from a specific group
+  // Remover tag de um grupo específico
   const removeTagFromGroup = (groupId: string, tag: string) => {
     if (!advancedCondition || !setAdvancedCondition) return;
 
@@ -140,17 +141,15 @@ export function TagConditionSection({
     notifyChanges();
   };
 
-  // Toggle a group's operator (AND/OR)
+  // Alternar o operador de um grupo (AND/OR)
   const toggleGroupOperator = (groupId: string) => {
     if (!advancedCondition || !setAdvancedCondition) return;
 
     const updatedGroups = advancedCondition.groups.map(group => {
       if (group.id === groupId) {
-        // Explicitly casting to "AND" | "OR" type
-        const newOperator: "AND" | "OR" = group.operator === "AND" ? "OR" : "AND";
         return {
           ...group,
-          operator: newOperator
+          operator: group.operator === "AND" ? "OR" : "AND"
         };
       }
       return group;
@@ -164,22 +163,19 @@ export function TagConditionSection({
     notifyChanges();
   };
 
-  // Toggle the main operator that connects groups
+  // Alternar o operador principal que conecta grupos
   const toggleMainOperator = () => {
     if (!advancedCondition || !setAdvancedCondition) return;
 
-    // Explicitly casting to "AND" | "OR" type
-    const newMainOperator: "AND" | "OR" = advancedCondition.mainOperator === "AND" ? "OR" : "AND";
-
     setAdvancedCondition({
       ...advancedCondition,
-      mainOperator: newMainOperator
+      mainOperator: advancedCondition.mainOperator === "AND" ? "OR" : "AND"
     });
     
     notifyChanges();
   };
 
-  // Expand/contract a group
+  // Expandir/colapsar um grupo
   const toggleGroupExpansion = (groupId: string) => {
     setExpandedGroups({
       ...expandedGroups,
@@ -187,7 +183,7 @@ export function TagConditionSection({
     });
   };
 
-  // Make a group active for editing
+  // Tornar um grupo ativo para edição
   const setGroupActive = (groupId: string) => {
     setActiveGroupId(groupId);
     setGroupNewTag("");
@@ -218,7 +214,7 @@ export function TagConditionSection({
       </CardHeader>
       <CardContent className="space-y-4">
         {!advancedMode ? (
-          // Basic mode - original behavior
+          // Modo básico - comportamento original
           <>
             <div className="flex items-center space-x-2">
               <Button 
@@ -302,7 +298,7 @@ export function TagConditionSection({
             </div>
           </>
         ) : (
-          // Advanced mode with condition groups
+          // Modo avançado com grupos de condições
           <>
             {advancedCondition && setAdvancedCondition && (
               <div className="space-y-4">
