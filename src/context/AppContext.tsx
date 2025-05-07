@@ -398,7 +398,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           stages,
           timeRestrictions: allTimeRestrictions,
           createdAt: sequence.created_at,
-          updatedAt: sequence.updated_at
+          updatedAt: sequence.updated_at,
+          createdBy: sequence.created_by // Add missing createdBy field
         };
       });
       
@@ -1511,7 +1512,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           id: seq.id,
           name: seq.name,
           instanceId: seq.instance_id,
-          // Fix here: Use optional chaining to safely access seq.type, or use sequenceType as fallback
           type: (seq as any).type || sequenceType,
           status: seq.status as "active" | "inactive",
           startCondition: {
@@ -1525,7 +1525,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           stages,
           timeRestrictions,
           createdAt: seq.created_at,
-          updatedAt: seq.updated_at
+          updatedAt: seq.updated_at,
+          createdBy: seq.created_by // Add missing createdBy field
         });
       }
       
@@ -1544,7 +1545,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       instanceId: seq.instance_id,
       type: seq.type || "message",
       status: seq.status,
-      createdBy: seq.created_by, // Added missing field
+      createdBy: seq.created_by, // Already included correctly here
       startCondition: {
         type: seq.start_condition_type,
         tags: seq.start_condition_tags || []
