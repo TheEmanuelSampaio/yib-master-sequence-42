@@ -1,3 +1,4 @@
+
 // User related types
 export interface User {
   id: string;
@@ -38,7 +39,7 @@ export interface Sequence {
   id: string;
   instanceId: string;
   name: string;
-  type: "message" | "pattern" | "typebot"; // Adicionado tipo à interface Sequence
+  type: "message" | "pattern" | "typebot";
   startCondition: TagCondition;
   stopCondition: TagCondition;
   stages: SequenceStage[];
@@ -46,6 +47,11 @@ export interface Sequence {
   status: "active" | "inactive";
   createdAt: string;
   updatedAt: string;
+  // Novas propriedades para condições avançadas
+  useAdvancedStartCondition?: boolean;
+  useAdvancedStopCondition?: boolean;
+  advancedStartCondition?: AdvancedCondition;
+  advancedStopCondition?: AdvancedCondition;
 }
 
 export interface TagCondition {
