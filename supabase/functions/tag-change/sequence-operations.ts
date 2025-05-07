@@ -64,7 +64,7 @@ export async function processSequences(
     // Buscar sequências ativas para esta instância
     const { data: sequences, error: sequencesError } = await supabase
       .from('sequences')
-      .select('*, sequence_condition_groups(*, sequence_condition_tags(*))')
+      .select('*')
       .eq('instance_id', instance.id)
       .eq('status', 'active');
     
@@ -104,30 +104,12 @@ export async function processSequences(
           continue;
         }
         
-        // Verificar se o contato atende às condições de início da sequência
-        let matchesStartCondition = false;
-        
-        // Se a sequência usa condições avançadas, use a lógica avançada
-        if (sequence.use_advanced_start_condition) {
-          matchesStartCondition = checkAdvancedCondition(tags, sequence, 'start');
-        } else {
-          // Caso contrário, use a lógica simples
-          matchesStartCondition = checkCondition(tags, sequence.start_condition_tags, sequence.start_condition_type);
-        }
-        
+        // Verificar condições de início da sequência
+        const matchesStartCondition = checkCondition(tags, sequence.start_condition_tags, sequence.start_condition_type);
         console.log(`[5. SEQUÊNCIAS] Verificando condição de início para sequência ${sequence.name}: ${matchesStartCondition ? 'ATENDE' : 'NÃO ATENDE'}`);
         
         // Verificar condições de parada da sequência
-        let matchesStopCondition = false;
-        
-        // Se a sequência usa condições avançadas de parada, use a lógica avançada
-        if (sequence.use_advanced_stop_condition) {
-          matchesStopCondition = checkAdvancedCondition(tags, sequence, 'stop');
-        } else {
-          // Caso contrário, use a lógica simples
-          matchesStopCondition = checkCondition(tags, sequence.stop_condition_tags, sequence.stop_condition_type);
-        }
-        
+        const matchesStopCondition = checkCondition(tags, sequence.stop_condition_tags, sequence.stop_condition_type);
         console.log(`[5. SEQUÊNCIAS] Verificando condição de parada para sequência ${sequence.name}: ${matchesStopCondition ? 'ATENDE' : 'NÃO ATENDE'}`);
         
         // Se atende à condição de início e não atende à condição de parada, adicionar à sequência
@@ -190,6 +172,7 @@ export async function processSequences(
           const scheduledTime = new Date(Date.now() + delayMs);
           
           // Agendar a mensagem para o primeiro estágio
+          // MODIFICADO: Alterado o status de "waiting" para "pending"
           const { error: scheduleError } = await supabase
             .from('scheduled_messages')
             .insert([{
@@ -198,7 +181,7 @@ export async function processSequences(
               stage_id: firstStage.id,
               raw_scheduled_time: scheduledTime.toISOString(),
               scheduled_time: scheduledTime.toISOString(),
-              status: 'pending'
+              status: 'pending' // Alterado de 'waiting' para 'pending'
             }]);
           
           if (scheduleError) {
@@ -262,65 +245,6 @@ export async function processSequences(
     sequencesAdded,
     sequencesSkipped
   };
-}
-
-/**
- * Verifica se as tags do contato atendem a condições avançadas (com grupos)
- * 
- * @param contactTags Tags do contato
- * @param sequence Sequência com grupos de condição
- * @param conditionType Tipo de condição ('start' ou 'stop')
- * @returns boolean Retorna true se as tags do contato atendem às condições
- */
-function checkAdvancedCondition(contactTags: string[], sequence: any, conditionType: 'start' | 'stop'): boolean {
-  // Verificar se há grupos de condição
-  if (!sequence.sequence_condition_groups || sequence.sequence_condition_groups.length === 0) {
-    console.log(`[CONDIÇÃO-AVANÇADA] Nenhum grupo de condição encontrado para ${conditionType}`);
-    return false;
-  }
-  
-  // Filtrar os grupos pelo tipo (start ou stop)
-  const conditionGroups = sequence.sequence_condition_groups.filter((group: any) => group.type === conditionType);
-  
-  if (conditionGroups.length === 0) {
-    console.log(`[CONDIÇÃO-AVANÇADA] Nenhum grupo de condição do tipo ${conditionType} encontrado`);
-    return false;
-  }
-  
-  // Ordenar os grupos por índice
-  conditionGroups.sort((a: any, b: any) => a.group_index - b.group_index);
-  
-  // Obter o operador principal (AND/OR) entre os grupos
-  const conditionOperator = conditionGroups[0].condition_operator;
-  console.log(`[CONDIÇÃO-AVANÇADA] Operador entre grupos: ${conditionOperator}`);
-  
-  // Avaliar cada grupo
-  const groupResults = conditionGroups.map((group: any) => {
-    // Obter as tags deste grupo
-    const groupTags = group.sequence_condition_tags.map((tagObj: any) => tagObj.tag_name);
-    
-    // Obter o operador do grupo (AND/OR)
-    const groupOperator = group.group_operator;
-    
-    // Avaliar este grupo com suas tags
-    const groupResult = checkCondition(contactTags, groupTags, groupOperator);
-    console.log(`[CONDIÇÃO-AVANÇADA] Grupo ${group.group_index} (${groupOperator}): ${groupResult ? 'ATENDE' : 'NÃO ATENDE'}`);
-    
-    return groupResult;
-  });
-  
-  // Aplicar o operador principal aos resultados dos grupos
-  if (conditionOperator === 'AND') {
-    // Todos os grupos devem ser true
-    const result = groupResults.every(result => result === true);
-    console.log(`[CONDIÇÃO-AVANÇADA] Resultado final (AND): ${result ? 'ATENDE' : 'NÃO ATENDE'}`);
-    return result;
-  } else {
-    // Pelo menos um grupo deve ser true
-    const result = groupResults.some(result => result === true);
-    console.log(`[CONDIÇÃO-AVANÇADA] Resultado final (OR): ${result ? 'ATENDE' : 'NÃO ATENDE'}`);
-    return result;
-  }
 }
 
 /**

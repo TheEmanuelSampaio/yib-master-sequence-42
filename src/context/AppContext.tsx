@@ -16,8 +16,6 @@ import {
 } from "@/types";
 import { toast } from "@/components/ui/use-toast";
 import AppContactContext, { createContactFunctions, AppContactFunctions } from './AppContact';
-import { AdvancedCondition, TagGroup } from "@/types/conditionTypes";
-import { v4 as uuidv4 } from 'uuid';
 
 interface AppContextType {
   clients: Client[];
@@ -81,9 +79,6 @@ interface ExtendedSequence {
   sequence_time_restrictions: any[];
   localTimeRestrictions?: TimeRestriction[]; // Add this property to the interface
   type?: "message" | "pattern" | "typebot"; // Make type optional since it might not exist in database response
-  use_advanced_start_condition?: boolean;
-  use_advanced_stop_condition?: boolean;
-  sequence_condition_groups?: any[];
 }
 
 // Create a default context value to prevent "undefined" errors
@@ -131,14 +126,6 @@ const defaultContextValue: AppContextType = {
 
 export const AppContext = createContext<AppContextType>(defaultContextValue);
 
-export const useApp = () => {
-  const context = useContext(AppContext);
-  if (context === undefined) {
-    throw new Error('useApp must be used within an AppProvider');
-  }
-  return context;
-};
-
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   
@@ -165,113 +152,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // Criar funções de manipulação de contatos
   const contactFunctions = createContactFunctions();
-  
-  // Add the helper function to process advanced condition data from the database
-  const processAdvancedCondition = (sequence: ExtendedSequence, conditionType: 'start' | 'stop'): AdvancedCondition => {
-    // Default empty condition structure
-    const defaultCondition: AdvancedCondition = {
-      operator: "OR",
-      groups: []
-    };
-    
-    // If no sequence_condition_groups, return default
-    if (!sequence.sequence_condition_groups || sequence.sequence_condition_groups.length === 0) {
-      return defaultCondition;
-    }
-    
-    // Filter groups for this condition type
-    const groups = sequence.sequence_condition_groups.filter(
-      group => group.type === conditionType
-    );
-    
-    if (groups.length === 0) {
-      return defaultCondition;
-    }
-    
-    // Get the operator from the first group (they should all have the same condition_operator)
-    const operator = groups[0].condition_operator === "AND" ? "AND" : "OR";
-    
-    // Process each group
-    const processedGroups: TagGroup[] = groups.map(group => {
-      // Get tags from this group
-      const tags = group.sequence_condition_tags 
-        ? group.sequence_condition_tags.map((tag: any) => tag.tag_name)
-        : [];
-      
-      return {
-        id: group.id,
-        operator: group.group_operator === "AND" ? "AND" : "OR",
-        tags
-      };
-    });
-    
-    return {
-      operator: operator as "AND" | "OR",
-      groups: processedGroups
-    };
-  };
-
-  // Add the helper function to save condition groups to the database
-  const saveConditionGroups = async (
-    sequenceId: string, 
-    conditionType: 'start' | 'stop',
-    condition: AdvancedCondition
-  ): Promise<{ success: boolean, error?: string }> => {
-    try {
-      if (!user || !sequenceId) {
-        return { success: false, error: "Usuário não autenticado ou ID de sequência inválido" };
-      }
-      
-      if (!condition || !condition.groups || condition.groups.length === 0) {
-        return { success: true }; // Nothing to save
-      }
-      
-      // Insert each group
-      for (let groupIndex = 0; groupIndex < condition.groups.length; groupIndex++) {
-        const group = condition.groups[groupIndex];
-        
-        // Insert group
-        const { data: groupData, error: groupError } = await supabase
-          .from('sequence_condition_groups')
-          .insert({
-            sequence_id: sequenceId,
-            type: conditionType,
-            group_operator: group.operator,
-            condition_operator: condition.operator,
-            group_index: groupIndex
-          })
-          .select()
-          .single();
-        
-        if (groupError) {
-          console.error(`Erro ao inserir grupo de condição ${conditionType}:`, groupError);
-          return { success: false, error: `Erro ao inserir grupo de condição: ${groupError.message}` };
-        }
-        
-        const groupId = groupData.id;
-        
-        // Insert tags for this group
-        for (const tag of group.tags) {
-          const { error: tagError } = await supabase
-            .from('sequence_condition_tags')
-            .insert({
-              group_id: groupId,
-              tag_name: tag
-            });
-          
-          if (tagError) {
-            console.error(`Erro ao inserir tag ${tag} no grupo:`, tagError);
-            return { success: false, error: `Erro ao inserir tag: ${tagError.message}` };
-          }
-        }
-      }
-      
-      return { success: true };
-    } catch (error: any) {
-      console.error("Erro ao salvar grupos de condição:", error);
-      return { success: false, error: `Erro ao salvar grupos de condição: ${error.message}` };
-    }
-  };
   
   // Fetch data when auth user changes
   useEffect(() => {
@@ -402,10 +282,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           sequence_time_restrictions (
             *,
             time_restrictions (*)
-          ),
-          sequence_condition_groups (
-            *,
-            sequence_condition_tags (*)
           )
         `)
         .order('created_at', { ascending: false });
@@ -505,10 +381,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           }
         }
         
-        // Processar condições avançadas
-        const advancedStartCondition = processAdvancedCondition(sequence, 'start');
-        const advancedStopCondition = processAdvancedCondition(sequence, 'stop');
-      
         return {
           id: sequence.id,
           name: sequence.name,
@@ -526,11 +398,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           stages,
           timeRestrictions: allTimeRestrictions,
           createdAt: sequence.created_at,
-          updatedAt: sequence.updated_at,
-          useAdvancedStartCondition: !!sequence.use_advanced_start_condition,
-          useAdvancedStopCondition: !!sequence.use_advanced_stop_condition,
-          advancedStartCondition,
-          advancedStopCondition
+          updatedAt: sequence.updated_at
         };
       });
       
@@ -843,287 +711,96 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Update the updateSequence function to handle advanced conditions
-  const updateSequence = async (id: string, partialSequence: Partial<Omit<Sequence, "id" | "createdAt" | "updatedAt">>) => {
-    try {
-      if (!user || !id) {
-        return { success: false, error: "Usuário não autenticado ou ID inválido" };
-      }
-      
-      console.log("Updating sequence:", id, partialSequence);
-      
-      // Clonar o objeto para não modificar o original
-      const updates: any = { ...partialSequence };
-      
-      // Transforme os dados para o formato do banco de dados
-      if (updates.name !== undefined) updates.name = updates.name;
-      if (updates.instanceId !== undefined) updates.instance_id = updates.instanceId;
-      if (updates.status !== undefined) updates.status = updates.status;
-      if (updates.type !== undefined) updates.type = updates.type;
-      
-      // Transforme as condições simples para o formato do banco de dados
-      if (updates.startCondition) {
-        updates.start_condition_type = updates.startCondition.type;
-        updates.start_condition_tags = updates.startCondition.tags;
-        delete updates.startCondition;
-      }
-      
-      if (updates.stopCondition) {
-        updates.stop_condition_type = updates.stopCondition.type;
-        updates.stop_condition_tags = updates.stopCondition.tags;
-        delete updates.stopCondition;
-      }
-      
-      // Transforme as flags de condições avançadas
-      if (updates.useAdvancedStartCondition !== undefined) {
-        updates.use_advanced_start_condition = updates.useAdvancedStartCondition;
-        delete updates.useAdvancedStartCondition;
-      }
-      
-      if (updates.useAdvancedStopCondition !== undefined) {
-        updates.use_advanced_stop_condition = updates.useAdvancedStopCondition;
-        delete updates.useAdvancedStopCondition;
-      }
-      
-      // Remova campos que não são colunas da tabela
-      delete updates.advancedStartCondition;
-      delete updates.advancedStopCondition;
-      delete updates.stages;
-      delete updates.timeRestrictions;
-      
-      // Primeiro, atualize a tabela de sequências
-      const { error: seqError } = await supabase
-        .from('sequences')
-        .update(updates)
-        .eq('id', id);
-      
-      if (seqError) throw seqError;
-      
-      // Se houver dados de estágios, atualize-os
-      if (partialSequence.stages) {
-        // Primeiro, remova todos os estágios existentes
-        const { error: delStagesError } = await supabase
-          .from('sequence_stages')
-          .delete()
-          .eq('sequence_id', id);
-        
-        if (delStagesError) throw delStagesError;
-        
-        // Depois, insira os novos estágios
-        for (let i = 0; i < partialSequence.stages.length; i++) {
-          const stage = partialSequence.stages[i];
-          
-          const { error: stageError } = await supabase
-            .from('sequence_stages')
-            .insert({
-              sequence_id: id,
-              name: stage.name,
-              type: stage.type,
-              content: stage.content,
-              typebot_stage: stage.typebotStage,
-              delay: stage.delay,
-              delay_unit: stage.delayUnit,
-              order_index: i
-            });
-          
-          if (stageError) throw stageError;
-        }
-      }
-      
-      // Se houver restrições de tempo, atualize-as
-      if (partialSequence.timeRestrictions) {
-        // Primeiro, remova todas as restrições existentes
-        const { error: delTimeRestErr } = await supabase
-          .from('sequence_time_restrictions')
-          .delete()
-          .eq('sequence_id', id);
-        
-        if (delTimeRestErr) throw delTimeRestErr;
-        
-        const { error: delLocalRestErr } = await supabase
-          .from('sequence_local_restrictions')
-          .delete()
-          .eq('sequence_id', id);
-        
-        if (delLocalRestErr) throw delLocalRestErr;
-        
-        // Separar em globais e locais
-        const globalRestrictions = partialSequence.timeRestrictions.filter(r => r.isGlobal);
-        const localRestrictions = partialSequence.timeRestrictions.filter(r => !r.isGlobal);
-        
-        // Inserir restrições globais
-        for (const restriction of globalRestrictions) {
-          const { error: restError } = await supabase
-            .from('sequence_time_restrictions')
-            .insert({
-              sequence_id: id,
-              time_restriction_id: restriction.id
-            });
-          
-          if (restError) throw restError;
-        }
-        
-        // Inserir restrições locais
-        for (const restriction of localRestrictions) {
-          const { error: localRestError } = await supabase
-            .from('sequence_local_restrictions')
-            .insert({
-              sequence_id: id,
-              name: restriction.name,
-              active: restriction.active,
-              days: restriction.days,
-              start_hour: restriction.startHour,
-              start_minute: restriction.startMinute,
-              end_hour: restriction.endHour,
-              end_minute: restriction.endMinute,
-              created_by: user.id
-            });
-        
-          if (localRestError) throw localRestError;
-        }
-      }
-      
-      // Gerenciar condições avançadas
-      if (partialSequence.useAdvancedStartCondition !== undefined || 
-          partialSequence.useAdvancedStopCondition !== undefined ||
-          partialSequence.advancedStartCondition ||
-          partialSequence.advancedStopCondition) {
-        
-        // Deletar grupos de condição existentes
-        const { error: delGroupsError } = await supabase
-          .from('sequence_condition_groups')
-          .delete()
-          .eq('sequence_id', id);
-        
-        if (delGroupsError) throw delGroupsError;
-        
-        // Salvar novos grupos de condição para iniciar (se estiver usando condições avançadas)
-        if (partialSequence.useAdvancedStartCondition && partialSequence.advancedStartCondition) {
-          const startResult = await saveConditionGroups(
-            id, 
-            'start',
-            partialSequence.advancedStartCondition
-          );
-          
-          if (!startResult.success) {
-            throw new Error(`Erro ao salvar condições de início: ${startResult.error}`);
-          }
-        }
-        
-        // Salvar novos grupos de condição para parar (se estiver usando condições avançadas)
-        if (partialSequence.useAdvancedStopCondition && partialSequence.advancedStopCondition) {
-          const stopResult = await saveConditionGroups(
-            id,
-            'stop',
-            partialSequence.advancedStopCondition
-          );
-          
-          if (!stopResult.success) {
-            throw new Error(`Erro ao salvar condições de parada: ${stopResult.error}`);
-          }
-        }
-      }
-      
-      // Atualizar a sequência em memória
-      const updatedSequences = sequences.map(seq => {
-        if (seq.id === id) {
-          // Criar uma nova sequência combinando a existente com as atualizações
-          return {
-            ...seq,
-            ...partialSequence
-          };
-        }
-        return seq;
-      });
-      
-      setSequences(updatedSequences);
-      
-      return { success: true };
-    } catch (error: any) {
-      console.error("Erro ao atualizar sequência:", error);
-      return { success: false, error: error.message };
-    }
-  };
-  
-  // Add the missing functions and fix the existing ones
-  const addSequence = async (sequence: Omit<Sequence, "id" | "createdAt" | "updatedAt">) => {
+  const addSequence = async (sequenceData: Omit<Sequence, "id" | "createdAt" | "updatedAt">) => {
     try {
       if (!user) {
         toast.error("Usuário não autenticado");
         return;
       }
       
-      // Prepare sequence data for database format
-      const sequenceData = {
-        name: sequence.name,
-        instance_id: sequence.instanceId,
-        status: sequence.status,
-        type: sequence.type,
-        start_condition_type: sequence.startCondition.type,
-        start_condition_tags: sequence.startCondition.tags,
-        stop_condition_type: sequence.stopCondition.type,
-        stop_condition_tags: sequence.stopCondition.tags,
-        use_advanced_start_condition: sequence.useAdvancedStartCondition || false,
-        use_advanced_stop_condition: sequence.useAdvancedStopCondition || false,
-        created_by: user.id
-      };
+      console.log("Adding sequence:", sequenceData);
       
-      // Insert the sequence
-      const { data: newSeq, error: insertError } = await supabase
+      // Separar as restrições em globais e locais
+      const globalRestrictions = sequenceData.timeRestrictions.filter(r => r.isGlobal);
+      const localRestrictions = sequenceData.timeRestrictions.filter(r => !r.isGlobal);
+      
+      // First create the sequence
+      const { data: seqData, error: seqError } = await supabase
         .from('sequences')
-        .insert(sequenceData)
+        .insert({
+          instance_id: sequenceData.instanceId,
+          name: sequenceData.name,
+          start_condition_type: sequenceData.startCondition.type,
+          start_condition_tags: sequenceData.startCondition.tags,
+          stop_condition_type: sequenceData.stopCondition.type,
+          stop_condition_tags: sequenceData.stopCondition.tags,
+          status: sequenceData.status,
+          created_by: user.id
+        })
         .select()
         .single();
       
-      if (insertError) throw insertError;
+      if (seqError) throw seqError;
       
-      const sequenceId = newSeq.id;
+      console.log("Sequence created:", seqData);
       
-      // Insert sequence stages
-      if (sequence.stages && sequence.stages.length > 0) {
-        for (let i = 0; i < sequence.stages.length; i++) {
-          const stage = sequence.stages[i];
+      // Then create the stages
+      for (let i = 0; i < sequenceData.stages.length; i++) {
+        const stage = sequenceData.stages[i];
+        
+        const { data: stageData, error: stageError } = await supabase
+          .from('sequence_stages')
+          .insert({
+            sequence_id: seqData.id,
+            name: stage.name,
+            type: stage.type,
+            content: stage.content,
+            typebot_stage: stage.typebotStage,
+            delay: stage.delay,
+            delay_unit: stage.delayUnit,
+            order_index: i
+          })
+          .select();
+        
+        if (stageError) throw stageError;
+        console.log("Stage created:", stageData);
+      }
+      
+      // Add time restrictions - handle global restrictions
+      if (globalRestrictions.length > 0) {
+        for (const restriction of globalRestrictions) {
+          // Verificar se a restrição global existe antes de tentar adicionar
+          const { data: checkRestriction } = await supabase
+            .from('time_restrictions')
+            .select('id')
+            .eq('id', restriction.id)
+            .single();
+              
+          if (!checkRestriction) {
+            console.error(`Restrição global com ID ${restriction.id} não encontrada`);
+            continue;
+          }
           
-          const { error: stageError } = await supabase
-            .from('sequence_stages')
+          const { data: restrictionData, error: restrictionError } = await supabase
+            .from('sequence_time_restrictions')
             .insert({
-              sequence_id: sequenceId,
-              name: stage.name,
-              type: stage.type,
-              content: stage.content,
-              typebot_stage: stage.typebotStage,
-              delay: stage.delay,
-              delay_unit: stage.delayUnit,
-              order_index: i
-            });
+              sequence_id: seqData.id,
+              time_restriction_id: restriction.id
+            })
+            .select();
           
-          if (stageError) throw stageError;
+          if (restrictionError) throw restrictionError;
+          console.log("Global restriction added:", restrictionData);
         }
       }
       
-      // Handle time restrictions
-      if (sequence.timeRestrictions && sequence.timeRestrictions.length > 0) {
-        const globalRestrictions = sequence.timeRestrictions.filter(r => r.isGlobal);
-        const localRestrictions = sequence.timeRestrictions.filter(r => !r.isGlobal);
-        
-        // Insert global restrictions
-        for (const restriction of globalRestrictions) {
-          const { error: restError } = await supabase
-            .from('sequence_time_restrictions')
-            .insert({
-              sequence_id: sequenceId,
-              time_restriction_id: restriction.id
-            });
-          
-          if (restError) throw restError;
-        }
-        
-        // Insert local restrictions
+      // Adicionar restrições locais à tabela sequence_local_restrictions
+      if (localRestrictions.length > 0) {
         for (const restriction of localRestrictions) {
           const { error: localRestError } = await supabase
             .from('sequence_local_restrictions')
             .insert({
-              sequence_id: sequenceId,
+              sequence_id: seqData.id,
               name: restriction.name,
               active: restriction.active,
               days: restriction.days,
@@ -1133,45 +810,226 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               end_minute: restriction.endMinute,
               created_by: user.id
             });
-          
+            
           if (localRestError) throw localRestError;
+          console.log("Local restriction added for sequence");
         }
       }
       
-      // Handle advanced conditions
-      if (sequence.useAdvancedStartCondition && sequence.advancedStartCondition) {
-        await saveConditionGroups(sequenceId, 'start', sequence.advancedStartCondition);
-      }
+      toast.success(`Sequência "${sequenceData.name}" criada com sucesso`);
       
-      if (sequence.useAdvancedStopCondition && sequence.advancedStopCondition) {
-        await saveConditionGroups(sequenceId, 'stop', sequence.advancedStopCondition);
-      }
-      
-      // Add to state
-      const newSequence: Sequence = {
-        id: sequenceId,
-        name: sequence.name,
-        instanceId: sequence.instanceId,
-        type: sequence.type,
-        startCondition: sequence.startCondition,
-        stopCondition: sequence.stopCondition,
-        stages: sequence.stages,
-        timeRestrictions: sequence.timeRestrictions,
-        status: sequence.status,
-        createdAt: newSeq.created_at,
-        updatedAt: newSeq.updated_at,
-        useAdvancedStartCondition: sequence.useAdvancedStartCondition || false,
-        useAdvancedStopCondition: sequence.useAdvancedStopCondition || false,
-        advancedStartCondition: sequence.advancedStartCondition,
-        advancedStopCondition: sequence.advancedStopCondition
-      };
-      
-      setSequences(prev => [newSequence, ...prev]);
-      
-      toast.success(`Sequência "${sequence.name}" criada com sucesso`);
+      // Fazer um refresh completo dos dados para garantir que as novas sequências apareçam
+      await refreshData();
     } catch (error: any) {
       console.error("Error creating sequence:", error);
       toast.error(`Erro ao criar sequência: ${error.message}`);
+    }
+  };
+
+  const updateSequence = async (id: string, updates: Partial<Sequence>): Promise<{ success: boolean, error?: string }> => {
+    try {
+      console.log("Updating sequence with ID:", id);
+      console.log("Update payload:", JSON.stringify(updates, null, 2));
+      
+      if (!id || !isValidUUID(id)) {
+        console.error("Invalid sequence ID:", id);
+        return { success: false, error: "ID de sequência inválido" };
+      }
+      
+      // Start by updating the main sequence record
+      const { error: seqError } = await supabase
+        .from('sequences')
+        .update({
+          name: updates.name,
+          status: updates.status,
+          start_condition_type: updates.startCondition?.type,
+          start_condition_tags: updates.startCondition?.tags,
+          stop_condition_type: updates.stopCondition?.type,
+          stop_condition_tags: updates.stopCondition?.tags,
+          updated_at: new Date().toISOString(),
+          // Don't update instanceId as this shouldn't change
+        })
+        .eq('id', id);
+      
+      if (seqError) {
+        console.error("Error updating sequence:", seqError);
+        return { success: false, error: seqError.message };
+      }
+      
+      // Handle stages update if provided
+      if (updates.stages) {
+        console.log("Processing stages update for sequence:", id);
+        console.log("Total stages to process:", updates.stages.length);
+        
+        // Get current stages from database to compare
+        const { data: existingStages, error: stagesQueryError } = await supabase
+          .from('sequence_stages')
+          .select('*')
+          .eq('sequence_id', id);
+        
+        if (stagesQueryError) {
+          console.error("Error fetching existing stages:", stagesQueryError);
+          return { success: false, error: stagesQueryError.message };
+        }
+        
+        console.log("Existing stages in DB:", existingStages?.length || 0);
+        
+        // Track stages to update, delete, and insert
+        const stagesToUpdate = [];
+        const stageIdsToDelete = [];
+        const stagesToInsert = [];
+        
+        // Find existing stage IDs
+        const existingStageIds = new Set(existingStages?.map(stage => stage.id) || []);
+        const updatedStageIds = new Set(updates.stages.map(stage => stage.id));
+        
+        // Determine stages to delete (exist in DB but not in the update)
+        existingStages?.forEach(existingStage => {
+          if (!updatedStageIds.has(existingStage.id)) {
+            stageIdsToDelete.push(existingStage.id);
+          }
+        });
+        
+        // Process each stage in the update
+        updates.stages.forEach((stage, index) => {
+          // Check if the stage already exists in the database
+          if (existingStageIds.has(stage.id)) {
+            // Update existing stage
+            stagesToUpdate.push({
+              id: stage.id,
+              name: stage.name,
+              type: stage.type,
+              content: stage.content,
+              typebot_stage: stage.typebotStage,
+              delay: stage.delay,
+              delay_unit: stage.delayUnit,
+              order_index: index
+            });
+          } else {
+            // Insert new stage
+            stagesToInsert.push({
+              id: stage.id,
+              sequence_id: id,
+              name: stage.name,
+              type: stage.type,
+              content: stage.content,
+              typebot_stage: stage.typebotStage,
+              delay: stage.delay,
+              delay_unit: stage.delayUnit,
+              order_index: index
+            });
+          }
+        });
+        
+        console.log("Stages to update:", stagesToUpdate.length);
+        console.log("Stages to insert:", stagesToInsert.length);
+        console.log("Stage IDs to delete:", stageIdsToDelete.length);
+        
+        // Process deletions
+        if (stageIdsToDelete.length > 0) {
+          const { error: deleteError } = await supabase
+            .from('sequence_stages')
+            .delete()
+            .in('id', stageIdsToDelete);
+          
+          if (deleteError) {
+            console.error("Error deleting stages:", deleteError);
+            return { success: false, error: deleteError.message };
+          }
+        }
+        
+        // Process updates (one at a time to avoid conflicts)
+        for (const stage of stagesToUpdate) {
+          const { error: updateError } = await supabase
+            .from('sequence_stages')
+            .update(stage)
+            .eq('id', stage.id);
+          
+          if (updateError) {
+            console.error(`Error updating stage ${stage.id}:`, updateError);
+            return { success: false, error: updateError.message };
+          }
+        }
+        
+        // Process inserts (in batch)
+        if (stagesToInsert.length > 0) {
+          const { error: insertError } = await supabase
+            .from('sequence_stages')
+            .insert(stagesToInsert);
+          
+          if (insertError) {
+            console.error("Error inserting new stages:", insertError);
+            return { success: false, error: insertError.message };
+          }
+        }
+      }
+      
+      // Handle time restrictions update if provided
+      if (updates.timeRestrictions) {
+        // First remove all existing time restrictions
+        const { error: deleteLocalError } = await supabase
+          .from("sequence_local_restrictions")
+          .delete()
+          .eq("sequence_id", id);
+        
+        if (deleteLocalError) throw deleteLocalError;
+        
+        const { error: deleteGlobalError } = await supabase
+          .from("sequence_time_restrictions")
+          .delete()
+          .eq("sequence_id", id);
+        
+        if (deleteGlobalError) throw deleteGlobalError;
+        
+        // Add new local restrictions
+        const localRestrictions = updates.timeRestrictions.filter(r => !r.isGlobal);
+        if (localRestrictions.length > 0 && user) {
+          // Corrigido: precisamos passar cada restrição individual com o campo created_by
+          for (const restriction of localRestrictions) {
+            const { error: localError } = await supabase
+              .from("sequence_local_restrictions")
+              .insert({
+                sequence_id: id,
+                name: restriction.name,
+                active: restriction.active,
+                days: restriction.days,
+                start_hour: restriction.startHour,
+                start_minute: restriction.startMinute,
+                end_hour: restriction.endHour,
+                end_minute: restriction.endMinute,
+                created_by: user.id
+              });
+            
+            if (localError) throw localError;
+          }
+        }
+        
+        // Add new global restrictions
+        const globalRestrictions = updates.timeRestrictions.filter(r => r.isGlobal);
+        if (globalRestrictions.length > 0) {
+          const globalRestrictionsData = globalRestrictions.map(r => ({
+            sequence_id: id,
+            time_restriction_id: r.id
+          }));
+          
+          const { error: globalError } = await supabase
+            .from("sequence_time_restrictions")
+            .insert(globalRestrictionsData);
+          
+          if (globalError) throw globalError;
+        }
+      }
+      
+      // Update the sequence in local state
+      setSequences(prevSequences => prevSequences.map(seq => 
+        seq.id === id ? { ...seq, ...updates } : seq
+      ));
+      
+      console.log("Sequence updated successfully");
+      return { success: true };
+    } catch (error) {
+      console.error("Error in updateSequence:", error);
+      return { success: false, error: error.message };
     }
   };
 
@@ -1185,14 +1043,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (error) throw error;
       
       setSequences(prev => prev.filter(sequence => sequence.id !== id));
-      
       toast.success("Sequência excluída com sucesso");
     } catch (error: any) {
       console.error("Error deleting sequence:", error);
       toast.error(`Erro ao excluir sequência: ${error.message}`);
     }
   };
-  
+
   const addTimeRestriction = async (restrictionData: Omit<TimeRestriction, "id">) => {
     try {
       if (!user) {
@@ -1204,12 +1061,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         .from('time_restrictions')
         .insert({
           name: restrictionData.name,
-          active: restrictionData.active,
           days: restrictionData.days,
           start_hour: restrictionData.startHour,
           start_minute: restrictionData.startMinute,
           end_hour: restrictionData.endHour,
           end_minute: restrictionData.endMinute,
+          active: restrictionData.active,
           created_by: user.id
         })
         .select()
@@ -1226,32 +1083,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         startMinute: data.start_minute,
         endHour: data.end_hour,
         endMinute: data.end_minute,
-        isGlobal: true
+        isGlobal: true // Marcando como restrição global
       };
       
       setTimeRestrictions(prev => [...prev, newRestriction]);
-      
-      toast.success(`Restrição "${data.name}" criada com sucesso`);
+      toast.success("Restrição de horário criada com sucesso");
     } catch (error: any) {
       console.error("Error creating time restriction:", error);
-      toast.error(`Erro ao criar restrição: ${error.message}`);
+      toast.error(`Erro ao criar restrição de horário: ${error.message}`);
     }
   };
 
   const updateTimeRestriction = async (id: string, restrictionData: Partial<TimeRestriction>) => {
     try {
+      const updateData: any = {};
+      
+      if (restrictionData.name !== undefined) updateData.name = restrictionData.name;
+      if (restrictionData.active !== undefined) updateData.active = restrictionData.active;
+      if (restrictionData.days !== undefined) updateData.days = restrictionData.days;
+      if (restrictionData.startHour !== undefined) updateData.start_hour = restrictionData.startHour;
+      if (restrictionData.startMinute !== undefined) updateData.start_minute = restrictionData.startMinute;
+      if (restrictionData.endHour !== undefined) updateData.end_hour = restrictionData.endHour;
+      if (restrictionData.endMinute !== undefined) updateData.end_minute = restrictionData.endMinute;
+      
       const { error } = await supabase
         .from('time_restrictions')
-        .update({
-          name: restrictionData.name,
-          active: restrictionData.active,
-          days: restrictionData.days,
-          start_hour: restrictionData.startHour,
-          start_minute: restrictionData.startMinute,
-          end_hour: restrictionData.endHour,
-          end_minute: restrictionData.endMinute,
-          updated_at: new Date().toISOString()
-        })
+        .update(updateData)
         .eq('id', id);
       
       if (error) throw error;
@@ -1262,10 +1119,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         )
       );
       
-      toast.success(`Restrição atualizada com sucesso`);
+      toast.success("Restrição de horário atualizada com sucesso");
     } catch (error: any) {
       console.error("Error updating time restriction:", error);
-      toast.error(`Erro ao atualizar restrição: ${error.message}`);
+      toast.error(`Erro ao atualizar restrição de horário: ${error.message}`);
     }
   };
 
@@ -1279,55 +1136,69 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (error) throw error;
       
       setTimeRestrictions(prev => prev.filter(restriction => restriction.id !== id));
-      
-      toast.success("Restrição excluída com sucesso");
+      toast.success("Restrição de horário excluída com sucesso");
     } catch (error: any) {
       console.error("Error deleting time restriction:", error);
-      toast.error(`Erro ao excluir restrição: ${error.message}`);
+      toast.error(`Erro ao excluir restrição de horário: ${error.message}`);
     }
   };
 
-  const addContact = async (contact: Contact) => {
+  const addContact = async (contactData: Contact) => {
     try {
-      if (!user) {
-        toast.error("Usuário não autenticado");
-        return;
-      }
-      
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('contacts')
         .insert({
-          name: contact.name,
-          phone_number: contact.phoneNumber,
-          client_id: contact.clientId,
-          inbox_id: contact.inboxId,
-          conversation_id: contact.conversationId,
-          display_id: contact.displayId,
-          created_by: user.id
-        })
-        .select()
-        .single();
+          id: contactData.id,
+          name: contactData.name,
+          phone_number: contactData.phoneNumber,
+          client_id: contactData.clientId,
+          inbox_id: contactData.inboxId,
+          conversation_id: contactData.conversationId,
+          display_id: contactData.displayId
+        });
       
       if (error) throw error;
       
-      const newContact: Contact = {
-        id: data.id,
-        name: data.name,
-        phoneNumber: data.phone_number,
-        clientId: data.client_id,
-        inboxId: data.inbox_id,
-        conversationId: data.conversation_id,
-        displayId: data.display_id,
-        createdAt: data.created_at,
-        updatedAt: data.updated_at
-      };
+      // Add tags
+      if (contactData.tags && contactData.tags.length > 0) {
+        for (const tag of contactData.tags) {
+          // Verificar se a tag existe na tabela de tags
+          const { data: existingTag } = await supabase
+            .from('tags')
+            .select('name')
+            .eq('name', tag)
+            .maybeSingle();
+          
+          // Se a tag não existe, adicioná-la
+          if (!existingTag && user) {
+            await supabase
+              .from('tags')
+              .insert({
+                name: tag,
+                created_by: user.id
+              });
+              
+            // Atualizar o estado local de tags
+            setTags(prev => [...prev, tag]);
+          }
+          
+          // Adicionar a relação de tag para o contato
+          const { error: tagError } = await supabase
+            .from('contact_tags')
+            .insert({
+              contact_id: contactData.id,
+              tag_name: tag
+            });
+          
+          if (tagError) console.error("Error adding tag:", tagError);
+        }
+      }
       
-      setContacts(prev => [...prev, newContact]);
-      
-      toast.success(`Contato "${data.name}" criado com sucesso`);
+      await refreshData();
+      toast.success("Contato adicionado com sucesso");
     } catch (error: any) {
-      console.error("Error creating contact:", error);
-      toast.error(`Erro ao criar contato: ${error.message}`);
+      console.error("Error adding contact:", error);
+      toast.error(`Erro ao adicionar contato: ${error.message}`);
     }
   };
 
@@ -1343,7 +1214,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         .insert({
           account_id: clientData.accountId,
           account_name: clientData.accountName,
-          created_by: user.id
+          created_by: user.id,
+          creator_account_name: user.accountName || "Usuário" // Adicionar nome da conta do criador
         })
         .select()
         .single();
@@ -1360,22 +1232,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       };
       
       setClients(prev => [...prev, newClient]);
-      
-      toast.success(`Cliente "${data.account_name}" criado com sucesso`);
+      toast.success(`Cliente "${data.account_name}" adicionado com sucesso`);
     } catch (error: any) {
-      console.error("Error creating client:", error);
-      toast.error(`Erro ao criar cliente: ${error.message}`);
+      console.error("Error adding client:", error);
+      toast.error(`Erro ao adicionar cliente: ${error.message}`);
     }
   };
 
   const updateClient = async (id: string, clientData: Partial<Client>) => {
     try {
+      const updateData: any = {
+        updated_at: new Date().toISOString()
+      };
+      
+      if (clientData.accountId !== undefined) updateData.account_id = clientData.accountId;
+      if (clientData.accountName !== undefined) updateData.account_name = clientData.accountName;
+      
       const { error } = await supabase
         .from('clients')
-        .update({
-          account_name: clientData.accountName,
-          updated_at: new Date().toISOString()
-        })
+        .update(updateData)
         .eq('id', id);
       
       if (error) throw error;
@@ -1386,7 +1261,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         )
       );
       
-      toast.success(`Cliente atualizado com sucesso`);
+      toast.success("Cliente atualizado com sucesso");
     } catch (error: any) {
       console.error("Error updating client:", error);
       toast.error(`Erro ao atualizar cliente: ${error.message}`);
@@ -1403,8 +1278,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (error) throw error;
       
       setClients(prev => prev.filter(client => client.id !== id));
-      
       toast.success("Cliente excluído com sucesso");
+      
+      // Check if any instances were using this client and remove them from instances list
+      const affectedInstances = instances.filter(instance => instance.clientId === id);
+      if (affectedInstances.length > 0) {
+        setInstances(prev => prev.filter(instance => instance.clientId !== id));
+        
+        // If current instance was using this client, set current instance to null
+        if (currentInstance && currentInstance.clientId === id) {
+          const nextInstance = instances.find(i => i.clientId !== id);
+          setCurrentInstance(nextInstance || null);
+        }
+      }
     } catch (error: any) {
       console.error("Error deleting client:", error);
       toast.error(`Erro ao excluir cliente: ${error.message}`);
@@ -1413,61 +1299,58 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const addUser = async (userData: { email: string; password: string; accountName: string, isAdmin?: boolean }) => {
     try {
-      if (!user) {
-        toast.error("Usuário não autenticado");
-        return;
-      }
-      
-      const { data, error } = await supabase
-        .from('profiles')
-        .insert({
-          email: userData.email,
-          account_name: userData.accountName,
-          role: userData.role || "user",
-          created_by: user.id
-        })
-        .select()
-        .single();
+      // Use Supabase auth to sign up the user
+      const { data, error } = await supabase.auth.signUp({
+        email: userData.email,
+        password: userData.password
+      });
       
       if (error) throw error;
       
-      const newUser: User = {
-        id: data.id,
-        accountName: data.account_name,
-        email: data.email,
-        role: data.role,
-        avatar: ""
-      };
+      if (!data.user) {
+        throw new Error("Erro ao criar usuário");
+      }
       
-      setUsers(prev => [...prev, newUser]);
-      
-      toast.success(`Usuário "${data.account_name}" criado com sucesso`);
-    } catch (error: any) {
-      console.error("Error creating user:", error);
-      toast.error(`Erro ao criar usuário: ${error.message}`);
-    }
-  };
-
-  const updateUser = async (id: string, userData: { accountName?: string; role?: "super_admin" | "admin" }) => {
-    try {
-      const { error } = await supabase
+      // Update the profile with the account name
+      const { error: updateError } = await supabase
         .from('profiles')
         .update({
           account_name: userData.accountName,
-          role: userData.role,
-          updated_at: new Date().toISOString()
+          role: userData.isAdmin ? 'admin' : 'admin' // Default to admin for now
         })
+        .eq('id', data.user.id);
+      
+      if (updateError) throw updateError;
+      
+      toast.success("Usuário criado com sucesso");
+      refreshData();
+    } catch (error: any) {
+      console.error("Error adding user:", error);
+      toast.error(`Erro ao adicionar usuário: ${error.message}`);
+    }
+  };
+
+  const updateUser = async (id: string, data: { accountName?: string; role?: "super_admin" | "admin" }) => {
+    try {
+      const updateData: any = {};
+      
+      if (data.accountName !== undefined) updateData.account_name = data.accountName;
+      if (data.role !== undefined) updateData.role = data.role;
+      
+      const { error } = await supabase
+        .from('profiles')
+        .update(updateData)
         .eq('id', id);
       
       if (error) throw error;
       
       setUsers(prev => 
-        prev.map(user => 
-          user.id === id ? { ...user, ...userData } : user
+        prev.map(u => 
+          u.id === id ? { ...u, accountName: data.accountName || u.accountName, role: data.role || u.role } : u
         )
       );
       
-      toast.success(`Usuário atualizado com sucesso`);
+      toast.success("Usuário atualizado com sucesso");
     } catch (error: any) {
       console.error("Error updating user:", error);
       toast.error(`Erro ao atualizar usuário: ${error.message}`);
@@ -1476,15 +1359,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const deleteUser = async (id: string) => {
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .delete()
-        .eq('id', id);
+      // This requires admin privileges in Supabase
+      const { error } = await supabase.functions.invoke('delete-user', {
+        body: { userId: id }
+      });
       
       if (error) throw error;
       
-      setUsers(prev => prev.filter(user => user.id !== id));
-      
+      setUsers(prev => prev.filter(u => u.id !== id));
       toast.success("Usuário excluído com sucesso");
     } catch (error: any) {
       console.error("Error deleting user:", error);
@@ -1494,26 +1376,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const addTag = async (tagName: string) => {
     try {
-      if (!user || !tagName) {
+      if (!user) {
+        toast.error("Usuário não autenticado");
         return;
       }
       
-      // Check if tag already exists
-      if (tags.includes(tagName)) {
-        return;
-      }
-      
-      // Add tag using RPC function
       const { error } = await supabase
-        .rpc('insert_tag_if_not_exists_for_user', {
-          p_name: tagName,
-          p_created_by: user.id
+        .from('tags')
+        .insert({
+          name: tagName,
+          created_by: user.id
         });
       
       if (error) throw error;
       
-      // Update local state
       setTags(prev => [...prev, tagName]);
+      toast.success("Tag adicionada com sucesso");
     } catch (error: any) {
       console.error("Error adding tag:", error);
       toast.error(`Erro ao adicionar tag: ${error.message}`);
@@ -1522,232 +1400,198 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const deleteTag = async (tagName: string) => {
     try {
-      if (!user || !tagName) {
-        return;
-      }
-      
-      // Delete tag using RPC function
       const { error } = await supabase
-        .rpc('delete_tag_for_user', {
-          p_name: tagName,
-          p_created_by: user.id
-        });
+        .from('tags')
+        .delete()
+        .eq('name', tagName);
       
       if (error) throw error;
       
-      // Update local state
       setTags(prev => prev.filter(tag => tag !== tagName));
+      toast.success("Tag removida com sucesso");
     } catch (error: any) {
       console.error("Error deleting tag:", error);
-      toast.error(`Erro ao excluir tag: ${error.message}`);
+      toast.error(`Erro ao remover tag: ${error.message}`);
     }
   };
 
-  // Add the contact manipulation functions from contactFunctions
-  const deleteContact = async (contactId: string): Promise<{ success: boolean; error?: string }> => {
+  const loadSequences = async () => {
     try {
-      // Verify contactId
-      if (!contactId) {
-        return { success: false, error: "ID de contato inválido" };
+      setLoading(true);
+      
+      // Buscar sequências
+      const { data: sequencesData, error: sequencesError } = await supabase
+        .from("sequences")
+        .select("*")
+        .order("created_at", { ascending: false });
+      
+      if (sequencesError) throw sequencesError;
+      
+      // Para cada sequência, buscar seus estágios
+      const sequencesWithStages: Sequence[] = [];
+      
+      for (const seq of sequencesData || []) {
+        // Buscar estágios
+        const { data: stagesData, error: stagesError } = await supabase
+          .from("sequence_stages")
+          .select("*")
+          .eq("sequence_id", seq.id)
+          .order("order_index", { ascending: true });
+        
+        if (stagesError) throw stagesError;
+        
+        // Buscar restrições locais
+        const { data: localRestrictionsData, error: localRestrictionsError } = await supabase
+          .from("sequence_local_restrictions")
+          .select("*")
+          .eq("sequence_id", seq.id);
+        
+        if (localRestrictionsError) throw localRestrictionsError;
+        
+        // Buscar restrições globais
+        const { data: globalRestrictions, error: globalRestrictionsError } = await supabase
+          .rpc("get_sequence_time_restrictions", { seq_id: seq.id });
+        
+        if (globalRestrictionsError) throw globalRestrictionsError;
+        
+        // Mapear estágios
+        const stages = stagesData.map(stage => ({
+          id: stage.id,
+          name: stage.name,
+          type: stage.type as "message" | "pattern" | "typebot",
+          content: stage.content,
+          typebotStage: stage.typebot_stage || undefined,
+          delay: stage.delay,
+          delayUnit: stage.delay_unit as "minutes" | "hours" | "days"
+        }));
+        
+        // Mapear restrições locais
+        const localRestrictions = localRestrictionsData.map(restriction => ({
+          id: restriction.id,
+          name: restriction.name,
+          active: restriction.active,
+          days: restriction.days,
+          startHour: restriction.start_hour,
+          startMinute: restriction.start_minute,
+          endHour: restriction.end_hour,
+          endMinute: restriction.end_minute,
+          isGlobal: false
+        }));
+        
+        // Mapear restrições globais
+        const globalRestrictionsProcessed = (globalRestrictions || []).map(restriction => ({
+          id: restriction.id,
+          name: restriction.name,
+          active: restriction.active,
+          days: restriction.days,
+          startHour: restriction.start_hour,
+          startMinute: restriction.start_minute,
+          endHour: restriction.end_hour,
+          endMinute: restriction.end_minute,
+          isGlobal: true
+        }));
+        
+        // Combinar todas as restrições
+        const timeRestrictions = [...localRestrictions, ...globalRestrictionsProcessed];
+        
+        // Determinar o tipo de sequência com base nos estágios ou usar um valor padrão
+        let sequenceType: "message" | "pattern" | "typebot" = "message";
+        if (stages.length > 0) {
+          // Se o último estágio for um typebot, consideramos que é uma sequência de typebot
+          const lastStage = stages[stages.length - 1];
+          if (lastStage.type === "typebot") {
+            sequenceType = "typebot";
+          } else if (lastStage.type === "pattern") {
+            sequenceType = "pattern";
+          }
+        }
+        
+        // Adicionar sequência ao array
+        sequencesWithStages.push({
+          id: seq.id,
+          name: seq.name,
+          instanceId: seq.instance_id,
+          // Fix here: Use optional chaining to safely access seq.type, or use sequenceType as fallback
+          type: (seq as any).type || sequenceType,
+          status: seq.status as "active" | "inactive",
+          startCondition: {
+            type: seq.start_condition_type as "AND" | "OR",
+            tags: seq.start_condition_tags || []
+          },
+          stopCondition: {
+            type: seq.stop_condition_type as "AND" | "OR",
+            tags: seq.stop_condition_tags || []
+          },
+          stages,
+          timeRestrictions,
+          createdAt: seq.created_at,
+          updatedAt: seq.updated_at
+        });
       }
       
-      // Delete contact from database
-      const { error } = await supabase
-        .from('contacts')
-        .delete()
-        .eq('id', contactId);
-      
-      if (error) {
-        console.error("Error deleting contact:", error);
-        return { success: false, error: `Erro ao excluir contato: ${error.message}` };
-      }
-      
-      // Update local state
-      setContacts(prev => prev.filter(c => c.id !== contactId));
-      
-      return { success: true };
-    } catch (error: any) {
-      console.error("Error in deleteContact:", error);
-      return { success: false, error: `Erro ao excluir contato: ${error.message}` };
+      setSequences(sequencesWithStages);
+    } catch (error) {
+      console.error("Erro ao carregar sequências:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const updateContact = async (contactId: string, data: Partial<Contact>): Promise<{ success: boolean; error?: string }> => {
-    try {
-      // Verify contactId
-      if (!contactId) {
-        return { success: false, error: "ID de contato inválido" };
-      }
-      
-      // Prepare data for database format
-      const updates: any = {};
-      if (data.name !== undefined) updates.name = data.name;
-      if (data.phoneNumber !== undefined) updates.phone_number = data.phoneNumber;
-      if (data.inboxId !== undefined) updates.inbox_id = data.inboxId;
-      if (data.conversationId !== undefined) updates.conversation_id = data.conversationId;
-      if (data.displayId !== undefined) updates.display_id = data.displayId;
-      
-      // Update contact in database
-      const { error } = await supabase
-        .from('contacts')
-        .update(updates)
-        .eq('id', contactId);
-      
-      if (error) {
-        console.error("Error updating contact:", error);
-        return { success: false, error: `Erro ao atualizar contato: ${error.message}` };
-      }
-      
-      // Update local state
-      setContacts(prev => prev.map(c => 
-        c.id === contactId ? { ...c, ...data } : c
-      ));
-      
-      return { success: true };
-    } catch (error: any) {
-      console.error("Error in updateContact:", error);
-      return { success: false, error: `Erro ao atualizar contato: ${error.message}` };
-    }
-  };
-
-  const removeFromSequence = async (contactSequenceId: string): Promise<{ success: boolean; error?: string }> => {
-    try {
-      // Verify ID
-      if (!contactSequenceId || !isValidUUID(contactSequenceId)) {
-        return { success: false, error: "ID de sequência de contato inválido" };
-      }
-      
-      // First, get the sequence to check if it actually exists
-      const { data: existingSeq, error: fetchError } = await supabase
-        .from('contact_sequences')
-        .select('*')
-        .eq('id', contactSequenceId)
-        .single();
-      
-      if (fetchError) {
-        console.error("Error fetching contact sequence:", fetchError);
-        return { success: false, error: `Sequência não encontrada: ${fetchError.message}` };
-      }
-      
-      // Update sequence status and removal date
-      const { error: updateError } = await supabase
-        .from('contact_sequences')
-        .update({
-          status: 'removed',
-          removed_at: new Date().toISOString()
-        })
-        .eq('id', contactSequenceId);
-      
-      if (updateError) {
-        console.error("Error removing from sequence:", updateError);
-        return { success: false, error: `Erro ao remover da sequência: ${updateError.message}` };
-      }
-      
-      // Update local state
-      setContactSequences(prev => prev.map(cs => 
-        cs.id === contactSequenceId 
-          ? { 
-            ...cs, 
-            status: 'removed',
-            removedAt: new Date().toISOString() 
-          } 
-          : cs
-      ));
-      
-      return { success: true };
-    } catch (error: any) {
-      console.error("Error in removeFromSequence:", error);
-      return { success: false, error: `Erro ao remover da sequência: ${error.message}` };
-    }
-  };
-
-  const updateContactSequence = async (
-    contactSequenceId: string, 
-    data: { sequenceId?: string; currentStageId?: string }
-  ): Promise<{ success: boolean; error?: string }> => {
-    try {
-      // Verify ID
-      if (!contactSequenceId || !isValidUUID(contactSequenceId)) {
-        return { success: false, error: "ID de sequência de contato inválido" };
-      }
-      
-      // Prepare data for database format
-      const updates: any = {};
-      if (data.sequenceId) updates.sequence_id = data.sequenceId;
-      if (data.currentStageId) updates.current_stage_id = data.currentStageId;
-      
-      // Update in database
-      const { error } = await supabase
-        .from('contact_sequences')
-        .update(updates)
-        .eq('id', contactSequenceId);
-      
-      if (error) {
-        console.error("Error updating contact sequence:", error);
-        return { success: false, error: `Erro ao atualizar sequência de contato: ${error.message}` };
-      }
-      
-      // Update local state
-      setContactSequences(prev => prev.map(cs => 
-        cs.id === contactSequenceId 
-          ? { 
-            ...cs,
-            sequenceId: data.sequenceId || cs.sequenceId,
-            currentStageId: data.currentStageId || cs.currentStageId
-          } 
-          : cs
-      ));
-      
-      return { success: true };
-    } catch (error: any) {
-      console.error("Error in updateContactSequence:", error);
-      return { success: false, error: `Erro ao atualizar sequência de contato: ${error.message}` };
-    }
+  const value = {
+    clients,
+    instances,
+    currentInstance,
+    sequences,
+    contacts,
+    scheduledMessages,
+    contactSequences,
+    tags,
+    timeRestrictions,
+    users,
+    stats,
+    setCurrentInstance,
+    addInstance,
+    updateInstance,
+    deleteInstance,
+    addSequence,
+    updateSequence,
+    deleteSequence,
+    addTimeRestriction,
+    updateTimeRestriction,
+    deleteTimeRestriction,
+    addContact,
+    getContactSequences,
+    addClient,
+    updateClient,
+    deleteClient,
+    addUser,
+    updateUser,
+    deleteUser,
+    addTag,
+    deleteTag,
+    refreshData,
+    isDataInitialized,
+    
+    // Funções de manipulação de contatos
+    deleteContact: contactFunctions.deleteContact,
+    updateContact: contactFunctions.updateContact,
+    removeFromSequence: contactFunctions.removeFromSequence,
+    updateContactSequence: contactFunctions.updateContactSequence,
   };
 
   return (
-    <AppContext.Provider
-      value={{
-        clients,
-        instances,
-        currentInstance,
-        sequences,
-        contacts,
-        scheduledMessages,
-        contactSequences,
-        tags,
-        timeRestrictions,
-        users,
-        stats,
-        setCurrentInstance,
-        addInstance,
-        updateInstance,
-        deleteInstance,
-        addSequence,
-        updateSequence,
-        deleteSequence,
-        addTimeRestriction,
-        updateTimeRestriction,
-        deleteTimeRestriction,
-        addContact,
-        getContactSequences,
-        addClient,
-        updateClient,
-        deleteClient,
-        addUser,
-        updateUser,
-        deleteUser,
-        addTag,
-        deleteTag,
-        refreshData,
-        isDataInitialized,
-        deleteContact,
-        updateContact,
-        removeFromSequence,
-        updateContactSequence
-      }}
-    >
-      {children}
+    <AppContext.Provider value={value}>
+      <AppContactContext.Provider value={contactFunctions}>
+        {children}
+      </AppContactContext.Provider>
     </AppContext.Provider>
   );
-}
+};
+
+export const useApp = (): AppContextType => {
+  const context = useContext(AppContext);
+  if (!context) {
+    throw new Error("useApp must be used within an AppProvider");
+  }
+  return context;
+};

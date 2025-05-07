@@ -1,3 +1,4 @@
+
 // User related types
 export interface User {
   id: string;
@@ -46,10 +47,6 @@ export interface Sequence {
   status: "active" | "inactive";
   createdAt: string;
   updatedAt: string;
-  useAdvancedStartCondition?: boolean;
-  useAdvancedStopCondition?: boolean;
-  advancedStartCondition?: AdvancedCondition;
-  advancedStopCondition?: AdvancedCondition;
 }
 
 export interface TagCondition {

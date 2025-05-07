@@ -11,8 +11,7 @@ import {
   MoreVertical,
   MessageCircle,
   FileCode,
-  Bot,
-  GitBranch
+  Bot
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -353,63 +352,24 @@ export default function Sequences() {
                   </div>
                   <div className="flex flex-col space-y-2">
                     <div>
-                      <div className="flex items-center">
-                        <span className="text-xs text-muted-foreground">
-                          Início ({sequence.startCondition.type})
-                        </span>
-                        {sequence.useAdvancedStartCondition && (
-                          <Badge variant="outline" className="ml-2 bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs">
-                            <GitBranch className="h-3 w-3 mr-1" />
-                            Avançada
-                          </Badge>
-                        )}
-                      </div>
+                      <span className="text-xs text-muted-foreground">Início ({sequence.startCondition.type}):</span>
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {sequence.startCondition.tags.length > 0 ? (
-                          sequence.startCondition.tags.map(tag => (
-                            <Badge key={tag} variant="outline" className="bg-green-500/10 text-green-700 dark:text-green-400 text-xs py-0">
-                              {tag}
-                            </Badge>
-                          ))
-                        ) : (
-                          sequence.useAdvancedStartCondition && sequence.advancedStartCondition && (
-                            <Badge variant="outline" className="bg-green-500/10 text-green-700 dark:text-green-400 text-xs py-0">
-                              {sequence.advancedStartCondition.groups.length} grupos de condições
-                            </Badge>
-                          )
-                        )}
+                        {sequence.startCondition.tags.map(tag => (
+                          <Badge key={tag} variant="outline" className="bg-green-500/10 text-green-700 dark:text-green-400 text-xs py-0">
+                            {tag}
+                          </Badge>
+                        ))}
                       </div>
                     </div>
                     <div>
-                      <div className="flex items-center">
-                        <span className="text-xs text-muted-foreground">
-                          Parada ({sequence.stopCondition.type})
-                        </span>
-                        {sequence.useAdvancedStopCondition && (
-                          <Badge variant="outline" className="ml-2 bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs">
-                            <GitBranch className="h-3 w-3 mr-1" />
-                            Avançada
-                          </Badge>
-                        )}
-                      </div>
+                      <span className="text-xs text-muted-foreground">Parada ({sequence.stopCondition.type}):</span>
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {sequence.stopCondition.tags.length > 0 ? (
-                          sequence.stopCondition.tags.map(tag => (
-                            <Badge key={tag} variant="outline" className="bg-red-500/10 text-red-700 dark:text-red-400 text-xs py-0">
-                              {tag}
-                            </Badge>
-                          ))
-                        ) : (
-                          sequence.useAdvancedStopCondition && sequence.advancedStopCondition && (
-                            <Badge variant="outline" className="bg-red-500/10 text-red-700 dark:text-red-400 text-xs py-0">
-                              {sequence.advancedStopCondition.groups.length} grupos de condições
-                            </Badge>
-                          )
-                        )}
-                        {sequence.stopCondition.tags.length === 0 && 
-                         (!sequence.useAdvancedStopCondition || 
-                          !sequence.advancedStopCondition || 
-                          sequence.advancedStopCondition.groups.length === 0) && (
+                        {sequence.stopCondition.tags.map(tag => (
+                          <Badge key={tag} variant="outline" className="bg-red-500/10 text-red-700 dark:text-red-400 text-xs py-0">
+                            {tag}
+                          </Badge>
+                        ))}
+                        {sequence.stopCondition.tags.length === 0 && (
                           <span className="text-xs text-muted-foreground italic">Nenhuma</span>
                         )}
                       </div>
