@@ -53,8 +53,7 @@ Deno.serve(async (req) => {
           esperado: {
             accountData: {
               accountId: 'número ou string',
-              accountName: 'string',
-              adminId: 'string (opcional)'
+              accountName: 'string'
             },
             contactData: { 
               id: 'number ou string', 
@@ -78,11 +77,11 @@ Deno.serve(async (req) => {
     
     console.log('[1. BODY] Formato utilizado: data direto');
     
-    const { accountId, accountName, adminId } = accountData;
+    const { accountId, accountName } = accountData;
     const { id: contactId, name: contactName, phoneNumber } = contactData;
     const { inboxId, conversationId, displayId, labels } = conversationData;
     
-    console.log(`[1. BODY] Processando dados: contactId=${contactId}, name=${contactName}, phoneNumber=${phoneNumber}, accountId=${accountId}, accountName=${accountName}, adminId=${adminId || 'não informado'}, tags=${labels}`);
+    console.log(`[1. BODY] Processando dados: contactId=${contactId}, name=${contactName}, phoneNumber=${phoneNumber}, accountId=${accountId}, accountName=${accountName}, tags=${labels}`);
     
     // Validar token de autenticação
     if (!authToken) {
@@ -159,18 +158,10 @@ Deno.serve(async (req) => {
       tokenOwner = adminWithToken;
     } else {
       // Se não for token global, verificar se é token específico de cliente
-      let clientQuery = supabase
+      const { data: clientAuth, error: clientAuthError } = await supabase
         .from("clients")
-        .select("id, auth_token");
-        
-      // Se adminId foi fornecido, filtrar por ele também
-      if (adminId) {
-        clientQuery = clientQuery.eq("created_by", adminId);
-      }
-      
-      const { data: clientAuth, error: clientAuthError } = await clientQuery
+        .select("id, auth_token")
         .eq("account_id", accountId)
-        .order('created_at', { ascending: false })
         .maybeSingle();
       
       if (clientAuthError) {
@@ -216,14 +207,8 @@ Deno.serve(async (req) => {
       console.log(`[SEGURANÇA] Token de autenticação válido para o cliente com accountId=${accountId}`);
     }
     
-    // Buscar cliente com account_id e potencialmente com adminId
-    const clientResult = await handleClient(
-      supabase, 
-      accountId, 
-      accountName, 
-      isGlobalToken ? tokenOwner.id : "system", 
-      !isGlobalToken ? adminId : undefined
-    );
+    // Buscar cliente com account_id
+    const clientResult = await handleClient(supabase, accountId, accountName, isGlobalToken ? tokenOwner.id : "system");
     
     if (!clientResult.success) {
       return new Response(
