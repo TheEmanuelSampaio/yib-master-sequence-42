@@ -62,7 +62,7 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
       const matchesStop = evaluateCondition(sequence.stop_condition_type, sequence.stop_condition_tags, tags);
       
       const isEligible = matchesStart && !matchesStop;
-      console.log(`[5.3 SEQUÊNCIA ${sequence.id}] Elegibilidade: matchesStart=${matchesStart}, matchesStop=${matchesStop}, isEligible=${isEligible}`);
+      console.log(`[5.3 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Elegibilidade: matchesStart=${matchesStart}, matchesStop=${matchesStop}, isEligible=${isEligible}`);
       
       return isEligible;
     });
@@ -74,7 +74,7 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
     let sequencesSkipped = 0;
     
     for (const sequence of eligibleSequences) {
-      console.log(`[5.4 SEQUÊNCIA ${sequence.id}] Verificando se o contato já está na sequência...`);
+      console.log(`[5.4 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Verificando se o contato já está na sequência...`);
       
       const { data: existingContactSequence, error: contactSequenceError } = await supabase
         .from("contact_sequences")
@@ -85,12 +85,12 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
         .maybeSingle();
 
       if (contactSequenceError) {
-        console.error(`[5.4 SEQUÊNCIA ${sequence.id}] Erro ao verificar contato na sequência: ${contactSequenceError.message}`);
+        console.error(`[5.4 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Erro ao verificar contato na sequência: ${contactSequenceError.message}`);
         continue;
       }
 
       if (existingContactSequence) {
-        console.log(`[5.4 SEQUÊNCIA ${sequence.id}] Contato já está na sequência com status ${existingContactSequence.status}`);
+        console.log(`[5.4 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Contato já está na sequência com status ${existingContactSequence.status}`);
         sequencesSkipped++;
         continue;
       }
@@ -99,14 +99,14 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
       const sortedStages = [...sequence.sequence_stages].sort((a, b) => a.order_index - b.order_index);
       
       if (sortedStages.length === 0) {
-        console.log(`[5.4 SEQUÊNCIA ${sequence.id}] Sequência não tem estágios, pulando...`);
+        console.log(`[5.4 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Sequência não tem estágios, pulando...`);
         sequencesSkipped++;
         continue;
       }
 
       const firstStage = sortedStages[0];
 
-      console.log(`[5.5 SEQUÊNCIA ${sequence.id}] Adicionando contato à sequência, primeiro estágio: ${firstStage.id}`);
+      console.log(`[5.5 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Adicionando contato à sequência, primeiro estágio: ${firstStage.id} - "${firstStage.name}"`);
 
       // Adicionar o contato à sequência
       const { data: newContactSequence, error: insertError } = await supabase
@@ -122,11 +122,11 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
         .single();
 
       if (insertError) {
-        console.error(`[5.5 SEQUÊNCIA ${sequence.id}] Erro ao adicionar contato à sequência: ${insertError.message}`);
+        console.error(`[5.5 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Erro ao adicionar contato à sequência: ${insertError.message}`);
         continue;
       }
 
-      console.log(`[5.5 SEQUÊNCIA ${sequence.id}] Contato adicionado com sucesso à sequência: ${newContactSequence.id}`);
+      console.log(`[5.5 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Contato adicionado com sucesso à sequência: ${newContactSequence.id}`);
 
       // Adicionar registros de stage_progress para todos os estágios
       const stageProgressRecords = sortedStages.map((stage, index) => ({
@@ -140,14 +140,14 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
         .insert(stageProgressRecords);
 
       if (stageProgressError) {
-        console.error(`[5.6 SEQUÊNCIA ${sequence.id}] Erro ao criar registros de progresso de estágio: ${stageProgressError.message}`);
+        console.error(`[5.6 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Erro ao criar registros de progresso de estágio: ${stageProgressError.message}`);
       } else {
-        console.log(`[5.6 SEQUÊNCIA ${sequence.id}] Criados ${stageProgressRecords.length} registros de progresso de estágio`);
+        console.log(`[5.6 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Criados ${stageProgressRecords.length} registros de progresso de estágio`);
       }
 
       // Calcular tempo de delay para a primeira mensagem
       const delay = calculateDelayInMinutes(firstStage.delay, firstStage.delay_unit);
-      console.log(`[5.7 SEQUÊNCIA ${sequence.id}] Delay calculado para o primeiro estágio: ${delay} minutos`);
+      console.log(`[5.7 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Delay calculado para o primeiro estágio: ${delay} minutos`);
       
       // Calcular horário de envio
       const scheduledTime = new Date();
@@ -155,22 +155,25 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
       const rawScheduledTime = scheduledTime.toISOString();
       
       // Verificar restrições de tempo
-      const { data: adjustedScheduledTime, error: restrictionsError } = await supabase.rpc(
+      const { data: timeRestrictions, error: restrictionsError } = await supabase.rpc(
         "get_sequence_time_restrictions",
         { seq_id: sequence.id }
       );
 
       if (restrictionsError) {
-        console.error(`[5.7 SEQUÊNCIA ${sequence.id}] Erro ao obter restrições de tempo: ${restrictionsError.message}`);
+        console.error(`[5.7 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Erro ao obter restrições de tempo: ${restrictionsError.message}`);
       }
+      
+      // Garantir que timeRestrictions é um array, mesmo que seja null
+      const restrictions = Array.isArray(timeRestrictions) ? timeRestrictions : [];
       
       const { adjustedTime, wasAdjusted } = applyTimeRestrictions(
         scheduledTime,
-        adjustedScheduledTime || []
+        restrictions
       );
       
       if (wasAdjusted) {
-        console.log(`[5.7 SEQUÊNCIA ${sequence.id}] Horário ajustado devido a restrições de tempo: ${adjustedTime.toISOString()}`);
+        console.log(`[5.7 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Horário ajustado devido a restrições de tempo: ${adjustedTime.toISOString()}`);
       }
       
       // Processar variáveis no conteúdo antes de agendar a mensagem
@@ -193,9 +196,9 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
         .single();
 
       if (scheduleError) {
-        console.error(`[5.8 SEQUÊNCIA ${sequence.id}] Erro ao agendar primeira mensagem: ${scheduleError.message}`);
+        console.error(`[5.8 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Erro ao agendar primeira mensagem: ${scheduleError.message}`);
       } else {
-        console.log(`[5.8 SEQUÊNCIA ${sequence.id}] Primeira mensagem agendada com sucesso: ${scheduledMessage.id}`);
+        console.log(`[5.8 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Primeira mensagem agendada com sucesso: ${scheduledMessage.id}`);
         // Log das variáveis processadas
         console.log(`[5.8 VARIÁVEIS] Mensagem agendada com variáveis: ${JSON.stringify(variables || {})}`);
         console.log(`[5.8 VARIÁVEIS] Conteúdo original: ${firstStage.content}`);

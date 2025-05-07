@@ -105,53 +105,73 @@ Deno.serve(async (req) => {
       );
     }
     
-    // Verificar se o token corresponde ao accountId fornecido
-    const { data: clientAuth, error: clientAuthError } = await supabase
-      .from("clients")
-      .select("id, auth_token")
-      .eq("account_id", accountId)
+    // Verificar primeiro se é um token global de admin ou super_admin
+    const { data: adminWithToken, error: adminAuthError } = await supabase
+      .from("profiles")
+      .select("id, account_name, role, auth_token")
+      .eq("auth_token", authToken)
       .maybeSingle();
-    
-    if (clientAuthError) {
-      console.error(`[SEGURANÇA] Erro ao verificar autenticação do cliente: ${clientAuthError.message}`);
-      return new Response(
-        JSON.stringify({ 
-          error: 'Erro ao verificar autenticação', 
-          details: clientAuthError.message 
-        }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-    
-    if (!clientAuth || clientAuth.auth_token !== authToken) {
-      console.error(`[SEGURANÇA] Token inválido fornecido para o cliente com accountId=${accountId}`);
       
-      // Registrar tentativa não autorizada
-      await supabase.from("security_logs").insert({
-        client_account_id: String(accountId),
-        action: "tag_change_invalid_token",
-        ip_address: req.headers.get("x-forwarded-for") || "unknown",
-        user_agent: req.headers.get("user-agent") || "unknown",
-        details: { 
-          error: clientAuth ? "Invalid token" : "Client not found", 
-          account_name: accountName 
-        }
-      });
+    let isGlobalToken = false;
+    let tokenOwner = null;
       
-      return new Response(
-        JSON.stringify({ 
-          error: 'Token de autenticação inválido', 
-          details: 'O token fornecido não corresponde ao cliente especificado' 
-        }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    if (adminWithToken) {
+      console.log(`[SEGURANÇA] Token global válido pertencente a: ${adminWithToken.account_name} (${adminWithToken.role})`);
+      isGlobalToken = true;
+      tokenOwner = adminWithToken;
+    } else {
+      // Se não for token global, verificar se é token específico de cliente
+      const { data: clientAuth, error: clientAuthError } = await supabase
+        .from("clients")
+        .select("id, auth_token")
+        .eq("account_id", accountId)
+        .maybeSingle();
+      
+      if (clientAuthError) {
+        console.error(`[SEGURANÇA] Erro ao verificar autenticação do cliente: ${clientAuthError.message}`);
+        return new Response(
+          JSON.stringify({ 
+            error: 'Erro ao verificar autenticação', 
+            details: clientAuthError.message 
+          }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      if (!clientAuth || clientAuth.auth_token !== authToken) {
+        console.error(`[SEGURANÇA] Token inválido fornecido para o cliente com accountId=${accountId}`);
+        
+        // Registrar tentativa não autorizada
+        await supabase.from("security_logs").insert({
+          client_account_id: String(accountId),
+          action: "tag_change_invalid_token",
+          ip_address: req.headers.get("x-forwarded-for") || "unknown",
+          user_agent: req.headers.get("user-agent") || "unknown",
+          details: { 
+            error: clientAuth ? "Invalid token" : "Client not found", 
+            account_name: accountName 
+          }
+        });
+        
+        return new Response(
+          JSON.stringify({ 
+            error: 'Token de autenticação inválido', 
+            details: 'O token fornecido não corresponde ao cliente especificado' 
+          }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
     
     // Token válido, continuar com o processamento
-    console.log(`[SEGURANÇA] Token de autenticação válido para o cliente com accountId=${accountId}`);
+    if (isGlobalToken) {
+      console.log(`[SEGURANÇA] Autenticação realizada com token global de ${tokenOwner.account_name} (${tokenOwner.role})`);
+    } else {
+      console.log(`[SEGURANÇA] Token de autenticação válido para o cliente com accountId=${accountId}`);
+    }
     
     // Buscar cliente com account_id
-    const clientResult = await handleClient(supabase, accountId, accountName, "system");
+    const clientResult = await handleClient(supabase, accountId, accountName, isGlobalToken ? tokenOwner.id : "system");
     
     if (!clientResult.success) {
       return new Response(
@@ -232,7 +252,8 @@ Deno.serve(async (req) => {
             added: sequencesResult.sequencesAdded,
             skipped: sequencesResult.sequencesSkipped
           } : { error: sequencesResult.error }
-        }
+        },
+        authMethod: isGlobalToken ? `global_token:${tokenOwner.role}` : 'client_token'
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

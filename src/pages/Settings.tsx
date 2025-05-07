@@ -7,6 +7,7 @@ import { ClientsTab } from "@/components/settings/ClientsTab";
 import { TimeRestrictionsTab } from "@/components/settings/TimeRestrictionsTab";
 import { TagsTab } from "@/components/settings/TagsTab";
 import { GeneralTab } from "@/components/settings/GeneralTab";
+import { TokensTab } from "@/components/settings/TokensTab";
 
 export default function Settings() {
   const { isSuper } = useAuth();
@@ -25,6 +26,7 @@ export default function Settings() {
           {/* Mostrar a aba Usuários apenas para super admins */}
           {isSuper && <TabsTrigger value="users">Usuários</TabsTrigger>}
           <TabsTrigger value="clients">Clientes</TabsTrigger>
+          <TabsTrigger value="tokens">Tokens</TabsTrigger>
           <TabsTrigger value="time-restrictions">Restrições de Horário</TabsTrigger>
           <TabsTrigger value="tags">Tags</TabsTrigger>
           <TabsTrigger value="general">Configurações Gerais</TabsTrigger>
@@ -40,6 +42,11 @@ export default function Settings() {
         {/* Clients Tab */}
         <TabsContent value="clients">
           <ClientsTab />
+        </TabsContent>
+
+        {/* Tokens Tab (nova) */}
+        <TabsContent value="tokens">
+          <TokensTab />
         </TabsContent>
         
         {/* Time Restrictions Tab */}

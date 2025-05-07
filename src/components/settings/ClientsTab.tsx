@@ -58,9 +58,14 @@ export const ClientsTab = () => {
     ? clients.filter(client => client.createdBy === userFilter)
     : clients;
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success("Token copiado para a área de transferência");
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Token copiado para a área de transferência");
+    } catch (error) {
+      console.error("Erro ao copiar para a área de transferência:", error);
+      toast.error("Não foi possível copiar o token");
+    }
   };
 
   const generateNewToken = async () => {
@@ -69,7 +74,7 @@ export const ClientsTab = () => {
     try {
       // Generate a random token - 48 hex characters (24 bytes)
       const randomBytes = new Uint8Array(24);
-      window.crypto.getRandomValues(randomBytes);
+      crypto.getRandomValues(randomBytes);
       const newToken = Array.from(randomBytes)
         .map(b => b.toString(16).padStart(2, '0'))
         .join('');
@@ -313,24 +318,25 @@ export const ClientsTab = () => {
                     <Input
                       id="edit-client-token"
                       type={showToken ? "text" : "password"}
-                      value={editClient.authToken}
+                      value={editClient.authToken || ""}
                       onChange={(e) => setEditClient({ ...editClient, authToken: e.target.value })}
                       className="font-mono"
-                      readOnly
                     />
                     <Button 
                       variant="outline" 
                       size="icon"
-                      onClick={() => copyToClipboard(editClient.authToken)}
+                      onClick={() => copyToClipboard(editClient.authToken || "")}
                       title="Copiar token"
+                      type="button"
                     >
                       <Copy className="h-4 w-4" />
                     </Button>
                     <Button 
                       variant="outline" 
                       size="icon"
-                      onClick={generateNewToken}
+                      onClick={() => generateNewToken()}
                       title="Gerar novo token"
+                      type="button"
                     >
                       <RefreshCw className="h-4 w-4" />
                     </Button>

@@ -5,6 +5,7 @@ export interface User {
   email: string;
   role: 'super_admin' | 'admin';
   avatar?: string;
+  authToken?: string; // Adicionado global token para usuários
 }
 
 export interface Client {
@@ -166,7 +167,8 @@ export interface TagChangePayload {
     displayId: number;
     labels: string;
   };
-  variables?: Record<string, string>; // Add support for variables
+  variables?: Record<string, string>; 
+  authToken: string; // Token de autenticação (agora obrigatório)
 }
 
 export interface PendingMessagesResponse {
