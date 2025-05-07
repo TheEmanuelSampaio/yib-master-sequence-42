@@ -208,7 +208,7 @@ export const UsersTab = () => {
                           onClick={() => setEditUser({
                             id: user.id,
                             accountName: user.accountName,
-                            role: user.role
+                            role: user.role as "super_admin" | "admin" // Add type assertion here
                           })}
                         >
                           <Edit className="h-4 w-4 mr-2" />
@@ -254,9 +254,9 @@ export const UsersTab = () => {
                   <Label htmlFor="edit-role">Função</Label>
                   <Select
                     value={editUser.role}
-                    onValueChange={(value) => setEditUser({ 
+                    onValueChange={(value: "super_admin" | "admin") => setEditUser({ 
                       ...editUser, 
-                      role: value as "super_admin" | "admin" 
+                      role: value 
                     })}
                   >
                     <SelectTrigger id="edit-role">

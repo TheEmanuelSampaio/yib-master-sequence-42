@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useApp } from '@/context/AppContext';
 import {
@@ -47,14 +46,14 @@ import { useRealtime } from "@/hooks/useRealtime";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Sequences() {
-  const { currentInstance, addSequence: oldAddSequence, updateSequence: oldUpdateSequence, deleteSequence: oldDeleteSequence } = useApp();
+  const { currentInstance } = useApp();
   const [isCreateMode, setIsCreateMode] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [currentSequence, setCurrentSequence] = useState<Sequence | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   
-  // Use the new React Query hooks
+  // Use the React Query hooks
   const { 
     sequences, 
     isLoading, 
@@ -110,7 +109,7 @@ export default function Sequences() {
   
   const handleToggleStatus = async (sequence: Sequence) => {
     try {
-      await toggleSequenceStatus({ 
+      await toggleSequenceStatus.mutateAsync({ 
         id: sequence.id, 
         status: sequence.status === 'active' ? 'inactive' : 'active' 
       });
@@ -256,7 +255,7 @@ export default function Sequences() {
     </div>
   );
   
-  function renderSequenceList(sequenceList: Sequence[]) {
+  function renderSequenceList(sequenceList: any[]) {
     if (sequenceList.length === 0) {
       return (
         <Card className="p-8 flex flex-col items-center justify-center text-center">
@@ -287,7 +286,7 @@ export default function Sequences() {
     
     return (
       <div className="grid gap-6 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
-        {sequenceList.map(sequence => (
+        {sequenceList.map((sequence: any) => (
           <Card key={sequence.id} className="overflow-hidden">
             <CardHeader className="pb-3">
               <div className="flex justify-between items-center">
@@ -375,7 +374,7 @@ export default function Sequences() {
                     <div>
                       <span className="text-xs text-muted-foreground">Início ({sequence.startCondition.type}):</span>
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {sequence.startCondition.tags.map(tag => (
+                        {sequence.startCondition.tags.map((tag: string) => (
                           <Badge key={tag} variant="outline" className="bg-green-500/10 text-green-700 dark:text-green-400 text-xs py-0">
                             {tag}
                           </Badge>
@@ -385,7 +384,7 @@ export default function Sequences() {
                     <div>
                       <span className="text-xs text-muted-foreground">Parada ({sequence.stopCondition.type}):</span>
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {sequence.stopCondition.tags.map(tag => (
+                        {sequence.stopCondition.tags.map((tag: string) => (
                           <Badge key={tag} variant="outline" className="bg-red-500/10 text-red-700 dark:text-red-400 text-xs py-0">
                             {tag}
                           </Badge>
@@ -404,7 +403,7 @@ export default function Sequences() {
                     Estágios ({sequence.stages.length})
                   </div>
                   <div className="flex items-center mt-1">
-                    {sequence.stages.map((stage, idx) => (
+                    {sequence.stages.map((stage: any, idx: number) => (
                       <div 
                         key={stage.id}
                         className="flex items-center"

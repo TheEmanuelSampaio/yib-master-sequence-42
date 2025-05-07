@@ -1,3 +1,4 @@
+
 // User related types
 export interface User {
   id: string;
@@ -40,14 +41,15 @@ export interface Sequence {
   id: string;
   instanceId: string;
   name: string;
-  type: "message" | "pattern" | "typebot"; 
+  type?: "message" | "pattern" | "typebot"; // Make type optional since it's missing in some data
   startCondition: TagCondition;
   stopCondition: TagCondition;
   stages: SequenceStage[];
-  timeRestrictions: TimeRestriction[];
+  timeRestrictions?: TimeRestriction[]; // Make timeRestrictions optional
   status: "active" | "inactive";
   createdAt: string;
   updatedAt: string;
+  createdBy: string;
 }
 
 export interface TagCondition {

@@ -12,6 +12,13 @@ type RealtimeSubscriptionOptions = {
   onContactUpdate?: (payload: any) => void;
 };
 
+// Define payload types to improve type safety
+type SupabaseRealtimePayload = {
+  eventType: 'INSERT' | 'UPDATE' | 'DELETE';
+  new: Record<string, any>;
+  old: Record<string, any>;
+};
+
 export function useRealtime(options: RealtimeSubscriptionOptions = {}) {
   const queryClient = useQueryClient();
   const location = useLocation();
@@ -39,7 +46,7 @@ export function useRealtime(options: RealtimeSubscriptionOptions = {}) {
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'sequences' },
-          (payload) => {
+          (payload: SupabaseRealtimePayload) => {
             console.log('Sequence change detected:', payload);
             
             // Show notification if enabled
@@ -53,8 +60,14 @@ export function useRealtime(options: RealtimeSubscriptionOptions = {}) {
               }
             }
             
-            // Invalidate sequences query cache to trigger refetch
-            queryClient.invalidateQueries({ queryKey: ['sequences', payload.new?.instance_id || payload.old?.instance_id] });
+            // Safely access instance_id from payload
+            const instanceId = payload.new?.instance_id || payload.old?.instance_id;
+            
+            // Only invalidate if we have an instanceId
+            if (instanceId) {
+              // Invalidate sequences query cache to trigger refetch
+              queryClient.invalidateQueries({ queryKey: ['sequences', instanceId] });
+            }
             
             // Call custom handler if provided
             if (onSequenceUpdate) {
@@ -68,9 +81,15 @@ export function useRealtime(options: RealtimeSubscriptionOptions = {}) {
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'sequence_stages' },
-          (payload) => {
-            // Invalidate the parent sequence query
-            queryClient.invalidateQueries({ queryKey: ['sequences', payload.new?.sequence_id || payload.old?.sequence_id] });
+          (payload: SupabaseRealtimePayload) => {
+            // Safely access sequence_id
+            const sequenceId = payload.new?.sequence_id || payload.old?.sequence_id;
+            
+            // Only invalidate if we have a sequenceId
+            if (sequenceId) {
+              // Invalidate the parent sequence query
+              queryClient.invalidateQueries({ queryKey: ['sequences', sequenceId] });
+            }
           }
         );
     }
@@ -81,7 +100,7 @@ export function useRealtime(options: RealtimeSubscriptionOptions = {}) {
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'contacts' },
-          (payload) => {
+          (payload: SupabaseRealtimePayload) => {
             console.log('Contact change detected:', payload);
             
             // Show notification if enabled
@@ -95,8 +114,14 @@ export function useRealtime(options: RealtimeSubscriptionOptions = {}) {
               }
             }
             
-            // Invalidate contacts query cache to trigger refetch
-            queryClient.invalidateQueries({ queryKey: ['contacts', payload.new?.client_id || payload.old?.client_id] });
+            // Safely access client_id
+            const clientId = payload.new?.client_id || payload.old?.client_id;
+            
+            // Only invalidate if we have a clientId
+            if (clientId) {
+              // Invalidate contacts query cache to trigger refetch
+              queryClient.invalidateQueries({ queryKey: ['contacts', clientId] });
+            }
             
             // Call custom handler if provided
             if (onContactUpdate) {
@@ -110,9 +135,8 @@ export function useRealtime(options: RealtimeSubscriptionOptions = {}) {
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'contact_tags' },
-          (payload) => {
-            // For contact tags, we need to invalidate the specific contact
-            // This will update the UI when tags change
+          (_payload: SupabaseRealtimePayload) => {
+            // For contact tags, we need to invalidate the contacts query
             queryClient.invalidateQueries({ queryKey: ['contacts'] });
           }
         );

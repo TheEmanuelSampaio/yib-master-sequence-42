@@ -55,7 +55,11 @@ export function useSequences(instanceId: string | undefined) {
         })),
         createdAt: seq.created_at,
         updatedAt: seq.updated_at,
-        createdBy: seq.created_by
+        createdBy: seq.created_by,
+        // Add minimal default implementation for timeRestrictions
+        timeRestrictions: [],
+        // Add default value for type
+        type: "message" as const
       }));
     },
     enabled: !!instanceId,
