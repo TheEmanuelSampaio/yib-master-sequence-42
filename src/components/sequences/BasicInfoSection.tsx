@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -88,9 +87,10 @@ export function BasicInfoSection({
     console.log("Validating webhook ID:", id);
     console.log("isEditMode:", isEditMode);
     console.log("sequenceId:", sequenceId);
+    console.log("instanceId:", instanceId);
     
     try {
-      // Use the new function that excludes the current sequence when in edit mode
+      // Use the appropriate function based on whether we're in edit mode
       if (isEditMode && sequenceId) {
         console.log("Using is_webhook_id_unique_for_client_except_self with params:", {
           p_webhook_id: id,
@@ -111,6 +111,9 @@ export function BasicInfoSection({
           toast.error(`Erro ao validar ID do webhook: ${error.message}`);
           setIsWebhookIdUnique(true); // Assume unique in case of error
         } else {
+          // Verificar o tipo do resultado retornado pela função
+          console.log("Result type:", typeof data);
+          console.log("Result value:", data);
           setIsWebhookIdUnique(!!data);
         }
       } else {
@@ -132,6 +135,8 @@ export function BasicInfoSection({
           toast.error(`Erro ao validar ID do webhook: ${error.message}`);
           setIsWebhookIdUnique(true); // Assume unique in case of error
         } else {
+          console.log("Result type:", typeof data);
+          console.log("Result value:", data);
           setIsWebhookIdUnique(!!data);
         }
       }
