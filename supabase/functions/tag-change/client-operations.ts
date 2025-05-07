@@ -47,13 +47,36 @@ export async function handleClient(supabase: any, accountId: any, accountName: s
   // Se ainda não encontrou o cliente, criar um novo
   if (!client) {
     console.log('[2. CLIENTE] Cliente não encontrado, criando um novo...');
+    
+    // Obter ID válido de um usuário existente ou usar um UUID gerado
+    let validCreatorId;
+    
+    if (creatorId === "system") {
+      // Buscar um usuário admin ou super_admin para usar como criador
+      const { data: adminUser, error: adminError } = await supabase
+        .from('profiles')
+        .select('id')
+        .limit(1);
+      
+      if (adminError || !adminUser || adminUser.length === 0) {
+        // Se não encontrar, gerar um UUID válido
+        validCreatorId = crypto.randomUUID();
+        console.log(`[2. CLIENTE] Usando UUID gerado: ${validCreatorId}`);
+      } else {
+        validCreatorId = adminUser[0].id;
+        console.log(`[2. CLIENTE] Usando ID de usuário existente: ${validCreatorId}`);
+      }
+    } else {
+      validCreatorId = creatorId;
+    }
+    
     const { data: newClient, error: createError } = await supabase
       .from('clients')
       .insert([
         { 
           account_id: accountId, 
           account_name: accountName, 
-          created_by: creatorId, // Use um UUID válido aqui
+          created_by: validCreatorId,
           creator_account_name: 'Sistema (Auto)'
         }
       ])

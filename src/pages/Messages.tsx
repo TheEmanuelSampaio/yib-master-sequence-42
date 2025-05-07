@@ -188,22 +188,6 @@ export default function Messages() {
     });
   };
 
-  // Função para formatar variáveis em JSON para exibição
-  const formatVariables = (variables: any) => {
-    if (!variables || Object.keys(variables).length === 0) return null;
-    
-    return (
-      <div className="grid grid-cols-2 gap-2 text-xs mt-2">
-        {Object.entries(variables).map(([key, value]) => (
-          <div key={key} className="flex items-center">
-            <span className="font-medium mr-1">{key}:</span>
-            <span className="text-muted-foreground">{String(value)}</span>
-          </div>
-        ))}
-      </div>
-    );
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col">
@@ -388,14 +372,6 @@ export default function Messages() {
                           </span>
                         )}
                       </div>
-                      {message.variables && Object.keys(message.variables).length > 0 && (
-                        <span className="text-xs text-muted-foreground mt-1 inline-flex items-center">
-                          <Badge variant="outline" className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 h-4 mr-1">
-                            var
-                          </Badge>
-                          {Object.keys(message.variables).length} variável(is)
-                        </span>
-                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button
@@ -482,27 +458,8 @@ export default function Messages() {
               </Badge>
             </div>
             
-            {/* Seção de Variáveis */}
-            {selectedMessage?.variables && Object.keys(selectedMessage?.variables || {}).length > 0 && (
-              <div>
-                <h4 className="text-sm font-medium mb-1">Variáveis</h4>
-                <div className="bg-muted/50 p-3 rounded-md border text-sm">
-                  <div className="grid grid-cols-2 gap-2">
-                    {Object.entries(selectedMessage?.variables || {}).map(([key, value]) => (
-                      <div key={key} className="flex items-center">
-                        <Badge className="mr-1 bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 hover:bg-blue-100">
-                          {key}
-                        </Badge>
-                        <span>{String(value)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-            
             <div>
-              <h4 className="text-sm font-medium mb-1">Conteúdo Original</h4>
+              <h4 className="text-sm font-medium mb-1">Conteúdo</h4>
               <div className="bg-muted/50 p-3 rounded-md border text-sm overflow-x-auto">
                 {selectedMessage?.stageType === "typebot" ? (
                   <div className="flex items-center">
@@ -518,26 +475,15 @@ export default function Messages() {
                   </div>
                 ) : (
                   <div className="whitespace-pre-line">
-                    {selectedMessage?.content}
+                    {selectedMessage?.content?.replace(/\$\{name\}/g, selectedMessage?.contactName)}
                   </div>
                 )}
               </div>
             </div>
-            
-            {/* Conteúdo Processado */}
-            {selectedMessage?.processedContent && (
-              <div>
-                <h4 className="text-sm font-medium mb-1">Conteúdo Processado</h4>
-                <div className="bg-green-50 dark:bg-green-900/10 p-3 rounded-md border border-green-200 dark:border-green-700 text-sm overflow-x-auto">
-                  <div className="whitespace-pre-line">
-                    {selectedMessage?.processedContent}
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         </DialogContent>
       </Dialog>
     </div>
   );
 }
+
