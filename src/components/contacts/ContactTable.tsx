@@ -1,6 +1,6 @@
 
 import { Contact } from '@/types';
-import { User, Tag, Phone, Eye, Pencil, Trash2, CheckCircle2, Clock, AlertCircle, Building, Shield } from "lucide-react";
+import { User, Tag, Phone, Eye, Pencil, Trash2, CheckCircle2, Clock, AlertCircle } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -30,7 +30,6 @@ interface ContactTableProps {
   onPrepareEdit: (contact: Contact) => void;
   onDeleteContact: (contactId: string) => void;
   isProcessing: boolean;
-  isUserSuperAdmin: boolean;
 }
 
 export const ContactTable = ({
@@ -40,7 +39,6 @@ export const ContactTable = ({
   onPrepareEdit,
   onDeleteContact,
   isProcessing,
-  isUserSuperAdmin,
 }: ContactTableProps) => {
   return (
     <Table>
@@ -49,8 +47,6 @@ export const ContactTable = ({
           <TableHead>Contato</TableHead>
           <TableHead>Telefone</TableHead>
           <TableHead>Tags</TableHead>
-          <TableHead>Cliente</TableHead>
-          {isUserSuperAdmin && <TableHead>Admin</TableHead>}
           <TableHead>Sequências</TableHead>
           <TableHead className="text-right">Ações</TableHead>
         </TableRow>
@@ -81,20 +77,6 @@ export const ContactTable = ({
                     ))}
                   </div>
                 </TableCell>
-                <TableCell>
-                  <div className="flex items-center space-x-2">
-                    <Building className="h-4 w-4 text-muted-foreground" />
-                    <span>{contact.clientName || "-"}</span>
-                  </div>
-                </TableCell>
-                {isUserSuperAdmin && (
-                  <TableCell>
-                    <div className="flex items-center space-x-2">
-                      <Shield className="h-4 w-4 text-muted-foreground" />
-                      <span>{contact.creatorAccountName || "-"}</span>
-                    </div>
-                  </TableCell>
-                )}
                 <TableCell>
                   <div className="flex space-x-2">
                     {sequenceDetails.active > 0 && (
@@ -167,7 +149,7 @@ export const ContactTable = ({
           })
         ) : (
           <TableRow>
-            <TableCell colSpan={isUserSuperAdmin ? 7 : 6} className="text-center py-6 text-muted-foreground">
+            <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">
               Nenhum contato encontrado.
             </TableCell>
           </TableRow>
