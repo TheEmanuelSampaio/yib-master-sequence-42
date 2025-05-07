@@ -67,7 +67,6 @@ export function BasicInfoSection({
       const newWebhookId = generateWebhookId(name);
       setGeneratedWebhookId(newWebhookId);
       setWebhookId(newWebhookId);
-      notifyChanges(); // Notify changes when webhook ID is automatically set
     }
   }, [webhookEnabled, name, webhookId]);
 
@@ -150,8 +149,7 @@ export function BasicInfoSection({
       const newWebhookId = generateWebhookId(name);
       setWebhookId(newWebhookId);
     }
-    notifyChanges(); // Make sure to notify changes when enabling/disabling webhook
-    console.log("Webhook enabled changed to:", enabled); // Add logging for debugging
+    notifyChanges();
   };
 
   const handleWebhookIdChange = (id: string) => {
@@ -162,7 +160,6 @@ export function BasicInfoSection({
       
     setWebhookId(sanitizedId);
     notifyChanges();
-    console.log("Webhook ID changed to:", sanitizedId); // Add logging for debugging
   };
 
   const handleUseGeneratedId = () => {

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Save, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -8,7 +7,7 @@ import { useApp } from "@/context/AppContext";
 import { Sequence, SequenceStage, TagCondition, TimeRestriction } from "@/types";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
-import { isValidUUID, supabase } from "@/integrations/supabase/client";
+import { isValidUUID } from "@/integrations/supabase/client";
 import { BasicInfoSection } from "./BasicInfoSection";
 import { TagConditionSection } from "./TagConditionSection";
 import { StagesSection } from "./StagesSection";
@@ -54,8 +53,6 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
   const [webhookId, setWebhookId] = useState<string | undefined>(
     sequence?.webhookId
   );
-  const [isValidatingWebhookId, setIsValidatingWebhookId] = useState(false);
-  const [isWebhookIdUnique, setIsWebhookIdUnique] = useState(true);
   
   const [showTagSelector, setShowTagSelector] = useState<"start" | "stop" | null>(null);
   const [newTag, setNewTag] = useState("");
@@ -442,44 +439,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
     }
   };
   
-  // Add useEffect to validate webhook uniqueness similar to what we have in BasicInfoSection
-  useEffect(() => {
-    if (webhookEnabled && webhookId && currentInstance?.id) {
-      const timeoutId = setTimeout(() => {
-        validateWebhookId(webhookId);
-      }, 500);
-      
-      return () => clearTimeout(timeoutId);
-    }
-  }, [webhookId, webhookEnabled, currentInstance?.id]);
-  
-  // Add validateWebhookId function
-  const validateWebhookId = async (id: string) => {
-    if (!id || !currentInstance?.id) return;
-    
-    setIsValidatingWebhookId(true);
-    
-    try {
-      const { data, error } = await supabase.rpc('is_webhook_id_unique_for_client', {
-        p_webhook_id: id,
-        p_instance_id: currentInstance.id
-      });
-
-      if (error) {
-        console.error('Error validating webhook ID:', error);
-        setIsWebhookIdUnique(true); // Assume unique in case of error
-      } else {
-        setIsWebhookIdUnique(!!data);
-      }
-    } catch (error) {
-      console.error('Error validating webhook ID:', error);
-      setIsWebhookIdUnique(true); // Assume unique in case of error
-    } finally {
-      setIsValidatingWebhookId(false);
-    }
-  };
-  
-  // Update the handleSubmit function to include webhook fields validation
+  // Update the handleSubmit function to include webhook fields
   const handleSubmit = () => {
     try {
       if (!name) {
@@ -512,11 +472,6 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
       // Validate webhook ID if webhook is enabled
       if (webhookEnabled && !webhookId) {
         toast.error("Por favor, informe um ID para o webhook.");
-        return;
-      }
-      
-      if (webhookEnabled && !isWebhookIdUnique) {
-        toast.error("O ID do webhook já está em uso. Por favor, escolha outro ID.");
         return;
       }
       
