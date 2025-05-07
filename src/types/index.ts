@@ -46,6 +46,7 @@ export interface Sequence {
   stages: SequenceStage[];
   timeRestrictions: TimeRestriction[];
   status: "active" | "inactive";
+  createdBy: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -83,6 +84,8 @@ export interface Contact {
   name: string;
   phoneNumber: string;
   clientId: string;
+  clientName?: string;
+  creatorAccountName?: string;
   inboxId: number;
   conversationId: number;
   displayId: number;

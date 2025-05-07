@@ -1,3 +1,4 @@
+
 import { Instance, Sequence, User, Contact, DailyStats, TimeRestriction, TagCondition } from '@/types';
 
 // User mock data
@@ -95,6 +96,7 @@ export const sequences: Sequence[] = [
       } as TimeRestriction
     ],
     status: "active",
+    createdBy: "user-1",
     createdAt: "2023-12-02T10:15:00Z",
     updatedAt: "2023-12-10T16:45:00Z"
   },
@@ -152,6 +154,7 @@ export const sequences: Sequence[] = [
       } as TimeRestriction
     ],
     status: "inactive",
+    createdBy: "user-1",
     createdAt: "2023-12-05T09:20:00Z",
     updatedAt: "2023-12-12T11:30:00Z"
   }
@@ -191,6 +194,8 @@ export const contacts: Contact[] = [
     phoneNumber: "5511999887766",
     tags: ["lead", "interessado", "orçamento"],
     clientId: "client-1",
+    clientName: "ABC Comércio",
+    creatorAccountName: "Admin Principal",
     inboxId: 101,
     conversationId: 5001,
     displayId: 1001,
@@ -203,6 +208,8 @@ export const contacts: Contact[] = [
     phoneNumber: "5511988776655",
     tags: ["cliente", "comprou"],
     clientId: "client-2",
+    clientName: "XYZ Serviços",
+    creatorAccountName: "Admin Secundário",
     inboxId: 102,
     conversationId: 5002,
     displayId: 1002,
@@ -215,6 +222,8 @@ export const contacts: Contact[] = [
     phoneNumber: "5511977665544",
     tags: ["lead", "novo"],
     clientId: "client-1",
+    clientName: "ABC Comércio",
+    creatorAccountName: "Admin Principal",
     inboxId: 103,
     conversationId: 5003,
     displayId: 1003,
@@ -227,6 +236,8 @@ export const contacts: Contact[] = [
     phoneNumber: "5511966554433",
     tags: ["abandonou"],
     clientId: "client-1",
+    clientName: "ABC Comércio",
+    creatorAccountName: "Admin Principal",
     inboxId: 101,
     conversationId: 5004,
     displayId: 1004,
@@ -239,6 +250,8 @@ export const contacts: Contact[] = [
     phoneNumber: "5511955443322",
     tags: ["cliente", "comprou", "retorno"],
     clientId: "client-2",
+    clientName: "XYZ Serviços",
+    creatorAccountName: "Admin Secundário",
     inboxId: 102,
     conversationId: 5005,
     displayId: 1005,

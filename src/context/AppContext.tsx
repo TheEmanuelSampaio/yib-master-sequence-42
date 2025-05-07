@@ -193,7 +193,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // Fetch clients
       const { data: clientsData, error: clientsError } = await supabase
         .from('clients')
-        .select('*');
+        .select('*, profiles:created_by(account_name)');
       
       if (clientsError) throw clientsError;
       
@@ -202,6 +202,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         accountId: client.account_id,
         accountName: client.account_name,
         createdBy: client.created_by,
+        creator_account_name: client.profiles?.account_name || client.creator_account_name || "",
         createdAt: client.created_at,
         updatedAt: client.updated_at
       }));
@@ -426,11 +427,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         
         const contactTags = contactTagsData.map(ct => ct.tag_name);
         
+        // Find client info
+        const client = typedClients.find(c => c.id === contact.client_id);
+        
         return {
           id: contact.id,
           name: contact.name,
           phoneNumber: contact.phone_number,
           clientId: contact.client_id,
+          clientName: client?.accountName || "",
+          creatorAccountName: client?.creator_account_name || "",
           inboxId: contact.inbox_id,
           conversationId: contact.conversation_id,
           displayId: contact.display_id,
