@@ -26,17 +26,22 @@ import Login from "./pages/Login";
 import { RequireAuth } from "./components/auth/RequireAuth";
 import { RequireSetup } from "./components/auth/RequireSetup";
 
+// Create a React Query client with optimized configuration
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // Increase retry attempts for better reliability
-      retry: 2,
+      // Reduce retry attempts for faster failure detection
+      retry: 1,
       // Don't refetch on window focus for better performance
       refetchOnWindowFocus: false,
       // Reuse the cached data first while fetching in the background
-      staleTime: 1000 * 30, // 30 seconds (short enough for freshness, long enough for performance)
+      staleTime: 1000 * 60 * 1, // 1 minute (better balance between freshness and performance)
       // Show queries for up to 5 minutes before garbage collection
       gcTime: 1000 * 60 * 5,
+      // Add better error handling
+      useErrorBoundary: false,
+      // Add retry delay to prevent overwhelming the server
+      retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
     },
   },
 });
@@ -74,8 +79,8 @@ const App = () => (
         </AuthProvider>
       </BrowserRouter>
     </ThemeProvider>
-    {/* Add React Query DevTools for development */}
-    <ReactQueryDevtools initialIsOpen={false} />
+    {/* Add React Query DevTools for development with smaller initial size */}
+    <ReactQueryDevtools initialIsOpen={false} position="bottom-right" />
   </QueryClientProvider>
 );
 

@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useApp } from '@/context/AppContext';
 import {
   Activity,
@@ -13,7 +13,8 @@ import {
   MessageCircle,
   FileCode,
   Bot,
-  Loader2
+  Loader2,
+  RefreshCw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,7 +41,6 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Sequence } from "@/types";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { toast } from "sonner";
 import { isValidUUID } from "@/integrations/supabase/client";
 import { useSequences, useUpdateSequence, useDeleteSequence } from "@/hooks/queries/useSequences";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -52,14 +52,16 @@ export default function Sequences() {
   const [currentSequence, setCurrentSequence] = useState<Sequence | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [activeTab, setActiveTab] = useState('all');
   
-  // Use the new React Query hook
+  // Use the React Query hook with better caching
   const { 
     data: sequences = [], 
     isLoading, 
     isError, 
     error,
-    refetch 
+    refetch,
+    isRefetching 
   } = useSequences({ 
     instanceId: currentInstance?.id,
   });
@@ -67,15 +69,24 @@ export default function Sequences() {
   const updateSequenceMutation = useUpdateSequence();
   const deleteSequenceMutation = useDeleteSequence();
   
-  // Filter sequences based on search query
-  const filteredSequences = sequences
-    .filter(seq => 
+  // Filter sequences based on search query (moved to useMemo for better performance)
+  const filteredSequences = useMemo(() => {
+    return sequences.filter(seq => 
       searchQuery === '' || 
       seq.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
-    
-  const activeSequences = filteredSequences.filter(seq => seq.status === 'active');
-  const inactiveSequences = filteredSequences.filter(seq => seq.status === 'inactive');
+  }, [sequences, searchQuery]);
+  
+  // Optimize these calculations with useMemo
+  const activeSequences = useMemo(() => 
+    filteredSequences.filter(seq => seq.status === 'active'), 
+    [filteredSequences]
+  );
+  
+  const inactiveSequences = useMemo(() => 
+    filteredSequences.filter(seq => seq.status === 'inactive'), 
+    [filteredSequences]
+  );
   
   const handleSaveSequence = async (sequence: Omit<Sequence, "id" | "createdAt" | "updatedAt">) => {
     if (isEditMode && currentSequence) {
@@ -144,6 +155,11 @@ export default function Sequences() {
     setHasUnsavedChanges(false);
   };
 
+  // Handle tab change with optimized UI update
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+  };
+
   if (isCreateMode) {
     return (
       <div className="space-y-6">
@@ -207,16 +223,23 @@ export default function Sequences() {
         </div>
         
         <div className="flex space-x-2">
-          {isLoading && (
+          {(isLoading || isRefetching) && (
             <Button variant="outline" disabled>
               <Loader2 className="h-4 w-4 animate-spin mr-2" />
               Carregando...
             </Button>
           )}
           
-          {!isLoading && (
-            <Button variant="outline" onClick={() => refetch()} disabled={isLoading}>
-              <Activity className="h-4 w-4 mr-2" />
+          {!isLoading && !isRefetching && (
+            <Button 
+              variant="outline" 
+              onClick={() => refetch()} 
+              className="transition-all"
+            >
+              <RefreshCw className={cn(
+                "h-4 w-4 mr-2",
+                isRefetching && "animate-spin"
+              )} />
               Atualizar
             </Button>
           )}
@@ -246,7 +269,7 @@ export default function Sequences() {
       )}
       
       {!isError && (
-        <Tabs defaultValue="all">
+        <Tabs value={activeTab} onValueChange={handleTabChange}>
           <TabsList>
             <TabsTrigger value="all">Todas ({filteredSequences.length})</TabsTrigger>
             <TabsTrigger value="active">Ativas ({activeSequences.length})</TabsTrigger>

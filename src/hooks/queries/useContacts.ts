@@ -1,71 +1,84 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Contact } from "@/types";
 import { toast } from "sonner";
 
-// Query key factory
+// Query key factory for contacts
 export const contactKeys = {
   all: ['contacts'] as const,
   lists: () => [...contactKeys.all, 'list'] as const,
-  byClient: (clientId: string) => [...contactKeys.all, 'client', clientId] as const,
   detail: (id: string) => [...contactKeys.all, 'detail', id] as const,
+  byInstance: (instanceId: string) => [...contactKeys.all, 'instance', instanceId] as const,
 };
 
+// Interface for query params
 interface ContactsQueryParams {
-  clientId?: string;
+  instanceId?: string;
   limit?: number;
-  offset?: number;
+  page?: number;
+  searchQuery?: string;
+  enabled?: boolean;
 }
 
-export function useContacts({ clientId, limit = 50, offset = 0 }: ContactsQueryParams = {}) {
+export function useContacts({
+  instanceId,
+  limit = 10,
+  page = 1,
+  searchQuery = '',
+  enabled = true
+}: ContactsQueryParams = {}) {
   return useQuery({
-    queryKey: clientId ? [...contactKeys.byClient(clientId), limit, offset] : [...contactKeys.lists(), limit, offset],
+    queryKey: [...contactKeys.lists(), { instanceId, limit, page, searchQuery }],
     queryFn: async () => {
-      console.log(`Fetching contacts for client: ${clientId || 'all'}, limit: ${limit}, offset: ${offset}`);
+      console.log(`Fetching contacts: instance=${instanceId}, page=${page}, limit=${limit}, search=${searchQuery}`);
       
       let query = supabase
         .from('contacts')
-        .select('*')
-        .range(offset, offset + limit - 1)
-        .order('created_at', { ascending: false });
+        .select('*, contact_tags(tag_name)', { count: 'exact' });
       
-      if (clientId) {
-        query = query.eq('client_id', clientId);
+      if (instanceId) {
+        query = query.eq('client_id', instanceId);
       }
       
-      const { data: contactsData, error: contactsError } = await query;
+      if (searchQuery) {
+        query = query.or(`name.ilike.%${searchQuery}%,phone_number.ilike.%${searchQuery}%`);
+      }
       
-      if (contactsError) throw contactsError;
+      // Add pagination
+      const from = (page - 1) * limit;
+      const to = from + limit - 1;
       
-      // Fetch tags for each contact
-      const contactsWithTags = await Promise.all((contactsData || []).map(async (contact) => {
-        const { data: tagsData, error: tagsError } = await supabase
-          .from('contact_tags')
-          .select('tag_name')
-          .eq('contact_id', contact.id);
-          
-        if (tagsError) {
-          console.error(`Error fetching tags for contact ${contact.id}:`, tagsError);
-          return null;
-        }
-        
-        return {
-          id: contact.id,
-          name: contact.name,
-          phoneNumber: contact.phone_number,
-          clientId: contact.client_id,
-          inboxId: contact.inbox_id,
-          conversationId: contact.conversation_id,
-          displayId: contact.display_id,
-          createdAt: contact.created_at,
-          updatedAt: contact.updated_at,
-          tags: tagsData?.map(t => t.tag_name) || []
-        };
+      query = query
+        .order('created_at', { ascending: false })
+        .range(from, to);
+      
+      const { data, error, count } = await query;
+      
+      if (error) throw error;
+      
+      // Process contacts to include tags
+      const contacts = (data || []).map(contact => ({
+        id: contact.id,
+        name: contact.name,
+        phoneNumber: contact.phone_number,
+        displayId: contact.display_id,
+        conversationId: contact.conversation_id,
+        inboxId: contact.inbox_id,
+        clientId: contact.client_id,
+        createdAt: contact.created_at,
+        updatedAt: contact.updated_at,
+        tags: ((contact.contact_tags || []) as any[]).map(ct => ct.tag_name)
       }));
       
-      return contactsWithTags.filter(Boolean) as Contact[];
+      return {
+        contacts,
+        totalCount: count || 0,
+        page,
+        limit,
+        totalPages: count ? Math.ceil(count / limit) : 0
+      };
     },
+    enabled: enabled && (!!instanceId || !searchQuery), // Don't run without filters if empty search
     staleTime: 1000 * 60 * 1, // 1 minute
   });
 }
@@ -74,91 +87,81 @@ export function useContact(contactId: string | undefined) {
   return useQuery({
     queryKey: contactId ? contactKeys.detail(contactId) : null,
     queryFn: async () => {
-      if (!contactId) throw new Error("Contact ID is required");
+      if (!contactId) throw new Error('Contact ID is required');
       
-      const { data: contact, error: contactError } = await supabase
+      const { data, error } = await supabase
         .from('contacts')
-        .select('*')
+        .select('*, contact_tags(tag_name)')
         .eq('id', contactId)
         .single();
       
-      if (contactError) throw contactError;
-      
-      const { data: tagsData, error: tagsError } = await supabase
-        .from('contact_tags')
-        .select('tag_name')
-        .eq('contact_id', contactId);
-        
-      if (tagsError) throw tagsError;
+      if (error) throw error;
       
       return {
-        id: contact.id,
-        name: contact.name,
-        phoneNumber: contact.phone_number,
-        clientId: contact.client_id,
-        inboxId: contact.inbox_id,
-        conversationId: contact.conversation_id,
-        displayId: contact.display_id,
-        createdAt: contact.created_at,
-        updatedAt: contact.updated_at,
-        tags: tagsData?.map(t => t.tag_name) || []
+        id: data.id,
+        name: data.name,
+        phoneNumber: data.phone_number,
+        displayId: data.display_id,
+        conversationId: data.conversation_id,
+        inboxId: data.inbox_id,
+        clientId: data.client_id,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at,
+        tags: ((data.contact_tags || []) as any[]).map(ct => ct.tag_name)
       };
     },
     enabled: !!contactId,
   });
 }
 
-export function useUpdateContact() {
+export function useAddContactTag() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async ({ id, data }: { id: string, data: Partial<Contact> }) => {
-      // Update contact data
-      if (data.name || data.phoneNumber) {
-        const { error } = await supabase
-          .from('contacts')
-          .update({
-            name: data.name,
-            phone_number: data.phoneNumber,
-          })
-          .eq('id', id);
-        
-        if (error) throw error;
-      }
+    mutationFn: async ({ contactId, tagName }: { contactId: string, tagName: string }) => {
+      const { error } = await supabase
+        .from('contact_tags')
+        .insert({ contact_id: contactId, tag_name: tagName });
       
-      // Update tags if they've changed
-      if (data.tags) {
-        // First delete all existing tags
-        const { error: deleteError } = await supabase
-          .from('contact_tags')
-          .delete()
-          .eq('contact_id', id);
-        
-        if (deleteError) throw deleteError;
-        
-        // Then add the new tags
-        if (data.tags.length > 0) {
-          const { error: insertError } = await supabase
-            .from('contact_tags')
-            .insert(data.tags.map(tag => ({
-              contact_id: id,
-              tag_name: tag
-            })));
-          
-          if (insertError) throw insertError;
-        }
-      }
+      if (error) throw error;
       
       return { success: true };
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: contactKeys.detail(variables.id) });
-      queryClient.invalidateQueries({ queryKey: contactKeys.all });
-      toast.success("Contato atualizado com sucesso");
+      queryClient.invalidateQueries({ queryKey: contactKeys.detail(variables.contactId) });
+      queryClient.invalidateQueries({ queryKey: contactKeys.lists() });
+      toast.success(`Tag "${variables.tagName}" adicionada com sucesso`);
     },
     onError: (error) => {
-      console.error("Error updating contact:", error);
-      toast.error(`Erro ao atualizar contato: ${error.message}`);
+      console.error('Error adding tag:', error);
+      toast.error(`Erro ao adicionar tag: ${error.message}`);
+    }
+  });
+}
+
+export function useRemoveContactTag() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ contactId, tagName }: { contactId: string, tagName: string }) => {
+      const { error } = await supabase
+        .from('contact_tags')
+        .delete()
+        .eq('contact_id', contactId)
+        .eq('tag_name', tagName);
+      
+      if (error) throw error;
+      
+      return { success: true };
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: contactKeys.detail(variables.contactId) });
+      queryClient.invalidateQueries({ queryKey: contactKeys.lists() });
+      toast.success(`Tag "${variables.tagName}" removida com sucesso`);
+    },
+    onError: (error) => {
+      console.error('Error removing tag:', error);
+      toast.error(`Erro ao remover tag: ${error.message}`);
     }
   });
 }

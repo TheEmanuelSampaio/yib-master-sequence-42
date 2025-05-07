@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Sequence, TagCondition } from "@/types";
 import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext";
 
 // Query key factory helps with consistent cache management
 export const sequenceKeys = {
@@ -86,10 +87,15 @@ export function useSequence(sequenceId: string | undefined) {
 
 export function useAddSequence() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   
   return useMutation({
     mutationFn: async (sequence: Omit<Sequence, "id" | "createdAt" | "updatedAt">) => {
       console.log("Adding sequence:", sequence);
+      
+      if (!user?.id) {
+        throw new Error("User authentication required");
+      }
       
       // Create the sequence
       const { data: seqData, error: seqError } = await supabase
@@ -102,6 +108,7 @@ export function useAddSequence() {
           stop_condition_type: sequence.stopCondition.type,
           stop_condition_tags: sequence.stopCondition.tags,
           status: sequence.status,
+          created_by: user.id
         })
         .select('*')
         .single();
@@ -146,20 +153,24 @@ export function useAddSequence() {
       
       // Add local restrictions
       if (localRestrictions.length > 0) {
-        const { error: localError } = await supabase
-          .from("sequence_local_restrictions")
-          .insert(localRestrictions.map(r => ({
-            sequence_id: seqData.id,
-            name: r.name,
-            active: r.active,
-            days: r.days,
-            start_hour: r.startHour,
-            start_minute: r.startMinute,
-            end_hour: r.endHour,
-            end_minute: r.endMinute,
-          })));
-          
-        if (localError) throw localError;
+        // We need to handle each restriction individually to add created_by
+        for (const restriction of localRestrictions) {
+          const { error: localError } = await supabase
+            .from("sequence_local_restrictions")
+            .insert({
+              sequence_id: seqData.id,
+              name: restriction.name,
+              active: restriction.active,
+              days: restriction.days,
+              start_hour: restriction.startHour,
+              start_minute: restriction.startMinute,
+              end_hour: restriction.endHour,
+              end_minute: restriction.endMinute,
+              created_by: user.id
+            });
+            
+          if (localError) throw localError;
+        }
       }
       
       return seqData;
@@ -181,10 +192,15 @@ export function useAddSequence() {
 
 export function useUpdateSequence() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   
   return useMutation({
     mutationFn: async ({ id, updates }: { id: string, updates: Partial<Sequence> }) => {
       console.log("Updating sequence:", id, updates);
+      
+      if (!user?.id) {
+        throw new Error("User authentication required");
+      }
       
       // Update the main sequence record
       if (updates.name || updates.status || updates.startCondition || updates.stopCondition) {

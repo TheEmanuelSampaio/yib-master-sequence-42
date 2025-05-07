@@ -34,11 +34,12 @@ export function MainLayout() {
         };
         
         const entityName = entityNames[table as keyof typeof entityNames] || 'Item';
+        const itemName = payload?.name || '';
         
         // Only show toast for updates in key tables
         if (['sequences', 'instances', 'contacts'].includes(table)) {
           toast.info(`${entityName} atualizado`, {
-            description: `${entityName} "${payload.name}" foi atualizado por outro usuário.`,
+            description: `${entityName} "${itemName}" foi atualizado por outro usuário.`,
             duration: 3000,
           });
         }
@@ -53,10 +54,10 @@ export function MainLayout() {
 
   return (
     <div className="flex h-full min-h-screen bg-background">
-      <Sidebar open={sidebarOpen} onOpenChange={setSidebarOpen} />
+      <Sidebar open={sidebarOpen} setOpen={setSidebarOpen} />
       
       <div className="flex flex-col flex-1">
-        <Header onMenuButtonClick={() => setSidebarOpen(true)} />
+        <Header onMenuClick={() => setSidebarOpen(true)} />
         <main className="flex-1 py-6 px-6 md:px-8 max-w-screen-2xl mx-auto w-full">
           <Outlet />
         </main>
