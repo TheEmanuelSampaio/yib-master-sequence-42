@@ -6,6 +6,35 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
   
   try {
     // Passo 1: Buscar todas as sequências ativas deste cliente específico
+    // Primeiro buscar todas as instâncias deste cliente
+    const { data: instances, error: instancesError } = await supabase
+      .from("instances")
+      .select("id")
+      .eq("client_id", clientId);
+      
+    if (instancesError) {
+      console.error(`[5.2 SEQUÊNCIAS] Erro ao buscar instâncias do cliente: ${instancesError.message}`);
+      return {
+        success: false,
+        error: `Erro ao buscar instâncias: ${instancesError.message}`
+      };
+    }
+    
+    if (!instances || instances.length === 0) {
+      console.log(`[5.2 SEQUÊNCIAS] Nenhuma instância encontrada para o cliente ${clientId}.`);
+      return {
+        success: true,
+        sequencesProcessed: 0,
+        sequencesAdded: 0,
+        sequencesSkipped: 0
+      };
+    }
+    
+    // Extrair os IDs das instâncias
+    const instanceIds = instances.map(instance => instance.id);
+    console.log(`[5.2 SEQUÊNCIAS] Encontradas ${instanceIds.length} instâncias para o cliente ${clientId}.`);
+    
+    // Buscar sequências usando os IDs das instâncias
     const { data: sequences, error: sequencesError } = await supabase
       .from("sequences")
       .select(`
@@ -29,11 +58,7 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
         )
       `)
       .eq("status", "active")
-      .in("instance_id", function(qb) {
-        qb.select('id')
-          .from('instances')
-          .where('client_id', '=', clientId)
-      })
+      .in("instance_id", instanceIds)
       .order("created_at", { ascending: false });
 
     if (sequencesError) {
@@ -238,6 +263,7 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
     
   } catch (error) {
     console.error(`[5.X SEQUÊNCIAS] Erro não tratado: ${error.message}`);
+    console.error(`[5.X SEQUÊNCIAS] Stack trace: ${error.stack || 'No stack trace available'}`);
     return {
       success: false,
       error: `Erro ao processar sequências: ${error.message}`
