@@ -117,6 +117,43 @@ Deno.serve(async (req) => {
       
     if (adminWithToken) {
       console.log(`[SEGURANÇA] Token global válido pertencente a: ${adminWithToken.account_name} (${adminWithToken.role})`);
+      
+      // Para admins normais, verificar se eles têm acesso a este cliente específico
+      if (adminWithToken.role !== 'super_admin') {
+        // Verificar se o admin é o criador deste cliente
+        const { data: clientAuth, error: clientAuthError } = await supabase
+          .from("clients")
+          .select("id")
+          .eq("account_id", accountId)
+          .eq("created_by", adminWithToken.id)
+          .maybeSingle();
+        
+        if (!clientAuth) {
+          console.error(`[SEGURANÇA] Token de admin válido, mas este admin não tem acesso ao cliente com accountId=${accountId}`);
+          
+          // Registrar tentativa não autorizada
+          await supabase.from("security_logs").insert({
+            client_account_id: String(accountId),
+            action: "tag_change_admin_unauthorized_access",
+            ip_address: req.headers.get("x-forwarded-for") || "unknown",
+            user_agent: req.headers.get("user-agent") || "unknown",
+            details: { 
+              error: "Admin not authorized for this client", 
+              account_name: accountName,
+              admin_name: adminWithToken.account_name
+            }
+          });
+          
+          return new Response(
+            JSON.stringify({ 
+              error: 'Acesso não autorizado', 
+              details: 'O administrador não tem acesso a este cliente' 
+            }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+      
       isGlobalToken = true;
       tokenOwner = adminWithToken;
     } else {

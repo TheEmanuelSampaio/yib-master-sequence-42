@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Copy, RefreshCw, ShieldAlert } from "lucide-react";
-import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -91,6 +90,7 @@ export const TokensTab = () => {
               size="icon"
               onClick={() => user?.authToken && copyToClipboard(user.authToken)}
               title="Copiar token"
+              type="button"
             >
               <Copy className="h-4 w-4" />
             </Button>
@@ -100,6 +100,7 @@ export const TokensTab = () => {
               onClick={generateNewToken}
               disabled={isGenerating}
               title="Gerar novo token"
+              type="button"
             >
               <RefreshCw className={`h-4 w-4 ${isGenerating ? 'animate-spin' : ''}`} />
             </Button>
