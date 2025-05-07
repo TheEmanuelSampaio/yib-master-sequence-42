@@ -125,7 +125,7 @@ export function useAdvancedConditions(initialCondition?: AdvancedCondition) {
         };
       }
       return group;
-    });
+    }) as ConditionGroup[];
 
     setCondition({
       ...condition,
@@ -147,7 +147,7 @@ export function useAdvancedConditions(initialCondition?: AdvancedCondition) {
         };
       }
       return group;
-    });
+    }) as ConditionGroup[];
 
     setCondition({
       ...condition,
