@@ -1,11 +1,10 @@
-
 import { useState, useEffect } from "react";
 import { Save, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useApp } from "@/context/AppContext";
-import { Sequence, SequenceStage, TagCondition, TimeRestriction, ConditionStructure } from "@/types";
+import { Sequence, SequenceStage, TagCondition, TimeRestriction } from "@/types";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
 import { isValidUUID } from "@/integrations/supabase/client";
@@ -36,29 +35,6 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
   const [stopCondition, setStopCondition] = useState<TagCondition>(
     sequence?.stopCondition || { type: "OR", tags: [] }
   );
-  
-  // Adicionando estados para condições avançadas
-  const [useAdvancedStartCondition, setUseAdvancedStartCondition] = useState<boolean>(
-    !!sequence?.advancedStartCondition
-  );
-  const [useAdvancedStopCondition, setUseAdvancedStopCondition] = useState<boolean>(
-    !!sequence?.advancedStopCondition
-  );
-  
-  const [advancedStartCondition, setAdvancedStartCondition] = useState<ConditionStructure>(
-    sequence?.advancedStartCondition || {
-      groups: [],
-      mainOperator: "OR"
-    }
-  );
-  
-  const [advancedStopCondition, setAdvancedStopCondition] = useState<ConditionStructure>(
-    sequence?.advancedStopCondition || {
-      groups: [],
-      mainOperator: "OR"
-    }
-  );
-  
   const [stages, setStages] = useState<SequenceStage[]>(
     sequence?.stages || []
   );
@@ -465,18 +441,8 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         return;
       }
       
-      // Verificar se pelo menos uma condição de início está definida
-      if (!useAdvancedStartCondition && startCondition.tags.length === 0) {
+      if (startCondition.tags.length === 0) {
         toast.error("Por favor, adicione pelo menos uma tag para a condição de início.");
-        return;
-      }
-      
-      if (useAdvancedStartCondition && 
-          (!advancedStartCondition || 
-           !advancedStartCondition.groups || 
-           advancedStartCondition.groups.length === 0 || 
-           advancedStartCondition.groups.every(g => g.tags.length === 0))) {
-        toast.error("Por favor, adicione pelo menos um grupo com tags para a condição de início avançada.");
         return;
       }
       
@@ -517,15 +483,6 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         timeRestrictions,
         status,
       };
-      
-      // Adicionar condições avançadas se ativadas
-      if (useAdvancedStartCondition) {
-        (newSequence as any).advancedStartCondition = advancedStartCondition;
-      }
-      
-      if (useAdvancedStopCondition) {
-        (newSequence as any).advancedStopCondition = advancedStopCondition;
-      }
       
       console.log("Dados da sequência sendo enviados:", JSON.stringify(newSequence, null, 2));
       
@@ -660,10 +617,6 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
                 badgeColor="bg-green-600"
                 condition={startCondition}
                 setCondition={setStartCondition}
-                advancedMode={useAdvancedStartCondition}
-                setAdvancedMode={setUseAdvancedStartCondition}
-                advancedCondition={advancedStartCondition}
-                setAdvancedCondition={setAdvancedStartCondition}
                 availableTags={tags}
                 newTag={newTag}
                 setNewTag={setNewTag}
@@ -682,10 +635,6 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
                 badgeColor="bg-red-600"
                 condition={stopCondition}
                 setCondition={setStopCondition}
-                advancedMode={useAdvancedStopCondition}
-                setAdvancedMode={setUseAdvancedStopCondition}
-                advancedCondition={advancedStopCondition}
-                setAdvancedCondition={setAdvancedStopCondition}
                 availableTags={tags}
                 newTag={newTag}
                 setNewTag={setNewTag}

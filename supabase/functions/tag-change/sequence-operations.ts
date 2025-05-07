@@ -104,55 +104,12 @@ export async function processSequences(
           continue;
         }
         
-        // Verificar condições usando o novo sistema de condições avançadas, se disponível
-        let matchesStartCondition = false;
-        let matchesStopCondition = false;
-        
-        // Buscar condições avançadas para esta sequência
-        const { data: advancedStartGroups, error: advancedStartError } = await supabase
-          .from('sequence_condition_groups')
-          .select(`
-            *,
-            tags:sequence_condition_tags(*)
-          `)
-          .eq('sequence_id', sequence.id)
-          .eq('condition_type', 'start');
-          
-        if (advancedStartError) {
-          console.error(`[5. SEQUÊNCIAS] Erro ao buscar condições avançadas de início: ${JSON.stringify(advancedStartError)}`);
-          // Fallback para o sistema antigo
-          matchesStartCondition = checkCondition(tags, sequence.start_condition_tags, sequence.start_condition_type);
-        } else if (advancedStartGroups && advancedStartGroups.length > 0) {
-          // Usar o sistema de condições avançadas
-          matchesStartCondition = checkAdvancedCondition(tags, advancedStartGroups);
-        } else {
-          // Usar o sistema antigo
-          matchesStartCondition = checkCondition(tags, sequence.start_condition_tags, sequence.start_condition_type);
-        }
-        
-        // Repetir para as condições de parada
-        const { data: advancedStopGroups, error: advancedStopError } = await supabase
-          .from('sequence_condition_groups')
-          .select(`
-            *,
-            tags:sequence_condition_tags(*)
-          `)
-          .eq('sequence_id', sequence.id)
-          .eq('condition_type', 'stop');
-          
-        if (advancedStopError) {
-          console.error(`[5. SEQUÊNCIAS] Erro ao buscar condições avançadas de parada: ${JSON.stringify(advancedStopError)}`);
-          // Fallback para o sistema antigo
-          matchesStopCondition = checkCondition(tags, sequence.stop_condition_tags, sequence.stop_condition_type);
-        } else if (advancedStopGroups && advancedStopGroups.length > 0) {
-          // Usar o sistema de condições avançadas
-          matchesStopCondition = checkAdvancedCondition(tags, advancedStopGroups);
-        } else {
-          // Usar o sistema antigo
-          matchesStopCondition = checkCondition(tags, sequence.stop_condition_tags, sequence.stop_condition_type);
-        }
-        
+        // Verificar condições de início da sequência
+        const matchesStartCondition = checkCondition(tags, sequence.start_condition_tags, sequence.start_condition_type);
         console.log(`[5. SEQUÊNCIAS] Verificando condição de início para sequência ${sequence.name}: ${matchesStartCondition ? 'ATENDE' : 'NÃO ATENDE'}`);
+        
+        // Verificar condições de parada da sequência
+        const matchesStopCondition = checkCondition(tags, sequence.stop_condition_tags, sequence.stop_condition_type);
         console.log(`[5. SEQUÊNCIAS] Verificando condição de parada para sequência ${sequence.name}: ${matchesStopCondition ? 'ATENDE' : 'NÃO ATENDE'}`);
         
         // Se atende à condição de início e não atende à condição de parada, adicionar à sequência
@@ -307,46 +264,6 @@ function checkCondition(contactTags: string[], conditionTags: string[], conditio
   }
   
   return false;
-}
-
-/**
- * Verifica se as tags do contato atendem às condições avançadas
- * formadas por múltiplos grupos com operadores AND/OR
- */
-function checkAdvancedCondition(contactTags: string[], groups: any[]): boolean {
-  if (!groups || groups.length === 0) {
-    return false;
-  }
-  
-  // Obter o operador principal (AND/OR) que conecta os grupos
-  // O padrão é OR se não estiver especificado
-  const mainOperator = groups[0].group_operator || 'OR';
-  
-  // Avaliar cada grupo de condições
-  const groupResults = groups.map(group => {
-    // Extrair as tags deste grupo
-    const groupTags = group.tags.map((tagObj: any) => tagObj.tag_name);
-    
-    // Avaliar o grupo com seu próprio operador
-    const groupOperator = group.group_operator;
-    
-    if (groupOperator === 'AND') {
-      // Todas as tags do grupo devem existir no contato
-      return groupTags.every(tag => contactTags.includes(tag));
-    } else {
-      // Pelo menos uma tag do grupo deve existir no contato
-      return groupTags.some(tag => contactTags.includes(tag));
-    }
-  });
-  
-  // Combinar os resultados dos grupos com o operador principal
-  if (mainOperator === 'AND') {
-    // Todos os grupos devem ser verdadeiros
-    return groupResults.every(result => result);
-  } else {
-    // Pelo menos um grupo deve ser verdadeiro
-    return groupResults.some(result => result);
-  }
 }
 
 /**

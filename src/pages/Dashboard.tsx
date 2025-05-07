@@ -5,27 +5,26 @@ import { SequenceOverview } from '@/components/dashboard/SequenceOverview';
 import { MessagesChart } from '@/components/dashboard/MessagesChart';
 import { RecentContacts } from '@/components/dashboard/RecentContacts';
 import { TagDistributionChart } from '@/components/dashboard/TagDistributionChart';
-import { DashboardStats } from '@/components/dashboard/DashboardStats';
 import { LayoutDashboard, Users, MessageSquare, CheckCheck } from 'lucide-react';
 
 export default function Dashboard() {
   const { currentInstance, sequences, contacts, stats } = useApp();
   
-  // Calculate key metrics with null checks to prevent runtime errors
-  const activeSequenceCount = sequences?.filter(
+  // Calculate key metrics
+  const activeSequenceCount = sequences.filter(
     s => s.status === 'active' && s.instanceId === currentInstance?.id
-  )?.length || 0;
+  ).length;
   
-  const totalSequenceCount = sequences?.filter(
+  const totalSequenceCount = sequences.filter(
     s => s.instanceId === currentInstance?.id
-  )?.length || 0;
+  ).length;
   
-  const contactCount = contacts?.length || 0;
+  const contactCount = contacts.length;
   
   // Ensure stats is an array before using find
   const statsArray = Array.isArray(stats) ? stats : [];
   
-  // Get today's stats with default values
+  // Get today's stats
   const today = new Date().toISOString().split('T')[0];
   const todayStats = statsArray.find(s => s.date === today) || {
     messagesSent: 0,
@@ -35,7 +34,7 @@ export default function Dashboard() {
     completedSequences: 0,
   };
   
-  // Calculate message success rate with null check
+  // Calculate message success rate
   const successRate = todayStats.messagesSent > 0 
     ? Math.round((todayStats.messagesSent / (todayStats.messagesSent + todayStats.messagesFailed)) * 100) 
     : 0;
@@ -88,12 +87,11 @@ export default function Dashboard() {
         />
       </div>
 
-      <div className="grid gap-4 grid-cols-1 lg:grid-cols-4">
-        <DashboardStats />
+      <div className="grid gap-4 grid-cols-3">
+        <MessagesChart />
       </div>
 
-      <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-        <MessagesChart />
+      <div className="grid gap-4 grid-cols-3">
         <RecentContacts />
         <TagDistributionChart />
       </div>
