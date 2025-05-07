@@ -475,6 +475,11 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         return;
       }
       
+      if (webhookEnabled && !isWebhookIdUnique) {
+        toast.error("O ID do webhook já está em uso. Por favor, escolha outro ID.");
+        return;
+      }
+      
       // Update all typebot stage content with the current URL before saving
       let finalStages = [...stages];
       if (type === 'typebot' && typebotUrl) {
