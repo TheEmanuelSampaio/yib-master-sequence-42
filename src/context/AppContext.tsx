@@ -129,7 +129,7 @@ const defaultContextValue: AppContextType = {
 export const AppContext = createContext<AppContextType>(defaultContextValue);
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
-  const { user } = useAuth();
+  const { user: currentUser } = useAuth();
   
   const [clients, setClients] = useState<Client[]>([]);
   const [instances, setInstances] = useState<Instance[]>([]);
@@ -157,10 +157,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   
   // Fetch data when auth user changes
   useEffect(() => {
-    if (user && !isDataInitialized) {
+    if (currentUser && !isDataInitialized) {
       console.log("Initial data load after authentication");
       refreshData();
-    } else if (!user) {
+    } else if (!currentUser) {
       // Clear data when user logs out
       setClients([]);
       setInstances([]);
@@ -175,10 +175,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       setStats([]);
       setIsDataInitialized(false);
     }
-  }, [user, isDataInitialized]);
+  }, [currentUser, isDataInitialized]);
 
   const refreshData = async () => {
-    if (!user || isRefreshing) return;
+    if (!currentUser || isRefreshing) return;
     
     // Prevent rapid consecutive refreshes (throttle to once every 3 seconds)
     const now = Date.now();
@@ -522,7 +522,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       setContactSequences(typedContactSeqs);
       
       // Fetch users (only for super_admin)
-      if (user.role === 'super_admin') {
+      if (currentUser.role === 'super_admin') {
         // Get profiles data
         const { data: profilesData, error: profilesError } = await supabase
           .from('profiles')
@@ -554,7 +554,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         const usersWithEmails = profilesData.map(profile => {
           // Try to get email from the map, fall back to current user email or a placeholder
           const email = emailMap.get(profile.id) || 
-                        (profile.id === user.id ? user.email : `user-${profile.id.substring(0, 4)}@example.com`);
+                        (profile.id === currentUser.id ? currentUser.email : `user-${profile.id.substring(0, 4)}@example.com`);
           
           return {
             id: profile.id,
@@ -603,7 +603,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const addInstance = async (instanceData: Omit<Instance, "id" | "createdAt" | "updatedAt" | "createdBy">) => {
     try {
-      if (!user) {
+      if (!currentUser) {
         toast.error("Usuário não autenticado");
         return;
       }
@@ -616,7 +616,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           api_key: instanceData.apiKey,
           active: instanceData.active,
           client_id: instanceData.clientId,
-          created_by: user.id
+          created_by: currentUser.id
         })
         .select('*, clients(*)')
         .single();
@@ -715,49 +715,42 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const addSequence = async (sequenceData: Omit<Sequence, "id" | "createdAt" | "updatedAt">) => {
+  const addSequence = async (sequence: Omit<Sequence, "id" | "createdAt" | "updatedAt">) => {
     try {
-      if (!user) {
-        toast.error("Usuário não autenticado");
-        return;
-      }
-      
-      console.log("Adding sequence:", sequenceData);
-      
-      // Separar as restrições em globais e locais
-      const globalRestrictions = sequenceData.timeRestrictions.filter(r => r.isGlobal);
-      const localRestrictions = sequenceData.timeRestrictions.filter(r => !r.isGlobal);
-      
-      // First create the sequence
-      const { data: seqData, error: seqError } = await supabase
-        .from('sequences')
+      if (!currentInstance || !currentUser) return;
+
+      // Fix TypeScript error: Type 'string' is not assignable to type '"AND" | "OR"'
+      const startConditionType = sequence.startCondition.type as "AND" | "OR";
+      const stopConditionType = sequence.stopCondition.type as "AND" | "OR";
+
+      const { data, error } = await supabase
+        .from("sequences")
         .insert({
-          instance_id: sequenceData.instanceId,
-          name: sequenceData.name,
-          start_condition_type: sequenceData.startCondition.type,
-          start_condition_tags: sequenceData.startCondition.tags,
-          stop_condition_type: sequenceData.stopCondition.type,
-          stop_condition_tags: sequenceData.stopCondition.tags,
-          status: sequenceData.status,
-          created_by: user.id,
-          webhook_enabled: sequenceData.webhookEnabled,
-          webhook_id: sequenceData.webhookId
+          name: sequence.name,
+          instance_id: currentInstance.id,
+          created_by: currentUser.id,
+          start_condition_type: startConditionType,
+          start_condition_tags: sequence.startCondition.tags,
+          stop_condition_type: stopConditionType,
+          stop_condition_tags: sequence.stopCondition.tags,
+          status: sequence.status,
+          webhook_enabled: sequence.webhookEnabled || false,
+          webhook_id: sequence.webhookId || null,
         })
-        .select()
-        .single();
+        .select();
       
-      if (seqError) throw seqError;
+      if (error) throw error;
       
-      console.log("Sequence created:", seqData);
+      console.log("Sequence created:", data);
       
       // Then create the stages
-      for (let i = 0; i < sequenceData.stages.length; i++) {
-        const stage = sequenceData.stages[i];
+      for (let i = 0; i < sequence.stages.length; i++) {
+        const stage = sequence.stages[i];
         
         const { data: stageData, error: stageError } = await supabase
           .from('sequence_stages')
           .insert({
-            sequence_id: seqData.id,
+            sequence_id: data.id,
             name: stage.name,
             type: stage.type,
             content: stage.content,
@@ -773,56 +766,60 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       }
       
       // Add time restrictions - handle global restrictions
-      if (globalRestrictions.length > 0) {
-        for (const restriction of globalRestrictions) {
-          // Verificar se a restrição global existe antes de tentar adicionar
-          const { data: checkRestriction } = await supabase
-            .from('time_restrictions')
-            .select('id')
-            .eq('id', restriction.id)
-            .single();
+      if (sequence.timeRestrictions) {
+        const globalRestrictions = sequence.timeRestrictions.filter(r => r.isGlobal);
+        const localRestrictions = sequence.timeRestrictions.filter(r => !r.isGlobal);
+        
+        if (globalRestrictions.length > 0) {
+          for (const restriction of globalRestrictions) {
+            // Verificar se a restrição global existe antes de tentar adicionar
+            const { data: checkRestriction } = await supabase
+              .from('time_restrictions')
+              .select('id')
+              .eq('id', restriction.id)
+              .single();
               
-          if (!checkRestriction) {
-            console.error(`Restrição global com ID ${restriction.id} não encontrada`);
-            continue;
-          }
-          
-          const { data: restrictionData, error: restrictionError } = await supabase
-            .from('sequence_time_restrictions')
-            .insert({
-              sequence_id: seqData.id,
-              time_restriction_id: restriction.id
-            })
-            .select();
-          
-          if (restrictionError) throw restrictionError;
-          console.log("Global restriction added:", restrictionData);
-        }
-      }
-      
-      // Adicionar restrições locais à tabela sequence_local_restrictions
-      if (localRestrictions.length > 0) {
-        for (const restriction of localRestrictions) {
-          const { error: localRestError } = await supabase
-            .from('sequence_local_restrictions')
-            .insert({
-              sequence_id: seqData.id,
-              name: restriction.name,
-              active: restriction.active,
-              days: restriction.days,
-              start_hour: restriction.startHour,
-              start_minute: restriction.startMinute,
-              end_hour: restriction.endHour,
-              end_minute: restriction.endMinute,
-              created_by: user.id
-            });
+            if (!checkRestriction) {
+              console.error(`Restrição global com ID ${restriction.id} não encontrada`);
+              continue;
+            }
             
-          if (localRestError) throw localRestError;
-          console.log("Local restriction added for sequence");
+            const { data: restrictionData, error: restrictionError } = await supabase
+              .from('sequence_time_restrictions')
+              .insert({
+                sequence_id: data.id,
+                time_restriction_id: restriction.id
+              })
+              .select();
+            
+            if (restrictionError) throw restrictionError;
+            console.log("Global restriction added:", restrictionData);
+          }
+        }
+        
+        if (localRestrictions.length > 0) {
+          for (const restriction of localRestrictions) {
+            const { error: localRestError } = await supabase
+              .from('sequence_local_restrictions')
+              .insert({
+                sequence_id: data.id,
+                name: restriction.name,
+                active: restriction.active,
+                days: restriction.days,
+                start_hour: restriction.startHour,
+                start_minute: restriction.startMinute,
+                end_hour: restriction.endHour,
+                end_minute: restriction.endMinute,
+                created_by: currentUser.id
+              });
+            
+            if (localRestError) throw localRestError;
+            console.log("Local restriction added for sequence");
+          }
         }
       }
       
-      toast.success(`Sequência "${sequenceData.name}" criada com sucesso`);
+      toast.success(`Sequência "${sequence.name}" criada com sucesso`);
       
       // Fazer um refresh completo dos dados para garantir que as novas sequências apareçam
       await refreshData();
@@ -832,7 +829,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const updateSequence = async (id: string, updates: Partial<Sequence>): Promise<{ success: boolean, error?: string }> => {
+  const updateSequence = async (
+    id: string, 
+    updates: Partial<Sequence>
+  ): Promise<{success: boolean, error?: string}> => {
     try {
       console.log("Updating sequence with ID:", id);
       console.log("Update payload:", JSON.stringify(updates, null, 2));
@@ -990,7 +990,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         
         // Add new local restrictions
         const localRestrictions = updates.timeRestrictions.filter(r => !r.isGlobal);
-        if (localRestrictions.length > 0 && user) {
+        if (localRestrictions.length > 0 && currentUser) {
           // Corrigido: precisamos passar cada restrição individual com o campo created_by
           for (const restriction of localRestrictions) {
             const { error: localError } = await supabase
@@ -1004,7 +1004,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
                 start_minute: restriction.startMinute,
                 end_hour: restriction.endHour,
                 end_minute: restriction.endMinute,
-                created_by: user.id
+                created_by: currentUser.id
               });
             
             if (localError) throw localError;
@@ -1059,7 +1059,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const addTimeRestriction = async (restrictionData: Omit<TimeRestriction, "id">) => {
     try {
-      if (!user) {
+      if (!currentUser) {
         toast.error("Usu��rio não autenticado");
         return;
       }
@@ -1074,7 +1074,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           end_hour: restrictionData.endHour,
           end_minute: restrictionData.endMinute,
           active: restrictionData.active,
-          created_by: user.id
+          created_by: currentUser.id
         })
         .select()
         .single();
@@ -1177,12 +1177,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             .maybeSingle();
           
           // Se a tag não existe, adicioná-la
-          if (!existingTag && user) {
+          if (!existingTag && currentUser) {
             await supabase
               .from('tags')
               .insert({
                 name: tag,
-                created_by: user.id
+                created_by: currentUser.id
               });
               
             // Atualizar o estado local de tags
@@ -1211,7 +1211,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const addClient = async (clientData: Omit<Client, "id" | "createdAt" | "updatedAt" | "createdBy">) => {
     try {
-      if (!user) {
+      if (!currentUser) {
         toast.error("Usuário não autenticado");
         return;
       }
@@ -1221,8 +1221,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         .insert({
           account_id: clientData.accountId,
           account_name: clientData.accountName,
-          created_by: user.id,
-          creator_account_name: user.accountName || "Usuário" // Adicionar nome da conta do criador
+          created_by: currentUser.id,
+          creator_account_name: currentUser.accountName || "Usuário" // Adicionar nome da conta do criador
         })
         .select()
         .single();
@@ -1383,7 +1383,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const addTag = async (tagName: string) => {
     try {
-      if (!user) {
+      if (!currentUser) {
         toast.error("Usuário não autenticado");
         return;
       }
@@ -1392,7 +1392,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         .from('tags')
         .insert({
           name: tagName,
-          created_by: user.id
+          created_by: currentUser.id
         });
       
       if (error) throw error;
@@ -1520,6 +1520,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           instanceId: seq.instance_id,
           type: (seq as any).type || sequenceType,
           status: seq.status as "active" | "inactive",
+          createdBy: seq.created_by,
           startCondition: {
             type: seq.start_condition_type,
             tags: seq.start_condition_tags || []
@@ -1532,9 +1533,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           timeRestrictions,
           createdAt: seq.created_at,
           updatedAt: seq.updated_at,
-          createdBy: seq.created_by, // Add missing createdBy field
-          webhookEnabled: seq.webhook_enabled || false, // Add the webhook enabled field
-          webhookId: seq.webhook_id // Add the webhook ID field
+          webhookEnabled: seq.webhook_enabled || false,
+          webhookId: seq.webhook_id
         });
       }
       
