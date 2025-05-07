@@ -1,3 +1,4 @@
+
 // User related types
 export interface User {
   id: string;
@@ -178,6 +179,7 @@ export interface PendingMessagesPayload {
   authToken: string; // Admin auth token
 }
 
+// Atualizado: Removido objeto dinâmico "stgN" e colocado propriedades diretamente no objeto stage
 export interface PendingMessagesResponse {
   id: string;
   chatwootData: {
@@ -210,12 +212,10 @@ export interface PendingMessagesResponse {
     sequenceName: string;
     type: "message" | "pattern" | "typebot";
     stage: {
-      [key: string]: {
-        id: string;
-        content: string;
-        rawScheduledTime: string;
-        scheduledTime: string;
-      }
+      id: string;
+      content: string;
+      rawScheduledTime: string;
+      scheduledTime: string;
     }
   };
 }

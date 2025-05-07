@@ -355,6 +355,7 @@ Deno.serve(async (req) => {
       console.log(`[VARIÁVEIS] Tipo: ${stage.type}, Usando conteúdo: ${content}`);
       console.log(`[VARIÁVEIS] Variáveis da mensagem: ${JSON.stringify(variables)}`);
       
+      // MODIFICAÇÃO AQUI: Mudança na estrutura do objeto stage para remover o objeto dinâmico "stgN"
       return {
         id: msg.id,
         stageNumber: stageNumber,
@@ -388,12 +389,11 @@ Deno.serve(async (req) => {
           sequenceName: sequence.name,
           type: stage.type,
           stage: {
-            [stageNumber === 1 ? "stg1" : `stg${stageNumber}`]: {
-              id: stage.id,
-              content: content, // Usar conteúdo processado com variáveis
-              rawScheduledTime: msg.raw_scheduled_time,
-              scheduledTime: msg.scheduled_time
-            }
+            // Remova o 'stgN' e coloque as propriedades diretamente dentro do objeto 'stage'
+            id: stage.id,
+            content: content,
+            rawScheduledTime: msg.raw_scheduled_time,
+            scheduledTime: msg.scheduled_time
           }
         }
       };
