@@ -176,12 +176,12 @@ serve(async (req) => {
     const instanceIds = filteredInstances.map(i => i.id);
     
     // Find sequence with this webhook ID
+    // MODIFICADO: Removido campo 'type' da consulta que não existe mais
     const { data: sequences, error: sequencesError } = await supabase
       .from("sequences")
       .select(`
         id, 
         name, 
-        type,
         instance_id, 
         status,
         webhook_id,
