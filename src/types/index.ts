@@ -1,3 +1,4 @@
+
 // User related types
 export interface User {
   id: string;
@@ -38,7 +39,7 @@ export interface Sequence {
   id: string;
   instanceId: string;
   name: string;
-  type: "message" | "pattern" | "typebot"; 
+  type: "message" | "pattern" | "typebot"; // Adicionado tipo à interface Sequence
   startCondition: TagCondition;
   stopCondition: TagCondition;
   stages: SequenceStage[];
@@ -46,12 +47,6 @@ export interface Sequence {
   status: "active" | "inactive";
   createdAt: string;
   updatedAt: string;
-  
-  // Novas propriedades para condições avançadas
-  useAdvancedStartCondition?: boolean;
-  useAdvancedStopCondition?: boolean;
-  advancedStartCondition?: AdvancedCondition;
-  advancedStopCondition?: AdvancedCondition;
 }
 
 export interface TagCondition {
@@ -321,106 +316,6 @@ export interface Database {
           created_at?: string;
         };
       };
-      
-      sequence_condition_groups: {
-        Row: {
-          id: string;
-          sequence_id: string;
-          type: string; // 'start' ou 'stop'
-          group_index: number;
-          group_operator: string; // 'AND' ou 'OR'
-          condition_operator: string; // 'AND' ou 'OR'
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          sequence_id: string;
-          type: string;
-          group_index: number;
-          group_operator: string;
-          condition_operator: string;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          sequence_id?: string;
-          type?: string;
-          group_index?: number;
-          group_operator?: string;
-          condition_operator?: string;
-          created_at?: string;
-        };
-      };
-      
-      sequence_condition_tags: {
-        Row: {
-          id: string;
-          group_id: string;
-          tag_name: string;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          group_id: string;
-          tag_name: string;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          group_id?: string;
-          tag_name?: string;
-          created_at?: string;
-        };
-      };
-      
-      sequences: {
-        Row: {
-          id: string;
-          name: string;
-          type: "message" | "pattern" | "typebot";
-          start_condition: TagCondition;
-          stop_condition: TagCondition;
-          stages: SequenceStage[];
-          time_restrictions: TimeRestriction[];
-          status: "active" | "inactive";
-          use_advanced_start_condition: boolean;
-          use_advanced_stop_condition: boolean;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          name: string;
-          type: "message" | "pattern" | "typebot";
-          start_condition?: TagCondition;
-          stop_condition?: TagCondition;
-          stages?: SequenceStage[];
-          time_restrictions?: TimeRestriction[];
-          status?: "active" | "inactive";
-          use_advanced_start_condition?: boolean;
-          use_advanced_stop_condition?: boolean;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          name?: string;
-          type?: "message" | "pattern" | "typebot";
-          start_condition?: TagCondition;
-          stop_condition?: TagCondition;
-          stages?: SequenceStage[];
-          time_restrictions?: TimeRestriction[];
-          status?: "active" | "inactive";
-          use_advanced_start_condition?: boolean;
-          use_advanced_stop_condition?: boolean;
-          created_at?: string;
-          updated_at?: string;
-        };
-      };
     };
   };
 }
-
-// Importar tipos de condições avançadas
-import { AdvancedCondition, ConditionGroup } from './conditionTypes';
-export type { AdvancedCondition, ConditionGroup };
