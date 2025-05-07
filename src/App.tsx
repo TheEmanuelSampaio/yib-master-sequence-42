@@ -3,7 +3,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/context/AuthContext";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
@@ -26,22 +25,11 @@ import Login from "./pages/Login";
 import { RequireAuth } from "./components/auth/RequireAuth";
 import { RequireSetup } from "./components/auth/RequireSetup";
 
-// Create a React Query client with optimized configuration
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // Reduce retry attempts for faster failure detection
       retry: 1,
-      // Don't refetch on window focus for better performance
       refetchOnWindowFocus: false,
-      // Reuse the cached data first while fetching in the background
-      staleTime: 1000 * 60 * 1, // 1 minute (better balance between freshness and performance)
-      // Show queries for up to 5 minutes before garbage collection
-      gcTime: 1000 * 60 * 5,
-      // Add better error handling
-      useErrorBoundary: false,
-      // Add retry delay to prevent overwhelming the server
-      retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
     },
   },
 });
@@ -79,8 +67,6 @@ const App = () => (
         </AuthProvider>
       </BrowserRouter>
     </ThemeProvider>
-    {/* Add React Query DevTools for development with smaller initial size */}
-    <ReactQueryDevtools initialIsOpen={false} position="bottom-right" />
   </QueryClientProvider>
 );
 

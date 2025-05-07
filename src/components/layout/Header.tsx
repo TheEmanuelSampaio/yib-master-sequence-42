@@ -1,37 +1,141 @@
 
-import { Button } from "@/components/ui/button";
-import { useTheme } from "@/components/theme/ThemeProvider";
-import { MenuIcon, Moon, Sun } from "lucide-react";
-import { ThemeToggle } from "@/components/theme/ThemeToggle";
-import { useAuth } from "@/context/AuthContext";
+import { useApp } from '@/context/AppContext';
+import { useAuth } from '@/context/AuthContext';
+import { ThemeToggle } from '@/components/theme/ThemeToggle';
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuSeparator, 
+  DropdownMenuTrigger 
+} from '@/components/ui/dropdown-menu';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { cn } from '@/lib/utils';
+import { Link } from 'react-router-dom';
+import { useEffect } from 'react';
 
-export interface HeaderProps {
-  onMenuClick: () => void;
+interface HeaderProps {
+  sidebarCollapsed: boolean;
 }
 
-export function Header({ onMenuClick }: HeaderProps) {
-  const { user } = useAuth();
+export function Header({ sidebarCollapsed }: HeaderProps) {
+  const { user, logout } = useAuth();
+  const { instances, currentInstance, setCurrentInstance, refreshData, isDataInitialized } = useApp();
+
+  // Carregar dados apenas se ainda não foram inicializados e temos um usuário
+  useEffect(() => {
+    if (user && !isDataInitialized) {
+      console.log("Header - Initial data load");
+      refreshData();
+    }
+  }, [user, refreshData, isDataInitialized]);
+
+  const handleInstanceChange = (instanceId: string) => {
+    const instance = instances?.find(inst => inst.id === instanceId);
+    if (instance) {
+      setCurrentInstance(instance);
+    }
+  };
+
+  // Caso não tenha user ou instâncias carregadas, mostrar versão simplificada
+  const hasInstances = Array.isArray(instances) && instances.length > 0;
   
-  return (
-    <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-16 items-center">
-        <Button variant="ghost" size="icon" className="md:hidden" onClick={onMenuClick}>
-          <MenuIcon className="h-6 w-6" />
-          <span className="sr-only">Abrir menu</span>
-        </Button>
-        <div className="flex items-center justify-between w-full">
-          <div className="flex">
-            <h2 className="text-lg font-semibold md:text-xl">Painel</h2>
-          </div>
-          <div className="flex items-center gap-2">
-            <ThemeToggle />
-            {user && (
-              <span className="text-sm text-muted-foreground hidden md:block">
-                {user.email}
-              </span>
-            )}
-          </div>
+  if (!user || !hasInstances || !currentInstance) {
+    return (
+      <header className={cn(
+        "h-16 border-b border-border flex items-center justify-between px-4",
+        "bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
+      )}>
+        <div className="flex items-center gap-4">
+          <span className="text-lg font-semibold">Master Sequence</span>
         </div>
+
+        <div className="flex items-center space-x-4">
+          <ThemeToggle />
+          {user && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="outline-none">
+                  <Avatar className="h-8 w-8 border-2 border-primary bg-primary">
+                    <AvatarFallback className="text-primary-foreground">
+                      {user?.accountName?.charAt(0) || "U"}
+                    </AvatarFallback>
+                  </Avatar>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <div className="flex items-center justify-start gap-2 p-2">
+                  <div className="flex flex-col space-y-1 leading-none">
+                    <p className="font-medium text-sm">{user?.accountName || "Usuário"}</p>
+                    <p className="text-xs text-muted-foreground">{user?.email || ""}</p>
+                  </div>
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="cursor-pointer" onClick={() => logout()}>Sair</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
+      </header>
+    );
+  }
+
+  return (
+    <header className={cn(
+      "h-16 border-b border-border flex items-center justify-between px-4",
+      "bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
+    )}>
+      <div className="flex items-center gap-4">
+        {hasInstances && (
+          <Select onValueChange={handleInstanceChange} value={currentInstance?.id || ""}>
+            <SelectTrigger className="w-[180px] md:w-[220px]">
+              <SelectValue placeholder="Selecionar instância" />
+            </SelectTrigger>
+            <SelectContent>
+              {instances.map((instance) => (
+                <SelectItem key={instance.id} value={instance.id}>
+                  {instance.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
+
+      <div className="flex items-center space-x-4">
+        <ThemeToggle />
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="outline-none">
+              <Avatar className="h-8 w-8 border-2 border-primary bg-primary">
+                <AvatarFallback className="text-primary-foreground">{user?.accountName?.charAt(0) || "U"}</AvatarFallback>
+              </Avatar>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <div className="flex items-center justify-start gap-2 p-2">
+              <div className="flex flex-col space-y-1 leading-none">
+                <p className="font-medium text-sm">{user?.accountName || "Usuário"}</p>
+                <p className="text-xs text-muted-foreground">{user?.email || ""}</p>
+              </div>
+            </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="cursor-pointer">Perfil</DropdownMenuItem>
+            <DropdownMenuItem className="cursor-pointer" asChild>
+              <Link to="/settings">Configurações</Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="cursor-pointer" onClick={() => logout()}>Sair</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
   );

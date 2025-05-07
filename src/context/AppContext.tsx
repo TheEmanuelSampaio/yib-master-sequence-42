@@ -176,12 +176,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [user, isDataInitialized]);
 
   const refreshData = async () => {
-    if (!user) return;
+    if (!user || isRefreshing) return;
     
-    // Prevent rapid consecutive refreshes (throttle to once every 500ms instead of 3s)
-    // This is much more responsive while still preventing API spam
+    // Prevent rapid consecutive refreshes (throttle to once every 3 seconds)
     const now = Date.now();
-    if (isRefreshing || (now - lastRefresh < 500 && isDataInitialized)) {
+    if (now - lastRefresh < 3000 && isDataInitialized) {
       console.log("Refresh throttled - too soon since last refresh");
       return;
     }
@@ -191,34 +190,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setLastRefresh(now);
       console.log("Refreshing data...");
       
-      // Use Promise.all to fetch data in parallel instead of sequentially
-      const [
-        clientsResult,
-        instancesResult,
-        tagsResult,
-        restrictionsResult,
-      ] = await Promise.all([
-        // Fetch clients
-        supabase.from('clients').select('*'),
-        
-        // Fetch instances
-        supabase.from('instances').select('*, clients(*)'),
-        
-        // Fetch tags
-        supabase.from('tags').select('name'),
-        
-        // Fetch time restrictions
-        supabase.from('time_restrictions').select('*')
-      ]);
+      // Fetch clients
+      const { data: clientsData, error: clientsError } = await supabase
+        .from('clients')
+        .select('*');
       
-      // Handle potential errors
-      if (clientsResult.error) throw clientsResult.error;
-      if (instancesResult.error) throw instancesResult.error;
-      if (tagsResult.error) throw tagsResult.error;
-      if (restrictionsResult.error) throw restrictionsResult.error;
+      if (clientsError) throw clientsError;
       
-      // Process the results
-      const typedClients = clientsResult.data.map(client => ({
+      const typedClients = clientsData.map(client => ({
         id: client.id,
         accountId: client.account_id,
         accountName: client.account_name,
@@ -229,7 +208,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       
       setClients(typedClients);
       
-      const typedInstances = instancesResult.data.map(instance => ({
+      // Fetch instances
+      const { data: instancesData, error: instancesError } = await supabase
+        .from('instances')
+        .select('*, clients(*)');
+      
+      if (instancesError) throw instancesError;
+      
+      const typedInstances = instancesData.map(instance => ({
         id: instance.id,
         name: instance.name,
         evolutionApiUrl: instance.evolution_api_url,
@@ -257,9 +243,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setCurrentInstance(activeInstance);
       }
       
-      setTags(tagsResult.data.map(tag => tag.name));
+      // Fetch tags
+      const { data: tagsData, error: tagsError } = await supabase
+        .from('tags')
+        .select('name');
       
-      const typedRestrictions = restrictionsResult.data.map(restriction => ({
+      if (tagsError) throw tagsError;
+      
+      setTags(tagsData.map(tag => tag.name));
+      
+      // Fetch time restrictions
+      const { data: restrictionsData, error: restrictionsError } = await supabase
+        .from('time_restrictions')
+        .select('*');
+      
+      if (restrictionsError) throw restrictionsError;
+      
+      const typedRestrictions = restrictionsData.map(restriction => ({
         id: restriction.id,
         name: restriction.name,
         active: restriction.active,
@@ -273,288 +273,101 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       
       setTimeRestrictions(typedRestrictions);
       
-      // Only fetch additional data if we're on a page that needs it
-      const currentPath = window.location.pathname;
-      
-      // Conditional fetching based on current route
-      if (currentPath === '/' || currentPath === '/dashboard') {
-        // For Dashboard, fetch stats and summary data
-        const { data: statsData, error: statsError } = await supabase
-          .from('daily_stats')
-          .select('*')
-          .order('date', { ascending: false });
-          
-        if (statsError) throw statsError;
-        
-        const typedStats = statsData.map(stat => ({
-          id: stat.id,
-          instanceId: stat.instance_id,
-          date: stat.date,
-          messagesSent: stat.messages_sent,
-          messagesScheduled: stat.messages_scheduled,
-          messagesFailed: stat.messages_failed,
-          newContacts: stat.new_contacts,
-          completedSequences: stat.completed_sequences
-        }));
-        
-        setStats(typedStats);
-      }
-      
-      // Fetch sequences only on sequences page
-      if (currentPath === '/sequences' || currentPath.startsWith('/sequences/')) {
-        // Fetch sequences data as before
-        await loadSequences();
-      }
-      
-      // Fetch contacts only on contacts page
-      if (currentPath === '/contacts' || currentPath.startsWith('/contacts/')) {
-        // Fetch contacts data
-        const { data: contactsData, error: contactsError } = await supabase
-          .from('contacts')
-          .select('*');
-        
-        if (contactsError) throw contactsError;
-        
-        // Fetch tags for contacts
-        const contactPromises = contactsData.map(async (contact) => {
-          const { data: contactTagsData, error: contactTagsError } = await supabase
-            .from('contact_tags')
-            .select('tag_name')
-            .eq('contact_id', contact.id);
-            
-          if (contactTagsError) {
-            console.error(`Erro ao buscar tags do contato ${contact.id}:`, contactTagsError);
-            return null;
-          }
-          
-          const contactTags = contactTagsData.map(ct => ct.tag_name);
-          
-          return {
-            id: contact.id,
-            name: contact.name,
-            phoneNumber: contact.phone_number,
-            clientId: contact.client_id,
-            inboxId: contact.inbox_id,
-            conversationId: contact.conversation_id,
-            displayId: contact.display_id,
-            createdAt: contact.created_at,
-            updatedAt: contact.updated_at,
-            tags: contactTags
-          };
-        });
-        
-        // Resolve all promises
-        const typedContacts = (await Promise.all(contactPromises)).filter(Boolean) as Contact[];
-        setContacts(typedContacts);
-      }
-      
-      // Fetch messages data only on messages page
-      if (currentPath === '/messages' || currentPath.startsWith('/messages/')) {
-        // Fetch scheduled messages
-        const { data: scheduledMsgsData, error: scheduledMsgsError } = await supabase
-          .from('scheduled_messages')
-          .select('*')
-          .order('scheduled_time', { ascending: true });
-        
-        if (scheduledMsgsError) throw scheduledMsgsError;
-        
-        const typedScheduledMsgs = scheduledMsgsData.map(msg => ({
-          id: msg.id,
-          contactId: msg.contact_id,
-          sequenceId: msg.sequence_id,
-          stageId: msg.stage_id,
-          status: msg.status as "pending" | "processing" | "sent" | "failed" | "persistent_error",
-          scheduledTime: msg.scheduled_time,
-          rawScheduledTime: msg.raw_scheduled_time,
-          sentAt: msg.sent_at,
-          attempts: msg.attempts,
-          scheduledAt: msg.scheduled_at,
-          createdAt: msg.created_at
-        }));
-        
-        setScheduledMessages(typedScheduledMsgs);
-        
-        // Fetch contact sequences
-        const { data: contactSeqsData, error: contactSeqsError } = await supabase
-          .from('contact_sequences')
-          .select('*');
-        
-        if (contactSeqsError) throw contactSeqsError;
-        
-        // Process contact sequences
-        const contactSeqPromises = contactSeqsData.map(async (contactSeq) => {
-          // Get stage progress for this contact sequence
-          const { data: progressData, error: progressError } = await supabase
-            .from('stage_progress')
-            .select('*')
-            .eq('contact_sequence_id', contactSeq.id);
-            
-          if (progressError) {
-            console.error(`Erro ao buscar progresso de estágios para sequência ${contactSeq.id}:`, progressError);
-            return null;
-          }
-          
-          const stageProgress = progressData.map(progress => ({
-            id: progress.id,
-            stageId: progress.stage_id,
-            status: progress.status,
-            completedAt: progress.completed_at
-          }));
-          
-          return {
-            id: contactSeq.id,
-            contactId: contactSeq.contact_id,
-            sequenceId: contactSeq.sequence_id,
-            currentStageId: contactSeq.current_stage_id,
-            currentStageIndex: contactSeq.current_stage_index,
-            status: contactSeq.status,
-            startedAt: contactSeq.started_at,
-            completedAt: contactSeq.completed_at,
-            lastMessageAt: contactSeq.last_message_at,
-            removedAt: contactSeq.removed_at,
-            stageProgress
-          };
-        });
-        
-        // Resolve contact sequence promises
-        const typedContactSeqs = (await Promise.all(contactSeqPromises)).filter(Boolean) as ContactSequence[];
-        setContactSequences(typedContactSeqs);
-      }
-      
-      // Fetch users (only for super_admin)
-      if ((currentPath === '/settings' || currentPath.startsWith('/settings/')) && user.role === 'super_admin') {
-        // Fetch users data
-        const { data: profilesData, error: profilesError } = await supabase
-          .from('profiles')
-          .select('*');
-        
-        if (profilesError) throw profilesError;
-        
-        // Get user emails
-        const { data: authUsersData, error: authUsersError } = await supabase
-          .rpc('get_users_with_emails');
-          
-        if (authUsersError) {
-          console.error("Error fetching user emails:", authUsersError);
-        }
-        
-        // Map user emails
-        const emailMap = new Map();
-        if (authUsersData && Array.isArray(authUsersData)) {
-          authUsersData.forEach(userData => {
-            if (userData.id && userData.email) {
-              emailMap.set(userData.id, userData.email);
-            }
-          });
-        }
-        
-        // Create users with emails
-        const usersWithEmails = profilesData.map(profile => {
-          const email = emailMap.get(profile.id) || 
-                      (profile.id === user.id ? user.email : `user-${profile.id.substring(0, 4)}@example.com`);
-          
-          return {
-            id: profile.id,
-            accountName: profile.account_name,
-            email,
-            role: profile.role,
-            avatar: ""
-          };
-        });
-        
-        setUsers(usersWithEmails);
-      }
-      
-      // Set initialized state to true after successful data load
-      setIsDataInitialized(true);
-      console.log("Data refresh completed successfully");
-      
-    } catch (error) {
-      console.error("Error fetching data:", error);
-      toast.error("Erro ao carregar dados");
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
-
-  const loadSequences = async () => {
-    try {
-      setLoading(true);
-      
-      // Buscar sequências
+      // Fetch sequences and their stages
       const { data: sequencesData, error: sequencesError } = await supabase
-        .from("sequences")
-        .select("*")
-        .order("created_at", { ascending: false });
+        .from('sequences')
+        .select(`
+          *,
+          sequence_stages (*),
+          sequence_time_restrictions (
+            *,
+            time_restrictions (*)
+          )
+        `)
+        .order('created_at', { ascending: false });
       
       if (sequencesError) throw sequencesError;
       
-      // Para cada sequência, buscar seus estágios
-      const sequencesWithStages: Sequence[] = [];
+      // Buscar também as restrições locais para cada sequência
+      // Adicionar essas informações aos objetos de sequência
+      const processedSequences = sequencesData as ExtendedSequence[];
       
-      for (const seq of sequencesData || []) {
-        // Buscar estágios
-        const { data: stagesData, error: stagesError } = await supabase
-          .from("sequence_stages")
-          .select("*")
-          .eq("sequence_id", seq.id)
-          .order("order_index", { ascending: true });
+      for (const sequence of processedSequences) {
+        // Adicionar uma propriedade para restrições de tempo local
+        sequence.localTimeRestrictions = [];
         
-        if (stagesError) throw stagesError;
+        const { data: localRestrictions, error: localRestError } = await supabase
+          .from('sequence_local_restrictions')
+          .select('*')
+          .eq('sequence_id', sequence.id);
+          
+        if (localRestError) {
+          console.error("Erro ao carregar restrições locais:", localRestError);
+          continue;
+        }
         
-        // Buscar restrições locais
-        const { data: localRestrictionsData, error: localRestrictionsError } = await supabase
-          .from("sequence_local_restrictions")
-          .select("*")
-          .eq("sequence_id", seq.id);
+        // Adicionar restrições locais se existirem
+        if (localRestrictions && localRestrictions.length > 0) {
+          const typedLocalRestrictions = localRestrictions.map(lr => ({
+            id: lr.id,
+            name: lr.name,
+            active: lr.active,
+            days: lr.days,
+            startHour: lr.start_hour,
+            startMinute: lr.start_minute,
+            endHour: lr.end_hour,
+            endMinute: lr.end_minute,
+            isGlobal: false // Marca explicitamente como restrição local
+          }));
+          
+          sequence.localTimeRestrictions = typedLocalRestrictions;
+        }
+      }
+      
+      console.log(`Sequences fetched: ${sequencesData.length}`);
+      
+      const typedSequences: Sequence[] = processedSequences.map(sequence => {
+        // Transformar os estágios no formato correto
+        const stages = sequence.sequence_stages
+          .sort((a: any, b: any) => a.order_index - b.order_index)
+          .map((stage: any) => ({
+            id: stage.id,
+            name: stage.name,
+            type: stage.type,
+            content: stage.content,
+            typebotStage: stage.typebot_stage,
+            delay: stage.delay,
+            delayUnit: stage.delay_unit
+          }));
+          
+        // Transformar as restrições de tempo globais
+        const globalTimeRestrictions = sequence.sequence_time_restrictions
+          .map((str: any) => str.time_restrictions)
+          .filter(Boolean)
+          .map((tr: any) => ({
+            id: tr.id,
+            name: tr.name,
+            active: tr.active,
+            days: tr.days,
+            startHour: tr.start_hour,
+            startMinute: tr.start_minute,
+            endHour: tr.end_hour,
+            endMinute: tr.end_minute,
+            isGlobal: true // Todas as restrições desta junção são globais
+          }));
         
-        if (localRestrictionsError) throw localRestrictionsError;
+        // Combinar restrições globais e locais
+        const allTimeRestrictions = [
+          ...globalTimeRestrictions,
+          ...(sequence.localTimeRestrictions || [])
+        ];
         
-        // Buscar restrições globais
-        const { data: globalRestrictions, error: globalRestrictionsError } = await supabase
-          .rpc("get_sequence_time_restrictions", { seq_id: seq.id });
+        // Ensure startCondition.type and stopCondition.type are "AND" or "OR"
+        const startType = sequence.start_condition_type === "AND" ? "AND" : "OR";
+        const stopType = sequence.stop_condition_type === "AND" ? "AND" : "OR";
         
-        if (globalRestrictionsError) throw globalRestrictionsError;
-        
-        // Mapear estágios
-        const stages = stagesData.map(stage => ({
-          id: stage.id,
-          name: stage.name,
-          type: stage.type as "message" | "pattern" | "typebot",
-          content: stage.content,
-          typebotStage: stage.typebot_stage || undefined,
-          delay: stage.delay,
-          delayUnit: stage.delay_unit as "minutes" | "hours" | "days"
-        }));
-        
-        // Mapear restrições locais
-        const localRestrictions = localRestrictionsData.map(restriction => ({
-          id: restriction.id,
-          name: restriction.name,
-          active: restriction.active,
-          days: restriction.days,
-          startHour: restriction.start_hour,
-          startMinute: restriction.start_minute,
-          endHour: restriction.end_hour,
-          endMinute: restriction.end_minute,
-          isGlobal: false
-        }));
-        
-        // Mapear restrições globais
-        const globalRestrictionsProcessed = (globalRestrictions || []).map(restriction => ({
-          id: restriction.id,
-          name: restriction.name,
-          active: restriction.active,
-          days: restriction.days,
-          startHour: restriction.start_hour,
-          startMinute: restriction.start_minute,
-          endHour: restriction.end_hour,
-          endMinute: restriction.end_minute,
-          isGlobal: true
-        }));
-        
-        // Combinar todas as restrições
-        const timeRestrictions = [...localRestrictions, ...globalRestrictionsProcessed];
+        // Ensure status is "active" or "inactive"
+        const status = sequence.status === "active" ? "active" : "inactive";
         
         // Determinar o tipo de sequência com base nos estágios ou usar um valor padrão
         let sequenceType: "message" | "pattern" | "typebot" = "message";
@@ -568,34 +381,219 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           }
         }
         
-        // Adicionar sequência ao array
-        sequencesWithStages.push({
-          id: seq.id,
-          name: seq.name,
-          instanceId: seq.instance_id,
-          // Fix here: Use optional chaining to safely access seq.type, or use sequenceType as fallback
-          type: (seq as any).type || sequenceType,
-          status: seq.status as "active" | "inactive",
+        return {
+          id: sequence.id,
+          name: sequence.name,
+          instanceId: sequence.instance_id,
+          type: sequence.type || sequenceType, // Usar o tipo da sequência ou determinar pelo último estágio
           startCondition: {
-            type: seq.start_condition_type as "AND" | "OR",
-            tags: seq.start_condition_tags || []
+            type: startType as "AND" | "OR",
+            tags: sequence.start_condition_tags
           },
           stopCondition: {
-            type: seq.stop_condition_type as "AND" | "OR",
-            tags: seq.stop_condition_tags || []
+            type: stopType as "AND" | "OR",
+            tags: sequence.stop_condition_tags
           },
+          status: status as "active" | "inactive",
           stages,
-          timeRestrictions,
-          createdAt: seq.created_at,
-          updatedAt: seq.updated_at
+          timeRestrictions: allTimeRestrictions,
+          createdAt: sequence.created_at,
+          updatedAt: sequence.updated_at
+        };
+      });
+      
+      setSequences(typedSequences);
+      
+      // Fetch contacts and their tags
+      const { data: contactsData, error: contactsError } = await supabase
+        .from('contacts')
+        .select('*');
+      
+      if (contactsError) throw contactsError;
+      
+      // Iniciar a busca de dados de contato_tag
+      const contactPromises = contactsData.map(async (contact) => {
+        // Buscar tags deste contato
+        const { data: contactTagsData, error: contactTagsError } = await supabase
+          .from('contact_tags')
+          .select('tag_name')
+          .eq('contact_id', contact.id);
+          
+        if (contactTagsError) {
+          console.error(`Erro ao buscar tags do contato ${contact.id}:`, contactTagsError);
+          return null;
+        }
+        
+        const contactTags = contactTagsData.map(ct => ct.tag_name);
+        
+        return {
+          id: contact.id,
+          name: contact.name,
+          phoneNumber: contact.phone_number,
+          clientId: contact.client_id,
+          inboxId: contact.inbox_id,
+          conversationId: contact.conversation_id,
+          displayId: contact.display_id,
+          createdAt: contact.created_at,
+          updatedAt: contact.updated_at,
+          tags: contactTags
+        };
+      });
+      
+      // Resolver todas as promessas
+      const typedContacts = (await Promise.all(contactPromises)).filter(Boolean) as Contact[];
+      setContacts(typedContacts);
+      
+      console.log(`Contacts fetched: ${typedContacts.length}`);
+      
+      // Fetch scheduled messages
+      const { data: scheduledMsgsData, error: scheduledMsgsError } = await supabase
+        .from('scheduled_messages')
+        .select('*')
+        .order('scheduled_time', { ascending: true });
+      
+      if (scheduledMsgsError) throw scheduledMsgsError;
+      
+      const typedScheduledMsgs = scheduledMsgsData.map(msg => ({
+        id: msg.id,
+        contactId: msg.contact_id,
+        sequenceId: msg.sequence_id,
+        stageId: msg.stage_id,
+        // Ensure status is one of the valid types
+        status: msg.status as "pending" | "processing" | "sent" | "failed" | "persistent_error",
+        scheduledTime: msg.scheduled_time,
+        rawScheduledTime: msg.raw_scheduled_time,
+        sentAt: msg.sent_at,
+        attempts: msg.attempts,
+        scheduledAt: msg.scheduled_at,
+        createdAt: msg.created_at
+      }));
+      
+      setScheduledMessages(typedScheduledMsgs);
+      
+      // Fetch contact sequences and their progress
+      const { data: contactSeqsData, error: contactSeqsError } = await supabase
+        .from('contact_sequences')
+        .select('*');
+      
+      if (contactSeqsError) throw contactSeqsError;
+      
+      // Iniciar a busca de progresso de estágios para cada sequência de contato
+      const contactSeqPromises = contactSeqsData.map(async (contactSeq) => {
+        // Buscar progresso de estágio para esta sequência de contato
+        const { data: progressData, error: progressError } = await supabase
+          .from('stage_progress')
+          .select('*')
+          .eq('contact_sequence_id', contactSeq.id);
+          
+        if (progressError) {
+          console.error(`Erro ao buscar progresso de estágios para sequência ${contactSeq.id}:`, progressError);
+          return null;
+        }
+        
+        const stageProgress = progressData.map(progress => ({
+          id: progress.id,
+          stageId: progress.stage_id,
+          status: progress.status,
+          completedAt: progress.completed_at
+        }));
+        
+        return {
+          id: contactSeq.id,
+          contactId: contactSeq.contact_id,
+          sequenceId: contactSeq.sequence_id,
+          currentStageId: contactSeq.current_stage_id,
+          currentStageIndex: contactSeq.current_stage_index,
+          status: contactSeq.status,
+          startedAt: contactSeq.started_at,
+          completedAt: contactSeq.completed_at,
+          lastMessageAt: contactSeq.last_message_at,
+          removedAt: contactSeq.removed_at,
+          stageProgress
+        };
+      });
+      
+      // Resolver todas as promessas de sequências de contato
+      const typedContactSeqs = (await Promise.all(contactSeqPromises)).filter(Boolean) as ContactSequence[];
+      setContactSequences(typedContactSeqs);
+      
+      // Fetch users (only for super_admin)
+      if (user.role === 'super_admin') {
+        // Get profiles data
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('*');
+        
+        if (profilesError) throw profilesError;
+        
+        // Get user emails from auth.users through Supabase function or RPC
+        // This is necessary because we cannot query auth.users directly from the client
+        const { data: authUsersData, error: authUsersError } = await supabase
+          .rpc('get_users_with_emails');
+          
+        if (authUsersError) {
+          console.error("Error fetching user emails:", authUsersError);
+          // Continue with what we have, but log the error
+        }
+        
+        // Create a map of user IDs to emails for quick lookup
+        const emailMap = new Map();
+        if (authUsersData && Array.isArray(authUsersData)) {
+          authUsersData.forEach(userData => {
+            if (userData.id && userData.email) {
+              emailMap.set(userData.id, userData.email);
+            }
+          });
+        }
+        
+        // Now map profiles to users with emails from the emailMap
+        const usersWithEmails = profilesData.map(profile => {
+          // Try to get email from the map, fall back to current user email or a placeholder
+          const email = emailMap.get(profile.id) || 
+                        (profile.id === user.id ? user.email : `user-${profile.id.substring(0, 4)}@example.com`);
+          
+          return {
+            id: profile.id,
+            accountName: profile.account_name,
+            email,
+            role: profile.role,
+            avatar: ""
+          };
         });
+        
+        setUsers(usersWithEmails);
       }
       
-      setSequences(sequencesWithStages);
+      // Fetch daily stats
+      const { data: statsData, error: statsError } = await supabase
+        .from('daily_stats')
+        .select('*')
+        .order('date', { ascending: false });
+        
+      if (statsError) throw statsError;
+      
+      const typedStats = statsData.map(stat => ({
+        id: stat.id,
+        instanceId: stat.instance_id,
+        date: stat.date,
+        messagesSent: stat.messages_sent,
+        messagesScheduled: stat.messages_scheduled,
+        messagesFailed: stat.messages_failed,
+        newContacts: stat.new_contacts,
+        completedSequences: stat.completed_sequences
+      }));
+      
+      setStats(typedStats);
+      
+      // Set initialized state to true after successful data load
+      setIsDataInitialized(true);
+      console.log("Data refresh completed successfully");
+      
     } catch (error) {
-      console.error("Erro ao carregar sequências:", error);
+      console.error("Error fetching data:", error);
+      toast.error("Erro ao carregar dados");
     } finally {
-      setLoading(false);
+      setIsRefreshing(false);
     }
   };
 
@@ -1414,6 +1412,128 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch (error: any) {
       console.error("Error deleting tag:", error);
       toast.error(`Erro ao remover tag: ${error.message}`);
+    }
+  };
+
+  const loadSequences = async () => {
+    try {
+      setLoading(true);
+      
+      // Buscar sequências
+      const { data: sequencesData, error: sequencesError } = await supabase
+        .from("sequences")
+        .select("*")
+        .order("created_at", { ascending: false });
+      
+      if (sequencesError) throw sequencesError;
+      
+      // Para cada sequência, buscar seus estágios
+      const sequencesWithStages: Sequence[] = [];
+      
+      for (const seq of sequencesData || []) {
+        // Buscar estágios
+        const { data: stagesData, error: stagesError } = await supabase
+          .from("sequence_stages")
+          .select("*")
+          .eq("sequence_id", seq.id)
+          .order("order_index", { ascending: true });
+        
+        if (stagesError) throw stagesError;
+        
+        // Buscar restrições locais
+        const { data: localRestrictionsData, error: localRestrictionsError } = await supabase
+          .from("sequence_local_restrictions")
+          .select("*")
+          .eq("sequence_id", seq.id);
+        
+        if (localRestrictionsError) throw localRestrictionsError;
+        
+        // Buscar restrições globais
+        const { data: globalRestrictions, error: globalRestrictionsError } = await supabase
+          .rpc("get_sequence_time_restrictions", { seq_id: seq.id });
+        
+        if (globalRestrictionsError) throw globalRestrictionsError;
+        
+        // Mapear estágios
+        const stages = stagesData.map(stage => ({
+          id: stage.id,
+          name: stage.name,
+          type: stage.type as "message" | "pattern" | "typebot",
+          content: stage.content,
+          typebotStage: stage.typebot_stage || undefined,
+          delay: stage.delay,
+          delayUnit: stage.delay_unit as "minutes" | "hours" | "days"
+        }));
+        
+        // Mapear restrições locais
+        const localRestrictions = localRestrictionsData.map(restriction => ({
+          id: restriction.id,
+          name: restriction.name,
+          active: restriction.active,
+          days: restriction.days,
+          startHour: restriction.start_hour,
+          startMinute: restriction.start_minute,
+          endHour: restriction.end_hour,
+          endMinute: restriction.end_minute,
+          isGlobal: false
+        }));
+        
+        // Mapear restrições globais
+        const globalRestrictionsProcessed = (globalRestrictions || []).map(restriction => ({
+          id: restriction.id,
+          name: restriction.name,
+          active: restriction.active,
+          days: restriction.days,
+          startHour: restriction.start_hour,
+          startMinute: restriction.start_minute,
+          endHour: restriction.end_hour,
+          endMinute: restriction.end_minute,
+          isGlobal: true
+        }));
+        
+        // Combinar todas as restrições
+        const timeRestrictions = [...localRestrictions, ...globalRestrictionsProcessed];
+        
+        // Determinar o tipo de sequência com base nos estágios ou usar um valor padrão
+        let sequenceType: "message" | "pattern" | "typebot" = "message";
+        if (stages.length > 0) {
+          // Se o último estágio for um typebot, consideramos que é uma sequência de typebot
+          const lastStage = stages[stages.length - 1];
+          if (lastStage.type === "typebot") {
+            sequenceType = "typebot";
+          } else if (lastStage.type === "pattern") {
+            sequenceType = "pattern";
+          }
+        }
+        
+        // Adicionar sequência ao array
+        sequencesWithStages.push({
+          id: seq.id,
+          name: seq.name,
+          instanceId: seq.instance_id,
+          // Fix here: Use optional chaining to safely access seq.type, or use sequenceType as fallback
+          type: (seq as any).type || sequenceType,
+          status: seq.status as "active" | "inactive",
+          startCondition: {
+            type: seq.start_condition_type as "AND" | "OR",
+            tags: seq.start_condition_tags || []
+          },
+          stopCondition: {
+            type: seq.stop_condition_type as "AND" | "OR",
+            tags: seq.stop_condition_tags || []
+          },
+          stages,
+          timeRestrictions,
+          createdAt: seq.created_at,
+          updatedAt: seq.updated_at
+        });
+      }
+      
+      setSequences(sequencesWithStages);
+    } catch (error) {
+      console.error("Erro ao carregar sequências:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
