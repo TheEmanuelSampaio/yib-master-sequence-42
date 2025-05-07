@@ -2,6 +2,61 @@
 import { corsHeaders } from '../_shared/cors.ts';
 
 /**
+ * Processa o conteúdo de uma mensagem substituindo as variáveis
+ * 
+ * @param content Conteúdo original da mensagem
+ * @param variables Objeto com as variáveis e seus valores
+ * @param type Tipo da sequência (message, pattern, typebot)
+ * @returns O conteúdo processado com as variáveis substituídas
+ */
+function processVariables(content: string, variables: Record<string, string> | undefined, type: string): string {
+  console.log(`[VARIÁVEIS] Processando variáveis para conteúdo do tipo ${type}`);
+  console.log(`[VARIÁVEIS] Conteúdo original: ${content}`);
+  
+  if (!variables || Object.keys(variables).length === 0) {
+    console.log('[VARIÁVEIS] Nenhuma variável recebida, retornando conteúdo original');
+    return content;
+  }
+  
+  if (type === 'typebot') {
+    // Para typebot, mantemos o conteúdo original para o estágio
+    // e adicionamos as variáveis ao payload que será enviado ao typebot
+    const typebotContent = JSON.stringify({
+      stage: content,
+      variables: variables
+    });
+    console.log(`[VARIÁVEIS] Conteúdo typebot processado: ${typebotContent}`);
+    return typebotContent;
+  } else {
+    // Para message e pattern, substituímos as variáveis no texto
+    let processedContent = content;
+    const variablePattern = /\{([^}]+)\}/g;
+    let hasSubstitutions = false;
+    
+    // Encontrar todas as ocorrências de {variable} e substituir
+    processedContent = processedContent.replace(variablePattern, (match, variableName) => {
+      if (variables && variables[variableName] !== undefined) {
+        hasSubstitutions = true;
+        console.log(`[VARIÁVEIS] Substituindo {${variableName}} por "${variables[variableName]}"`);
+        return variables[variableName];
+      }
+      
+      console.log(`[VARIÁVEIS] Variável {${variableName}} não encontrada no payload, substituindo por string vazia`);
+      hasSubstitutions = true;
+      return ''; // Retorna string vazia quando a variável não existe
+    });
+    
+    if (hasSubstitutions) {
+      console.log(`[VARIÁVEIS] Conteúdo após substituição: ${processedContent}`);
+    } else {
+      console.log('[VARIÁVEIS] Nenhuma substituição realizada');
+    }
+    
+    return processedContent;
+  }
+}
+
+/**
  * Verifica se o contato deve ser adicionado a alguma sequência com base nas tags do contato
  * e nas condições das sequências ativas.
  * 
@@ -9,14 +64,22 @@ import { corsHeaders } from '../_shared/cors.ts';
  * @param clientId ID do cliente associado ao contato
  * @param contactId ID do contato que será verificado
  * @param tags Array de tags associadas ao contato
+ * @param variables Objeto opcional com variáveis para substituição nos textos
  */
 export async function processSequences(
   supabase: any,
   clientId: string, 
   contactId: string, 
-  tags: string[]
+  tags: string[],
+  variables?: Record<string, string>
 ) {
   console.log(`[5. SEQUÊNCIAS] Iniciando verificação de sequências para contato ${contactId} com tags: ${tags.join(', ')}`);
+  
+  if (variables && Object.keys(variables).length > 0) {
+    console.log(`[5. SEQUÊNCIAS] Variáveis recebidas: ${JSON.stringify(variables)}`);
+  } else {
+    console.log(`[5. SEQUÊNCIAS] Sem variáveis recebidas`);
+  }
   
   if (!tags || tags.length === 0) {
     console.log(`[5. SEQUÊNCIAS] Contato não tem tags, pulando verificação de sequências`);
@@ -171,8 +234,15 @@ export async function processSequences(
           const delayMs = calculateDelayMs(firstStage.delay, firstStage.delay_unit);
           const scheduledTime = new Date(Date.now() + delayMs);
           
+          // Processar o conteúdo da mensagem substituindo variáveis
+          const originalContent = firstStage.content;
+          const processedContent = processVariables(originalContent, variables, firstStage.type);
+          
+          console.log(`[5. SEQUÊNCIAS] Tipo da mensagem: ${firstStage.type}`);
+          console.log(`[5. SEQUÊNCIAS] Conteúdo original: ${originalContent}`);
+          console.log(`[5. SEQUÊNCIAS] Conteúdo processado: ${processedContent}`);
+          
           // Agendar a mensagem para o primeiro estágio
-          // MODIFICADO: Alterado o status de "waiting" para "pending"
           const { error: scheduleError } = await supabase
             .from('scheduled_messages')
             .insert([{
@@ -181,7 +251,9 @@ export async function processSequences(
               stage_id: firstStage.id,
               raw_scheduled_time: scheduledTime.toISOString(),
               scheduled_time: scheduledTime.toISOString(),
-              status: 'pending' // Alterado de 'waiting' para 'pending'
+              status: 'pending',
+              variables: variables || {},
+              processed_content: processedContent
             }]);
           
           if (scheduleError) {

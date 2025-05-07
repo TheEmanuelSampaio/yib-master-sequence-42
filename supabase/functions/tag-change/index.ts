@@ -41,7 +41,10 @@ Deno.serve(async (req) => {
     }
     
     // Verificar o formato do JSON e extrair os dados relevantes
-    const { accountData, contactData, conversationData } = jsonData;
+    const { accountData, contactData, conversationData, variables } = jsonData;
+    
+    // Log das variáveis recebidas
+    console.log(`[1. BODY] Variáveis recebidas: ${JSON.stringify(variables || {})}`);
     
     if (!accountData || !contactData || !conversationData) {
       return new Response(
@@ -62,7 +65,8 @@ Deno.serve(async (req) => {
               conversationId: 'number',
               displayId: 'number',
               labels: 'string'
-            }
+            },
+            variables: 'objeto opcional com chaves e valores string'
           },
           recebido: jsonData
         }),
@@ -135,7 +139,7 @@ Deno.serve(async (req) => {
     
     // Verificar sequências para este contato e tags
     console.log(`[5. SEQUÊNCIAS] Verificando sequências para o contato ${contact.id} com client_id ${client.id}`);
-    const sequencesResult = await processSequences(supabase, client.id, contact.id, tags);
+    const sequencesResult = await processSequences(supabase, client.id, contact.id, tags, variables);
     
     return new Response(
       JSON.stringify({ 

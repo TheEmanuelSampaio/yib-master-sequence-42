@@ -52,6 +52,8 @@ Deno.serve(async (req) => {
         status,
         scheduled_time,
         raw_scheduled_time,
+        variables,
+        processed_content,
         contacts!inner(
           id, 
           name, 
@@ -183,9 +185,38 @@ Deno.serve(async (req) => {
       // Calcular o número do estágio (começando do 1)
       const stageNumber = stagesBySequence[sequence.id]?.[stage.id] || 1;
       
+      // Usar conteúdo processado com variáveis substituídas se disponível
+      let content;
+      let variables = msg.variables || {};
+      
+      if (stage.type === 'typebot') {
+        // Se for typebot, o conteúdo processado já deve estar no formato esperado
+        try {
+          if (msg.processed_content) {
+            const typebotData = JSON.parse(msg.processed_content);
+            content = typebotData.stage;
+            // Adicionar as variáveis ao payload se existirem
+            if (typebotData.variables) {
+              variables = { ...variables, ...typebotData.variables };
+            }
+          } else {
+            content = stage.content;
+          }
+        } catch (e) {
+          console.log(`[VARIÁVEIS] Erro ao processar conteúdo do typebot: ${e.message}`);
+          content = stage.content;
+        }
+      } else {
+        // Se for message ou pattern, usar o conteúdo processado ou o original
+        content = msg.processed_content || stage.content;
+      }
+      
+      console.log(`[VARIÁVEIS] Tipo: ${stage.type}, Usando conteúdo: ${content}`);
+      console.log(`[VARIÁVEIS] Variáveis da mensagem: ${JSON.stringify(variables)}`);
+      
       return {
         id: msg.id,
-        stageNumber: stageNumber, // Continuamos incluindo isso no nível principal
+        stageNumber: stageNumber,
         chatwootData: {
           accountData: {
             accountId: contact.client_id,
@@ -201,7 +232,8 @@ Deno.serve(async (req) => {
             conversationId: contact.conversation_id,
             displayId: contact.display_id,
             labels: contactTagsList.join(", ")
-          }
+          },
+          variables: variables // Incluir variáveis no payload
         },
         instanceData: {
           id: instance.id,
@@ -214,11 +246,12 @@ Deno.serve(async (req) => {
           sequenceName: sequence.name,
           type: stage.type,
           stage: {
-            stageNumber: stageNumber,
-            id: stage.id,
-            content: stage.content,
-            rawScheduledTime: msg.raw_scheduled_time,
-            scheduledTime: msg.scheduled_time
+            [stageNumber === 1 ? "stg1" : `stg${stageNumber}`]: {
+              id: stage.id,
+              content: content, // Usar conteúdo processado com variáveis
+              rawScheduledTime: msg.raw_scheduled_time,
+              scheduledTime: msg.scheduled_time
+            }
           }
         }
       };

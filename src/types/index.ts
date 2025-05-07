@@ -1,4 +1,3 @@
-
 // User related types
 export interface User {
   id: string;
@@ -39,7 +38,7 @@ export interface Sequence {
   id: string;
   instanceId: string;
   name: string;
-  type: "message" | "pattern" | "typebot"; // Adicionado tipo à interface Sequence
+  type: "message" | "pattern" | "typebot"; 
   startCondition: TagCondition;
   stopCondition: TagCondition;
   stages: SequenceStage[];
@@ -100,6 +99,8 @@ export interface ScheduledMessage {
   sentAt?: string;
   status: "waiting" | "pending" | "processing" | "sent" | "failed" | "persistent_error";
   attempts?: number;
+  variables?: Record<string, string>; // Add variables field
+  processedContent?: string; // Add processed content field with variables replaced
 }
 
 export interface ContactSequence {
@@ -162,7 +163,8 @@ export interface TagChangePayload {
       conversationId: number;
       displayId: number;
       labels: string;
-    }
+    };
+    variables?: Record<string, string>; // Add support for variables
   }
 }
 
