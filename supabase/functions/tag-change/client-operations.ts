@@ -63,7 +63,7 @@ export async function handleClient(supabase: any, accountId: any, accountName: s
           account_name: accountName, 
           created_by: creatorId,
           creator_account_name: 'Sistema (Auto)',
-          auth_token: authToken // O trigger ensure_client_auth_token garantirá que isso seja preenchido
+          auth_token: authToken
         }
       ])
       .select();

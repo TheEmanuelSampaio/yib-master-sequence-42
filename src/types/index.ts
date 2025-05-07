@@ -1,4 +1,3 @@
-
 // User related types
 export interface User {
   id: string;
@@ -20,6 +19,7 @@ export interface Client {
     account_name: string;
   };
   creator_account_name?: string;
+  authToken?: string;
 }
 
 export interface Instance {
