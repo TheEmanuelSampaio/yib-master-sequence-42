@@ -364,6 +364,73 @@ export type Database = {
           },
         ]
       }
+      sequence_condition_groups: {
+        Row: {
+          condition_operator: string
+          created_at: string | null
+          group_index: number
+          group_operator: string
+          id: string
+          sequence_id: string
+          type: string
+        }
+        Insert: {
+          condition_operator: string
+          created_at?: string | null
+          group_index: number
+          group_operator: string
+          id?: string
+          sequence_id: string
+          type: string
+        }
+        Update: {
+          condition_operator?: string
+          created_at?: string | null
+          group_index?: number
+          group_operator?: string
+          id?: string
+          sequence_id?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sequence_condition_groups_sequence_id_fkey"
+            columns: ["sequence_id"]
+            isOneToOne: false
+            referencedRelation: "sequences"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sequence_condition_tags: {
+        Row: {
+          created_at: string | null
+          group_id: string
+          id: string
+          tag_name: string
+        }
+        Insert: {
+          created_at?: string | null
+          group_id: string
+          id?: string
+          tag_name: string
+        }
+        Update: {
+          created_at?: string | null
+          group_id?: string
+          id?: string
+          tag_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sequence_condition_tags_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "sequence_condition_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sequence_local_restrictions: {
         Row: {
           active: boolean
@@ -507,6 +574,8 @@ export type Database = {
           stop_condition_tags: string[]
           stop_condition_type: string
           updated_at: string | null
+          use_advanced_start_condition: boolean | null
+          use_advanced_stop_condition: boolean | null
         }
         Insert: {
           created_at?: string | null
@@ -520,6 +589,8 @@ export type Database = {
           stop_condition_tags: string[]
           stop_condition_type: string
           updated_at?: string | null
+          use_advanced_start_condition?: boolean | null
+          use_advanced_stop_condition?: boolean | null
         }
         Update: {
           created_at?: string | null
@@ -533,6 +604,8 @@ export type Database = {
           stop_condition_tags?: string[]
           stop_condition_type?: string
           updated_at?: string | null
+          use_advanced_start_condition?: boolean | null
+          use_advanced_stop_condition?: boolean | null
         }
         Relationships: [
           {
