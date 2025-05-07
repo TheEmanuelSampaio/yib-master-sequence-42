@@ -82,11 +82,8 @@ Deno.serve(async (req) => {
     
     console.log(`[1. BODY] Processando dados: contactId=${contactId}, name=${contactName}, phoneNumber=${phoneNumber}, accountId=${accountId}, accountName=${accountName}, tags=${labels}`);
     
-    // Usar uma UUID válida para ser o creator (obteremos um usuário existente na função handleClient)
-    const systemCreator = crypto.randomUUID();
-    
     // Buscar cliente com account_id
-    const clientResult = await handleClient(supabase, accountId, accountName, systemCreator);
+    const clientResult = await handleClient(supabase, accountId, accountName, "system");
     
     if (!clientResult.success) {
       return new Response(
