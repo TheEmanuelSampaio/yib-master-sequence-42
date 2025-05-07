@@ -12,7 +12,8 @@ import {
   User,
   DailyStats,
   StageProgress,
-  TagCondition
+  TagCondition,
+  ConditionStructure
 } from "@/types";
 import { toast } from "@/components/ui/use-toast";
 import AppContactContext, { createContactFunctions, AppContactFunctions } from './AppContact';
@@ -322,6 +323,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           
           sequence.localTimeRestrictions = typedLocalRestrictions;
         }
+        
+        // Only load advanced conditions if the flags are set
+        if (sequence.use_advanced_start_condition) {
+          sequence.advancedStartCondition = await loadAdvancedCondition(sequence.id, 'start');
+        }
+        
+        if (sequence.use_advanced_stop_condition) {
+          sequence.advancedStopCondition = await loadAdvancedCondition(sequence.id, 'stop');
+        }
       }
       
       console.log(`Sequences fetched: ${sequencesData.length}`);
@@ -394,6 +404,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             type: stopType as "AND" | "OR",
             tags: sequence.stop_condition_tags
           },
+          // Add advanced conditions if they exist
+          ...(sequence.advancedStartCondition && { advancedStartCondition: sequence.advancedStartCondition }),
+          ...(sequence.advancedStopCondition && { advancedStopCondition: sequence.advancedStopCondition }),
           status: status as "active" | "inactive",
           stages,
           timeRestrictions: allTimeRestrictions,
@@ -597,6 +610,62 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Helper function to load advanced condition data
+  const loadAdvancedCondition = async (sequenceId: string, conditionType: 'start' | 'stop'): Promise<ConditionStructure | undefined> => {
+    try {
+      // Get condition groups for this sequence and condition type
+      const { data: groups, error: groupsError } = await supabase
+        .from('sequence_condition_groups')
+        .select(`
+          id,
+          group_operator,
+          condition_operator,
+          group_index
+        `)
+        .eq('sequence_id', sequenceId)
+        .eq('condition_type', conditionType)
+        .order('group_index', { ascending: true });
+        
+      if (groupsError) throw groupsError;
+      
+      if (!groups || groups.length === 0) {
+        return undefined;
+      }
+      
+      // Get the main operator from the first group (all groups should have the same)
+      const mainOperator = groups[0].condition_operator as "AND" | "OR";
+      
+      // Load tags for each group
+      const processedGroups: ConditionGroup[] = [];
+      
+      for (const group of groups) {
+        // Get tags for this group
+        const { data: tags, error: tagsError } = await supabase
+          .from('sequence_condition_tags')
+          .select('tag_name')
+          .eq('group_id', group.id);
+          
+        if (tagsError) throw tagsError;
+        
+        // Create the condition group object
+        processedGroups.push({
+          id: group.id,
+          operator: group.group_operator as "AND" | "OR",
+          tags: tags.map(tag => tag.tag_name)
+        });
+      }
+      
+      // Return the complete condition structure
+      return {
+        mainOperator,
+        groups: processedGroups
+      };
+    } catch (error) {
+      console.error(`Error loading advanced ${conditionType} condition:`, error);
+      return undefined;
+    }
+  };
+
   const addInstance = async (instanceData: Omit<Instance, "id" | "createdAt" | "updatedAt" | "createdBy">) => {
     try {
       if (!user) {
@@ -775,10 +844,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         created_by: user?.id || 'system',
         // Adicionar campos para condições avançadas se presentes
         ...(sequence.advancedStartCondition && {
-          advanced_start_condition: sequence.advancedStartCondition
+          advanced_start_condition: sequence.advancedStartCondition,
+          use_advanced_start_condition: true
         }),
         ...(sequence.advancedStopCondition && {
-          advanced_stop_condition: sequence.advancedStopCondition
+          advanced_stop_condition: sequence.advancedStopCondition,
+          use_advanced_stop_condition: true
         })
       };
 
@@ -792,6 +863,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (seqError) throw seqError;
       
       console.log("Sequence created:", seqData);
+      
+      // Handle advanced conditions if present
+      if (sequence.advancedStartCondition) {
+        await updateAdvancedCondition(seqData.id, 'start', sequence.advancedStartCondition);
+      }
+      
+      if (sequence.advancedStopCondition) {
+        await updateAdvancedCondition(seqData.id, 'stop', sequence.advancedStopCondition);
+      }
       
       // Then create the stages
       for (let i = 0; i < sequence.stages.length; i++) {
@@ -874,9 +954,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       
       // Fazer um refresh completo dos dados para garantir que as novas sequências apareçam
       await refreshData();
+      
+      return { success: true };
     } catch (error: any) {
       console.error("Error creating sequence:", error);
       toast.error(`Erro ao criar sequência: ${error.message}`);
+      return { success: false, error: error.message };
     }
   };
 
@@ -890,24 +973,54 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return { success: false, error: "ID de sequência inválido" };
       }
       
+      // Create the base update object
+      const updateObj: any = {
+        updated_at: new Date().toISOString()
+      };
+      
+      // Add fields that are being updated
+      if (partialSequence.name !== undefined) updateObj.name = partialSequence.name;
+      if (partialSequence.status !== undefined) updateObj.status = partialSequence.status;
+      if (partialSequence.type !== undefined) updateObj.type = partialSequence.type;
+      
+      // Handle basic conditions
+      if (partialSequence.startCondition) {
+        updateObj.start_condition_type = partialSequence.startCondition.type;
+        updateObj.start_condition_tags = partialSequence.startCondition.tags;
+      }
+      
+      if (partialSequence.stopCondition) {
+        updateObj.stop_condition_type = partialSequence.stopCondition.type;
+        updateObj.stop_condition_tags = partialSequence.stopCondition.tags;
+      }
+      
+      // Handle advanced conditions flags
+      if (partialSequence.advancedStartCondition !== undefined) {
+        updateObj.use_advanced_start_condition = true;
+      }
+      
+      if (partialSequence.advancedStopCondition !== undefined) {
+        updateObj.use_advanced_stop_condition = true;
+      }
+      
       // Start by updating the main sequence record
       const { error: seqError } = await supabase
         .from('sequences')
-        .update({
-          name: partialSequence.name,
-          status: partialSequence.status,
-          start_condition_type: partialSequence.startCondition?.type,
-          start_condition_tags: partialSequence.startCondition?.tags,
-          stop_condition_type: partialSequence.stopCondition?.type,
-          stop_condition_tags: partialSequence.stopCondition?.tags,
-          updated_at: new Date().toISOString(),
-          // Don't update instanceId as this shouldn't change
-        })
+        .update(updateObj)
         .eq('id', id);
       
       if (seqError) {
         console.error("Error updating sequence:", seqError);
         return { success: false, error: seqError.message };
+      }
+      
+      // Handle advanced conditions if present
+      if (partialSequence.advancedStartCondition) {
+        await updateAdvancedCondition(id, 'start', partialSequence.advancedStartCondition);
+      }
+      
+      if (partialSequence.advancedStopCondition) {
+        await updateAdvancedCondition(id, 'stop', partialSequence.advancedStopCondition);
       }
       
       // Handle stages update if provided
@@ -1079,11 +1192,86 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         seq.id === id ? { ...seq, ...partialSequence } : seq
       ));
       
-      console.log("Sequence updated successfully");
       return { success: true };
-    } catch (error) {
+      
+    } catch (error: any) {
       console.error("Error in updateSequence:", error);
       return { success: false, error: error.message };
+    }
+  };
+  
+  // Helper function to update advanced conditions
+  const updateAdvancedCondition = async (
+    sequenceId: string, 
+    conditionType: 'start' | 'stop', 
+    conditionStructure: ConditionStructure
+  ) => {
+    try {
+      // First, delete existing condition groups and tags for this condition type
+      const { data: existingGroups, error: groupsError } = await supabase
+        .from('sequence_condition_groups')
+        .select('id')
+        .eq('sequence_id', sequenceId)
+        .eq('condition_type', conditionType);
+        
+      if (groupsError) throw groupsError;
+      
+      // Delete existing groups
+      if (existingGroups && existingGroups.length > 0) {
+        const groupIds = existingGroups.map(g => g.id);
+        
+        // Delete associated tags first
+        await supabase
+          .from('sequence_condition_tags')
+          .delete()
+          .in('group_id', groupIds);
+          
+        // Then delete the groups
+        await supabase
+          .from('sequence_condition_groups')
+          .delete()
+          .in('id', groupIds);
+      }
+      
+      // Insert new condition groups and tags
+      for (let i = 0; i < conditionStructure.groups.length; i++) {
+        const group = conditionStructure.groups[i];
+        
+        // Insert the group
+        const { data: newGroup, error: insertGroupError } = await supabase
+          .from('sequence_condition_groups')
+          .insert({
+            sequence_id: sequenceId,
+            condition_type: conditionType,
+            group_operator: group.operator,
+            condition_operator: conditionStructure.mainOperator,
+            group_index: i,
+            type: conditionType
+          })
+          .select('id')
+          .single();
+          
+        if (insertGroupError) throw insertGroupError;
+        
+        // Insert tags for this group
+        if (group.tags.length > 0) {
+          const tagsToInsert = group.tags.map(tagName => ({
+            group_id: newGroup.id,
+            tag_name: tagName
+          }));
+          
+          const { error: insertTagsError } = await supabase
+            .from('sequence_condition_tags')
+            .insert(tagsToInsert);
+            
+          if (insertTagsError) throw insertTagsError;
+        }
+      }
+      
+      return true;
+    } catch (error) {
+      console.error(`Error updating advanced ${conditionType} condition:`, error);
+      throw error;
     }
   };
 

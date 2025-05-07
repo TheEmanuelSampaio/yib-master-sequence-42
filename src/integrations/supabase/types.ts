@@ -366,25 +366,31 @@ export type Database = {
       }
       sequence_condition_groups: {
         Row: {
-          condition_type: string
+          condition_operator: string
           created_at: string | null
-          group_operator: Database["public"]["Enums"]["logical_operator"]
+          group_index: number
+          group_operator: string
           id: string
           sequence_id: string
+          type: string
         }
         Insert: {
-          condition_type: string
+          condition_operator: string
           created_at?: string | null
-          group_operator?: Database["public"]["Enums"]["logical_operator"]
+          group_index: number
+          group_operator: string
           id?: string
           sequence_id: string
+          type: string
         }
         Update: {
-          condition_type?: string
+          condition_operator?: string
           created_at?: string | null
-          group_operator?: Database["public"]["Enums"]["logical_operator"]
+          group_index?: number
+          group_operator?: string
           id?: string
           sequence_id?: string
+          type?: string
         }
         Relationships: [
           {
@@ -568,6 +574,8 @@ export type Database = {
           stop_condition_tags: string[]
           stop_condition_type: string
           updated_at: string | null
+          use_advanced_start_condition: boolean | null
+          use_advanced_stop_condition: boolean | null
         }
         Insert: {
           created_at?: string | null
@@ -581,6 +589,8 @@ export type Database = {
           stop_condition_tags: string[]
           stop_condition_type: string
           updated_at?: string | null
+          use_advanced_start_condition?: boolean | null
+          use_advanced_stop_condition?: boolean | null
         }
         Update: {
           created_at?: string | null
@@ -594,6 +604,8 @@ export type Database = {
           stop_condition_tags?: string[]
           stop_condition_type?: string
           updated_at?: string | null
+          use_advanced_start_condition?: boolean | null
+          use_advanced_stop_condition?: boolean | null
         }
         Relationships: [
           {
@@ -740,7 +752,6 @@ export type Database = {
       }
     }
     Enums: {
-      logical_operator: "AND" | "OR"
       user_role: "super_admin" | "admin"
     }
     CompositeTypes: {
@@ -857,7 +868,6 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      logical_operator: ["AND", "OR"],
       user_role: ["super_admin", "admin"],
     },
   },
