@@ -399,7 +399,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           timeRestrictions: allTimeRestrictions,
           createdAt: sequence.created_at,
           updatedAt: sequence.updated_at,
-          createdBy: sequence.created_by // Add missing createdBy field
+          createdBy: sequence.created_by,
+          webhookEnabled: sequence.webhook_enabled || false, // Add the webhook enabled field
+          webhookId: sequence.webhook_id || undefined // Add the webhook ID field
         };
       });
       
@@ -1526,7 +1528,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           timeRestrictions,
           createdAt: seq.created_at,
           updatedAt: seq.updated_at,
-          createdBy: seq.created_by // Add missing createdBy field
+          createdBy: seq.created_by, // Add missing createdBy field
+          webhookEnabled: seq.webhook_enabled || false, // Add the webhook enabled field
+          webhookId: seq.webhook_id // Add the webhook ID field
         });
       }
       
@@ -1545,7 +1549,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       instanceId: seq.instance_id,
       type: seq.type || "message",
       status: seq.status,
-      createdBy: seq.created_by, // Already included correctly here
+      createdBy: seq.created_by,
       startCondition: {
         type: seq.start_condition_type,
         tags: seq.start_condition_tags || []
@@ -1557,7 +1561,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       stages: transformSequenceStages(seq),
       timeRestrictions: [], // Will be populated separately
       createdAt: seq.created_at,
-      updatedAt: seq.updated_at
+      updatedAt: seq.updated_at,
+      webhookEnabled: seq.webhook_enabled || false, // Add the webhook enabled field
+      webhookId: seq.webhook_id // Add the webhook ID field
     };
   };
 
