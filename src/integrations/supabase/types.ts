@@ -306,6 +306,7 @@ export type Database = {
           contact_id: string
           created_at: string | null
           id: string
+          processed_content: string | null
           raw_scheduled_time: string
           scheduled_at: string | null
           scheduled_time: string
@@ -313,12 +314,14 @@ export type Database = {
           sequence_id: string
           stage_id: string
           status: string
+          variables: Json | null
         }
         Insert: {
           attempts?: number | null
           contact_id: string
           created_at?: string | null
           id?: string
+          processed_content?: string | null
           raw_scheduled_time: string
           scheduled_at?: string | null
           scheduled_time: string
@@ -326,12 +329,14 @@ export type Database = {
           sequence_id: string
           stage_id: string
           status?: string
+          variables?: Json | null
         }
         Update: {
           attempts?: number | null
           contact_id?: string
           created_at?: string | null
           id?: string
+          processed_content?: string | null
           raw_scheduled_time?: string
           scheduled_at?: string | null
           scheduled_time?: string
@@ -339,6 +344,7 @@ export type Database = {
           sequence_id?: string
           stage_id?: string
           status?: string
+          variables?: Json | null
         }
         Relationships: [
           {

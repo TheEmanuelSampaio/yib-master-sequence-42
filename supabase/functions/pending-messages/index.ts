@@ -189,6 +189,9 @@ Deno.serve(async (req) => {
       let content;
       let variables = msg.variables || {};
       
+      console.log(`[VARIÁVEIS] Processando mensagem ${msg.id} do tipo ${stage.type}`);
+      console.log(`[VARIÁVEIS] Variáveis armazenadas: ${JSON.stringify(variables || {})}`);
+      
       if (stage.type === 'typebot') {
         // Se for typebot, o conteúdo processado já deve estar no formato esperado
         try {

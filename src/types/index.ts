@@ -1,3 +1,4 @@
+
 // User related types
 export interface User {
   id: string;
@@ -150,22 +151,22 @@ export interface AppSetup {
 
 // API Payload types
 export interface TagChangePayload {
-  data: {
+  accountData: {
     accountId: number;
     accountName: string;
-    contact: {
-      id: number | string;
-      name: string;
-      phoneNumber: string;
-    };
-    conversation: {
-      inboxId: number;
-      conversationId: number;
-      displayId: number;
-      labels: string;
-    };
-    variables?: Record<string, string>; // Add support for variables
-  }
+  };
+  contactData: {
+    id: number | string;
+    name: string;
+    phoneNumber: string;
+  };
+  conversationData: {
+    inboxId: number;
+    conversationId: number;
+    displayId: number;
+    labels: string;
+  };
+  variables?: Record<string, string>; // Add support for variables
 }
 
 export interface PendingMessagesResponse {
@@ -180,12 +181,13 @@ export interface PendingMessagesResponse {
       name: string;
       phoneNumber: string;
     };
-    conversation: {
+    conversationData: {
       inboxId: number;
       conversationId: number;
       displayId: number;
       labels: string;
     };
+    variables?: Record<string, string>; // Add variables field
   };
   instanceData: {
     id: string;
