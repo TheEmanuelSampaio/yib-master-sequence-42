@@ -386,7 +386,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           id: sequence.id,
           name: sequence.name,
           instanceId: sequence.instance_id,
-          type: sequence.type || sequenceType, // Usar o tipo da sequência ou determinar pelo último estágio
+          type: sequence.type || sequenceType, // Use the type of the sequence or determine by the last stage
           startCondition: {
             type: startType as "AND" | "OR",
             tags: sequence.start_condition_tags
@@ -1547,6 +1547,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const transformSequence = (seq) => {
+    // Ensure types are properly cast
+    const startType = seq.start_condition_type === "AND" ? "AND" : "OR";
+    const stopType = seq.stop_condition_type === "AND" ? "AND" : "OR";
+    
     return {
       id: seq.id,
       name: seq.name,
@@ -1555,11 +1559,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       status: seq.status,
       createdBy: seq.created_by,
       startCondition: {
-        type: seq.start_condition_type,
+        type: startType as "AND" | "OR",
         tags: seq.start_condition_tags || []
       },
       stopCondition: {
-        type: seq.stop_condition_type,
+        type: stopType as "AND" | "OR",
         tags: seq.stop_condition_tags || []
       },
       stages: transformSequenceStages(seq),
