@@ -1,10 +1,11 @@
 
 export async function processSequences(supabase, clientId, contactId, tags, variables = {}) {
   console.log(`[5.1 SEQUÊNCIAS] Iniciando processamento de sequências para o contato ${contactId} com tags: ${JSON.stringify(tags)}`);
+  console.log(`[5.1 SEQUÊNCIAS] Filtrando sequências para o client_id: ${clientId}`);
   console.log(`[5.1 VARIÁVEIS] Processando variáveis recebidas: ${JSON.stringify(variables || {})}`);
   
   try {
-    // Passo 1: Buscar todas as sequências ativas deste cliente
+    // Passo 1: Buscar todas as sequências ativas deste cliente específico
     const { data: sequences, error: sequencesError } = await supabase
       .from("sequences")
       .select(`
@@ -28,6 +29,11 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
         )
       `)
       .eq("status", "active")
+      .in("instance_id", function(qb) {
+        qb.select('id')
+          .from('instances')
+          .where('client_id', '=', clientId)
+      })
       .order("created_at", { ascending: false });
 
     if (sequencesError) {
@@ -39,7 +45,7 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
     }
 
     if (!sequences || sequences.length === 0) {
-      console.log(`[5.2 SEQUÊNCIAS] Nenhuma sequência ativa encontrada para o cliente.`);
+      console.log(`[5.2 SEQUÊNCIAS] Nenhuma sequência ativa encontrada para o cliente ${clientId}.`);
       return {
         success: true,
         sequencesProcessed: 0,
@@ -48,7 +54,7 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
       };
     }
 
-    console.log(`[5.2 SEQUÊNCIAS] Encontradas ${sequences.length} sequências ativas.`);
+    console.log(`[5.2 SEQUÊNCIAS] Encontradas ${sequences.length} sequências ativas para o cliente ${clientId}.`);
 
     // Passo 2: Filtrar aquelas onde o contato atende as condições de start e não atende as de stop
     const eligibleSequences = sequences.filter(sequence => {

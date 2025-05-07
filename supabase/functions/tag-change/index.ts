@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
     }
     
     // Verificar o formato do JSON e extrair os dados relevantes
-    const { accountData, contactData, conversationData, variables } = jsonData;
+    const { accountData, contactData, conversationData, variables, authToken } = jsonData;
     
     // Log das variáveis recebidas
     console.log(`[1. BODY] Variáveis recebidas: ${JSON.stringify(variables || {})}`);
@@ -66,7 +66,8 @@ Deno.serve(async (req) => {
               displayId: 'number',
               labels: 'string'
             },
-            variables: 'objeto opcional com chaves e valores string'
+            variables: 'objeto opcional com chaves e valores string',
+            authToken: 'token de autenticação para o cliente'
           },
           recebido: jsonData
         }),
@@ -81,6 +82,73 @@ Deno.serve(async (req) => {
     const { inboxId, conversationId, displayId, labels } = conversationData;
     
     console.log(`[1. BODY] Processando dados: contactId=${contactId}, name=${contactName}, phoneNumber=${phoneNumber}, accountId=${accountId}, accountName=${accountName}, tags=${labels}`);
+    
+    // Validar token de autenticação
+    if (!authToken) {
+      console.error(`[SEGURANÇA] Tentativa de acesso sem token de autenticação para o cliente com accountId=${accountId}`);
+      
+      // Registrar tentativa não autorizada
+      await supabase.from("security_logs").insert({
+        client_account_id: String(accountId),
+        action: "tag_change_unauthorized_access",
+        ip_address: req.headers.get("x-forwarded-for") || "unknown",
+        user_agent: req.headers.get("user-agent") || "unknown",
+        details: { error: "Missing authentication token", account_name: accountName }
+      });
+      
+      return new Response(
+        JSON.stringify({ 
+          error: 'Token de autenticação necessário', 
+          details: 'É necessário fornecer um token de autenticação válido para este cliente' 
+        }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    // Verificar se o token corresponde ao accountId fornecido
+    const { data: clientAuth, error: clientAuthError } = await supabase
+      .from("clients")
+      .select("id, auth_token")
+      .eq("account_id", accountId)
+      .maybeSingle();
+    
+    if (clientAuthError) {
+      console.error(`[SEGURANÇA] Erro ao verificar autenticação do cliente: ${clientAuthError.message}`);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Erro ao verificar autenticação', 
+          details: clientAuthError.message 
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    if (!clientAuth || clientAuth.auth_token !== authToken) {
+      console.error(`[SEGURANÇA] Token inválido fornecido para o cliente com accountId=${accountId}`);
+      
+      // Registrar tentativa não autorizada
+      await supabase.from("security_logs").insert({
+        client_account_id: String(accountId),
+        action: "tag_change_invalid_token",
+        ip_address: req.headers.get("x-forwarded-for") || "unknown",
+        user_agent: req.headers.get("user-agent") || "unknown",
+        details: { 
+          error: clientAuth ? "Invalid token" : "Client not found", 
+          account_name: accountName 
+        }
+      });
+      
+      return new Response(
+        JSON.stringify({ 
+          error: 'Token de autenticação inválido', 
+          details: 'O token fornecido não corresponde ao cliente especificado' 
+        }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    // Token válido, continuar com o processamento
+    console.log(`[SEGURANÇA] Token de autenticação válido para o cliente com accountId=${accountId}`);
     
     // Buscar cliente com account_id
     const clientResult = await handleClient(supabase, accountId, accountName, "system");

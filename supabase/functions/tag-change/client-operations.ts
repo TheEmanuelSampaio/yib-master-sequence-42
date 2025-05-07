@@ -47,14 +47,23 @@ export async function handleClient(supabase: any, accountId: any, accountName: s
   // Se ainda não encontrou o cliente, criar um novo
   if (!client) {
     console.log('[2. CLIENTE] Cliente não encontrado, criando um novo...');
+    
+    // Gerar um token de autenticação aleatório
+    const randomBytes = new Uint8Array(24);
+    crypto.getRandomValues(randomBytes);
+    const authToken = Array.from(randomBytes)
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+    
     const { data: newClient, error: createError } = await supabase
       .from('clients')
       .insert([
         { 
           account_id: accountId, 
           account_name: accountName, 
-          created_by: creatorId, // Use um UUID válido aqui
-          creator_account_name: 'Sistema (Auto)'
+          created_by: creatorId,
+          creator_account_name: 'Sistema (Auto)',
+          auth_token: authToken // O trigger ensure_client_auth_token garantirá que isso seja preenchido
         }
       ])
       .select();

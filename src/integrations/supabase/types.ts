@@ -34,6 +34,7 @@ export type Database = {
         Row: {
           account_id: number
           account_name: string
+          auth_token: string | null
           created_at: string | null
           created_by: string
           creator_account_name: string
@@ -43,6 +44,7 @@ export type Database = {
         Insert: {
           account_id: number
           account_name: string
+          auth_token?: string | null
           created_at?: string | null
           created_by: string
           creator_account_name: string
@@ -52,6 +54,7 @@ export type Database = {
         Update: {
           account_id?: number
           account_name?: string
+          auth_token?: string | null
           created_at?: string | null
           created_by?: string
           creator_account_name?: string
@@ -369,6 +372,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      security_logs: {
+        Row: {
+          action: string
+          client_account_id: string
+          details: Json | null
+          id: string
+          ip_address: string | null
+          timestamp: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          action: string
+          client_account_id: string
+          details?: Json | null
+          id?: string
+          ip_address?: string | null
+          timestamp?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          action?: string
+          client_account_id?: string
+          details?: Json | null
+          id?: string
+          ip_address?: string | null
+          timestamp?: string | null
+          user_agent?: string | null
+        }
+        Relationships: []
       }
       sequence_local_restrictions: {
         Row: {

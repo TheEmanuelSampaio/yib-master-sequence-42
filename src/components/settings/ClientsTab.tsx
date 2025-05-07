@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Edit, MoreHorizontal, Plus, Trash2 } from "lucide-react";
+import { Edit, Copy, MoreHorizontal, Plus, Refresh, Trash2 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
@@ -22,13 +22,17 @@ export const ClientsTab = () => {
   const [newClient, setNewClient] = useState({
     accountName: "",
     accountId: "",
+    authToken: ""
   });
 
   const [editClient, setEditClient] = useState<{
     id: string;
     accountName: string;
     accountId: number;
+    authToken: string;
   } | null>(null);
+
+  const [showToken, setShowToken] = useState(false);
 
   // Função para obter o nome do criador a partir do ID
   const getCreatorName = (client) => {
@@ -55,9 +59,37 @@ export const ClientsTab = () => {
     ? clients.filter(client => client.createdBy === userFilter)
     : clients;
 
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success("Token copiado para a área de transferência");
+  };
+
+  const generateNewToken = async () => {
+    if (!editClient) return;
+
+    try {
+      // Generate a random token - 48 hex characters (24 bytes)
+      const randomBytes = new Uint8Array(24);
+      window.crypto.getRandomValues(randomBytes);
+      const newToken = Array.from(randomBytes)
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
+
+      setEditClient({
+        ...editClient,
+        authToken: newToken
+      });
+
+      toast.info("Token gerado. Não esqueça de salvar as alterações.");
+    } catch (error) {
+      console.error(error);
+      toast.error("Erro ao gerar novo token");
+    }
+  };
+
   const handleAddClient = async () => {
     if (!newClient.accountName || !newClient.accountId) {
-      toast.error("Preencha todos os campos");
+      toast.error("Preencha todos os campos obrigatórios");
       return;
     }
     
@@ -65,11 +97,13 @@ export const ClientsTab = () => {
       await addClient({
         accountName: newClient.accountName,
         accountId: parseInt(newClient.accountId),
+        authToken: newClient.authToken // O token será gerado automaticamente pelo trigger no backend
       });
       
       setNewClient({
         accountName: "",
         accountId: "",
+        authToken: ""
       });
       
       setOpenAddClient(false);
@@ -85,9 +119,11 @@ export const ClientsTab = () => {
       await updateClient(editClient.id, {
         accountName: editClient.accountName,
         accountId: editClient.accountId,
+        authToken: editClient.authToken
       });
       
       setEditClient(null);
+      setShowToken(false);
     } catch (error) {
       console.error(error);
     }
@@ -201,7 +237,8 @@ export const ClientsTab = () => {
                         onClick={() => setEditClient({
                           id: client.id,
                           accountName: client.accountName,
-                          accountId: client.accountId
+                          accountId: client.accountId,
+                          authToken: client.authToken || ""
                         })}
                       >
                         <Edit className="h-4 w-4 mr-2" />
@@ -262,9 +299,54 @@ export const ClientsTab = () => {
                     })}
                   />
                 </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="edit-client-token">Token de Autenticação</Label>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => setShowToken(!showToken)}
+                    >
+                      {showToken ? "Ocultar" : "Mostrar"}
+                    </Button>
+                  </div>
+                  <div className="flex space-x-2">
+                    <Input
+                      id="edit-client-token"
+                      type={showToken ? "text" : "password"}
+                      value={editClient.authToken}
+                      onChange={(e) => setEditClient({ ...editClient, authToken: e.target.value })}
+                      className="font-mono"
+                      readOnly
+                    />
+                    <Button 
+                      variant="outline" 
+                      size="icon"
+                      onClick={() => copyToClipboard(editClient.authToken)}
+                      title="Copiar token"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="icon"
+                      onClick={generateNewToken}
+                      title="Gerar novo token"
+                    >
+                      <Refresh className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Este token é necessário para autenticar requisições do Chatwoot. 
+                    A regeneração invalidará o token atual.
+                  </p>
+                </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setEditClient(null)}>
+                <Button variant="outline" onClick={() => {
+                  setEditClient(null);
+                  setShowToken(false);
+                }}>
                   Cancelar
                 </Button>
                 <Button onClick={handleEditClient}>
