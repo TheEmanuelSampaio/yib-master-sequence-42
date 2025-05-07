@@ -46,6 +46,7 @@ export interface Sequence {
   stages: SequenceStage[];
   timeRestrictions: TimeRestriction[];
   status: "active" | "inactive";
+  createdBy: string; // Added this required field
   createdAt: string;
   updatedAt: string;
 }
@@ -155,6 +156,7 @@ export interface TagChangePayload {
   accountData: {
     accountId: number;
     accountName: string;
+    adminId?: string; // Added optional adminId field for backward compatibility
   };
   contactData: {
     id: number | string;

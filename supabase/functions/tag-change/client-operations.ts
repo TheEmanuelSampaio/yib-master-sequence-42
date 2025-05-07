@@ -1,14 +1,22 @@
 
 import { corsHeaders } from '../_shared/cors.ts';
 
-export async function handleClient(supabase: any, accountId: any, accountName: string, creatorId: string = "system") {
-  console.log(`[2. CLIENTE] Verificando cliente para accountId=${accountId}, accountName="${accountName}"`);
+export async function handleClient(supabase: any, accountId: any, accountName: string, creatorId: string = "system", adminId?: string) {
+  console.log(`[2. CLIENTE] Verificando cliente para accountId=${accountId}, accountName="${accountName}", adminId=${adminId || 'não informado'}`);
   
-  // Tentar como número primeiro
-  const { data: clientData, error: clientError } = await supabase
+  let query = supabase
     .from('clients')
-    .select('*')
+    .select('*');
+    
+  // Se o adminId foi fornecido, filtrar por ele também
+  if (adminId) {
+    query = query.eq('created_by', adminId);
+  }
+    
+  // Tentar como número primeiro
+  const { data: clientData, error: clientError } = await query
     .eq('account_id', Number(accountId))
+    .order('created_at', { ascending: false })
     .limit(1);
   
   if (clientError) {
@@ -24,10 +32,18 @@ export async function handleClient(supabase: any, accountId: any, accountName: s
   
   // Se não encontrou como número, tentar como string
   if (!clientData || clientData.length === 0) {
-    const { data: clientDataStr, error: clientErrorStr } = await supabase
+    let stringQuery = supabase
       .from('clients')
-      .select('*')
+      .select('*');
+      
+    // Se o adminId foi fornecido, filtrar por ele também
+    if (adminId) {
+      stringQuery = stringQuery.eq('created_by', adminId);
+    }
+      
+    const { data: clientDataStr, error: clientErrorStr } = await stringQuery
       .eq('account_id', String(accountId))
+      .order('created_at', { ascending: false })
       .limit(1);
     
     if (clientErrorStr) {
@@ -48,6 +64,9 @@ export async function handleClient(supabase: any, accountId: any, accountName: s
   if (!client) {
     console.log('[2. CLIENTE] Cliente não encontrado, criando um novo...');
     
+    // Verificar se creatorId foi fornecido (não usar system se adminId foi fornecido)
+    const effectiveCreatorId = adminId || creatorId;
+    
     // Gerar um token de autenticação aleatório
     const randomBytes = new Uint8Array(24);
     crypto.getRandomValues(randomBytes);
@@ -55,14 +74,28 @@ export async function handleClient(supabase: any, accountId: any, accountName: s
       .map(b => b.toString(16).padStart(2, '0'))
       .join('');
     
+    // Buscar o nome da conta do criador se for um ID fornecido
+    let creatorAccountName = 'Sistema (Auto)';
+    if (effectiveCreatorId !== 'system') {
+      const { data: creatorData } = await supabase
+        .from('profiles')
+        .select('account_name')
+        .eq('id', effectiveCreatorId)
+        .single();
+        
+      if (creatorData) {
+        creatorAccountName = creatorData.account_name;
+      }
+    }
+    
     const { data: newClient, error: createError } = await supabase
       .from('clients')
       .insert([
         { 
           account_id: accountId, 
           account_name: accountName, 
-          created_by: creatorId,
-          creator_account_name: 'Sistema (Auto)',
+          created_by: effectiveCreatorId,
+          creator_account_name: creatorAccountName,
           auth_token: authToken
         }
       ])

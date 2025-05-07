@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 import { supabase, UserWithEmail, isValidUUID, checkStagesInUse } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -126,7 +126,7 @@ const defaultContextValue: AppContextType = {
 
 export const AppContext = createContext<AppContextType>(defaultContextValue);
 
-export function AppProvider({ children }: { children: React.ReactNode }) {
+export const AppProvider = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth();
   
   const [clients, setClients] = useState<Client[]>([]);
@@ -174,6 +174,236 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setIsDataInitialized(false);
     }
   }, [user, isDataInitialized]);
+
+  const fetchInstances = useCallback(async () => {
+    try {
+      const { data: instancesData, error } = await supabase
+        .from('instances')
+        .select(`
+          *,
+          client:client_id (id, account_id, account_name, created_by, creator_account_name)
+        `)
+        .order('name', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching instances:', error);
+        return;
+      }
+
+      const mappedInstances: Instance[] = instancesData.map((instance: any) => ({
+        id: instance.id,
+        name: instance.name,
+        evolutionApiUrl: instance.evolution_api_url,
+        apiKey: instance.api_key,
+        active: instance.active,
+        clientId: instance.client_id,
+        client: instance.client ? {
+          id: instance.client.id,
+          accountId: instance.client.account_id,
+          accountName: instance.client.account_name,
+          createdBy: instance.client.created_by,
+          creator_account_name: instance.client.creator_account_name,
+          createdAt: "",
+          updatedAt: "",
+        } : undefined,
+        createdBy: instance.created_by,
+        createdAt: instance.created_at,
+        updatedAt: instance.updated_at,
+      }));
+
+      setInstances(mappedInstances);
+    } catch (error) {
+      console.error('Error fetching instances:', error);
+    }
+  }, [supabase]);
+
+  const fetchSequences = useCallback(async () => {
+    try {
+      const { data: sequencesData, error } = await supabase
+        .from('sequences')
+        .select(`
+          *,
+          time_restrictions:sequence_time_restrictions (
+            time_restriction:time_restriction_id (*)
+          ),
+          local_restrictions:sequence_local_restrictions (*)
+        `)
+        .order('name', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching sequences:', error);
+        return;
+      }
+
+      const { data: stagesData, error: stagesError } = await supabase
+        .from('sequence_stages')
+        .select('*')
+        .order('order_index', { ascending: true });
+
+      if (stagesError) {
+        console.error('Error fetching stages:', stagesError);
+        return;
+      }
+
+      const mappedSequences: Sequence[] = sequencesData.map((seq: any) => {
+        const stages = stagesData
+          .filter((stage: any) => stage.sequence_id === seq.id)
+          .map((stage: any) => ({
+            id: stage.id,
+            name: stage.name,
+            type: stage.type,
+            content: stage.content,
+            typebotStage: stage.typebot_stage,
+            delay: stage.delay,
+            delayUnit: stage.delay_unit,
+            orderIndex: stage.order_index,
+          }));
+
+        let timeRestrictions: TimeRestriction[] = [];
+
+        // Add global restrictions
+        if (seq.time_restrictions) {
+          const globalRestrictions = seq.time_restrictions
+            .filter((tr: any) => tr.time_restriction)
+            .map((tr: any) => ({
+              id: tr.time_restriction.id,
+              name: tr.time_restriction.name,
+              active: tr.time_restriction.active,
+              days: tr.time_restriction.days,
+              startHour: tr.time_restriction.start_hour,
+              startMinute: tr.time_restriction.start_minute,
+              endHour: tr.time_restriction.end_hour,
+              endMinute: tr.time_restriction.end_minute,
+              isGlobal: true,
+            }));
+          timeRestrictions = [...timeRestrictions, ...globalRestrictions];
+        }
+
+        // Add local restrictions
+        if (seq.local_restrictions) {
+          const localRestrictions = seq.local_restrictions.map((lr: any) => ({
+            id: lr.id,
+            name: lr.name,
+            active: lr.active,
+            days: lr.days,
+            startHour: lr.start_hour,
+            startMinute: lr.start_minute,
+            endHour: lr.end_hour,
+            endMinute: lr.end_minute,
+            isGlobal: false,
+          }));
+          timeRestrictions = [...timeRestrictions, ...localRestrictions];
+        }
+
+        return {
+          id: seq.id,
+          name: seq.name,
+          instanceId: seq.instance_id,
+          type: seq.type || "message",
+          startCondition: {
+            type: seq.start_condition_type,
+            tags: seq.start_condition_tags,
+          },
+          stopCondition: {
+            type: seq.stop_condition_type,
+            tags: seq.stop_condition_tags,
+          },
+          stages,
+          timeRestrictions,
+          status: seq.status,
+          createdBy: seq.created_by, // Add this line to include createdBy
+          createdAt: seq.created_at,
+          updatedAt: seq.updated_at,
+        };
+      });
+
+      setSequences(mappedSequences);
+    } catch (error) {
+      console.error('Error fetching sequences:', error);
+    }
+  }, [supabase]);
+
+  const createSequence = useCallback(async (sequence: Omit<Sequence, "id" | "createdAt" | "updatedAt">) => {
+    try {
+      const { data, error } = await supabase.from('sequences').insert({
+        name: sequence.name,
+        instance_id: sequence.instanceId,
+        type: sequence.type,
+        start_condition_type: sequence.startCondition.type,
+        start_condition_tags: sequence.startCondition.tags,
+        stop_condition_type: sequence.stopCondition.type,
+        stop_condition_tags: sequence.stopCondition.tags,
+        status: sequence.status,
+        created_by: sequence.createdBy // Make sure to include createdBy
+      }).select();
+
+      if (error) {
+        console.error('Error creating sequence:', error);
+        return { success: false, error: error.message };
+      }
+
+      const sequenceId = data[0].id;
+
+      // Add stages
+      for (const [index, stage] of sequence.stages.entries()) {
+        const { error: stageError } = await supabase.from('sequence_stages').insert({
+          name: stage.name,
+          type: stage.type,
+          content: stage.content,
+          typebot_stage: stage.typebotStage,
+          delay: stage.delay,
+          delay_unit: stage.delayUnit,
+          sequence_id: sequenceId,
+          order_index: index,
+        });
+
+        if (stageError) {
+          console.error('Error adding stage:', stageError);
+          return { success: false, error: stageError.message };
+        }
+      }
+
+      // Add time restrictions
+      for (const restriction of sequence.timeRestrictions) {
+        if (restriction.isGlobal) {
+          // Link to global restriction
+          const { error: restrictionError } = await supabase.from('sequence_time_restrictions').insert({
+            sequence_id: sequenceId,
+            time_restriction_id: restriction.id,
+          });
+
+          if (restrictionError) {
+            console.error('Error adding restriction link:', restrictionError);
+            return { success: false, error: restrictionError.message };
+          }
+        } else {
+          // Create local restriction
+          const { error: restrictionError } = await supabase.from('sequence_local_restrictions').insert({
+            name: restriction.name,
+            active: restriction.active,
+            days: restriction.days,
+            start_hour: restriction.startHour,
+            start_minute: restriction.startMinute,
+            end_hour: restriction.endHour,
+            end_minute: restriction.endMinute,
+            sequence_id: sequenceId,
+            created_by: sequence.createdBy,
+          });
+
+          if (restrictionError) {
+            console.error('Error adding local restriction:', restrictionError);
+            return { success: false, error: restrictionError.message };
+          }
+        }
+      }
+
+      await fetchSequences();
+      return { success: true };
+    } catch (error: any) {
+      console.error('Error creating sequence:', error);
+      return { success: false, error: error.message || 'Erro ao criar sequência' };
+    }
+  }, [supabase, fetchSequences]);
 
   const refreshData = async () => {
     if (!user || isRefreshing) return;
