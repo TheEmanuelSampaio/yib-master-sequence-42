@@ -549,6 +549,8 @@ export type Database = {
           stop_condition_tags: string[]
           stop_condition_type: string
           updated_at: string | null
+          webhook_enabled: boolean
+          webhook_id: string | null
         }
         Insert: {
           created_at?: string | null
@@ -562,6 +564,8 @@ export type Database = {
           stop_condition_tags: string[]
           stop_condition_type: string
           updated_at?: string | null
+          webhook_enabled?: boolean
+          webhook_id?: string | null
         }
         Update: {
           created_at?: string | null
@@ -575,6 +579,8 @@ export type Database = {
           stop_condition_tags?: string[]
           stop_condition_type?: string
           updated_at?: string | null
+          webhook_enabled?: boolean
+          webhook_id?: string | null
         }
         Relationships: [
           {
@@ -717,6 +723,10 @@ export type Database = {
       }
       is_super_admin: {
         Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      is_webhook_id_unique_for_client: {
+        Args: { p_webhook_id: string; p_instance_id: string }
         Returns: boolean
       }
     }

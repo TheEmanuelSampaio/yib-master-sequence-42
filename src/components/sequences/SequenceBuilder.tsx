@@ -47,6 +47,12 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
   const [typebotUrl, setTypebotUrl] = useState<string>(
     sequence?.type === "typebot" && stages[0]?.content ? stages[0].content : ""
   );
+  const [webhookEnabled, setWebhookEnabled] = useState<boolean>(
+    sequence?.webhookEnabled || false
+  );
+  const [webhookId, setWebhookId] = useState<string | undefined>(
+    sequence?.webhookId
+  );
   
   const [showTagSelector, setShowTagSelector] = useState<"start" | "stop" | null>(null);
   const [newTag, setNewTag] = useState("");
@@ -433,7 +439,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
     }
   };
   
-  // Update the handleSubmit function to include createdBy
+  // Update the handleSubmit function to include webhook fields
   const handleSubmit = () => {
     try {
       if (!name) {
@@ -463,6 +469,12 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         return;
       }
       
+      // Validate webhook ID if webhook is enabled
+      if (webhookEnabled && !webhookId) {
+        toast.error("Por favor, informe um ID para o webhook.");
+        return;
+      }
+      
       // Update all typebot stage content with the current URL before saving
       let finalStages = [...stages];
       if (type === 'typebot' && typebotUrl) {
@@ -482,7 +494,9 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         stages: finalStages,
         timeRestrictions,
         status,
-        createdBy: sequence?.createdBy || "system" // Include createdBy field
+        createdBy: sequence?.createdBy || "system", // Include createdBy field
+        webhookEnabled,
+        webhookId: webhookEnabled ? webhookId : undefined
       };
       
       console.log("Dados da sequência sendo enviados:", JSON.stringify(newSequence, null, 2));
@@ -597,7 +611,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         
         <TabsContent value="basic" className="pt-6">
           <div className="grid gap-6 grid-cols-1">
-            {/* Basic Info */}
+            {/* Basic Info with webhook configuration */}
             <BasicInfoSection
               name={name}
               setName={setName}
@@ -607,7 +621,12 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
               setType={setType}
               notifyChanges={notifyChanges}
               onTypeChange={handleTypeChange}
-              isEditMode={!!sequence} // Passa true se estiver editando uma sequência existente
+              isEditMode={!!sequence}
+              webhookEnabled={webhookEnabled}
+              setWebhookEnabled={setWebhookEnabled}
+              webhookId={webhookId}
+              setWebhookId={setWebhookId}
+              instanceId={currentInstance?.id}
             />
 
             <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">

@@ -1,11 +1,12 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { supabase } from "@/integrations/supabase/client";
 
 interface BasicInfoSectionProps {
   name: string;
@@ -17,6 +18,11 @@ interface BasicInfoSectionProps {
   notifyChanges: () => void;
   onTypeChange: (newType: "message" | "pattern" | "typebot") => void;
   isEditMode: boolean;
+  webhookEnabled: boolean;
+  setWebhookEnabled: (enabled: boolean) => void;
+  webhookId?: string;
+  setWebhookId: (id: string) => void;
+  instanceId?: string;
 }
 
 export function BasicInfoSection({ 
@@ -28,10 +34,84 @@ export function BasicInfoSection({
   setType,
   notifyChanges,
   onTypeChange,
-  isEditMode
+  isEditMode,
+  webhookEnabled,
+  setWebhookEnabled,
+  webhookId,
+  setWebhookId,
+  instanceId
 }: BasicInfoSectionProps) {
   const [showTypeChangeAlert, setShowTypeChangeAlert] = useState(false);
   const [pendingType, setPendingType] = useState<"message" | "pattern" | "typebot" | null>(null);
+  const [isValidatingWebhookId, setIsValidatingWebhookId] = useState(false);
+  const [isWebhookIdUnique, setIsWebhookIdUnique] = useState(true);
+  const [generatedWebhookId, setGeneratedWebhookId] = useState("");
+  
+  // Generate webhook ID from name
+  const generateWebhookId = (name: string) => {
+    if (!name) return "";
+    
+    return name
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "") // Remove diacritics
+      .replace(/[^\w\s-]/g, "") // Remove special characters
+      .replace(/\s+/g, "-") // Replace spaces with hyphens
+      .replace(/-+/g, "-") // Replace multiple hyphens with a single one
+      .trim();
+  };
+
+  // Set initial webhook ID when name changes or webhook is enabled
+  useEffect(() => {
+    if (webhookEnabled && !webhookId && name) {
+      const newWebhookId = generateWebhookId(name);
+      setGeneratedWebhookId(newWebhookId);
+      setWebhookId(newWebhookId);
+    }
+  }, [webhookEnabled, name, webhookId]);
+
+  useEffect(() => {
+    if (generatedWebhookId !== webhookId) {
+      setGeneratedWebhookId(generateWebhookId(name));
+    }
+  }, [name]);
+
+  // Validate webhook ID uniqueness
+  const validateWebhookId = async (id: string) => {
+    if (!id || !instanceId) return;
+    
+    setIsValidatingWebhookId(true);
+    
+    try {
+      const { data, error } = await supabase.rpc('is_webhook_id_unique_for_client', {
+        p_webhook_id: id,
+        p_instance_id: instanceId
+      });
+
+      if (error) {
+        console.error('Error validating webhook ID:', error);
+        setIsWebhookIdUnique(true); // Assume unique in case of error
+      } else {
+        setIsWebhookIdUnique(!!data);
+      }
+    } catch (error) {
+      console.error('Error validating webhook ID:', error);
+      setIsWebhookIdUnique(true); // Assume unique in case of error
+    } finally {
+      setIsValidatingWebhookId(false);
+    }
+  };
+
+  // Debounce webhook ID validation
+  useEffect(() => {
+    if (webhookEnabled && webhookId) {
+      const timeoutId = setTimeout(() => {
+        validateWebhookId(webhookId);
+      }, 500);
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [webhookId, webhookEnabled, instanceId]);
 
   const handleTypeChange = (newType: "message" | "pattern" | "typebot") => {
     if (newType !== type) {
@@ -61,6 +141,30 @@ export function BasicInfoSection({
   const cancelTypeChange = () => {
     setShowTypeChangeAlert(false);
     setPendingType(null);
+  };
+
+  const handleWebhookEnabledChange = (enabled: boolean) => {
+    setWebhookEnabled(enabled);
+    if (enabled && !webhookId && name) {
+      const newWebhookId = generateWebhookId(name);
+      setWebhookId(newWebhookId);
+    }
+    notifyChanges();
+  };
+
+  const handleWebhookIdChange = (id: string) => {
+    // Replace spaces and special chars in real time
+    const sanitizedId = id
+      .toLowerCase()
+      .replace(/[^\w-]/g, ""); // Only allow alphanumeric and hyphens
+      
+    setWebhookId(sanitizedId);
+    notifyChanges();
+  };
+
+  const handleUseGeneratedId = () => {
+    setWebhookId(generatedWebhookId);
+    notifyChanges();
   };
 
   return (
@@ -121,6 +225,59 @@ export function BasicInfoSection({
                 {status === "active" ? "Sequência ativa" : "Sequência inativa"}
               </span>
             </div>
+          </div>
+
+          {/* Webhook Configuration Section */}
+          <div className="border-t pt-4 mt-4">
+            <div className="space-y-2">
+              <Label htmlFor="webhook-enabled">Webhook de Disparo</Label>
+              <div className="mt-2">
+                <Switch
+                  id="webhook-enabled"
+                  checked={webhookEnabled}
+                  onCheckedChange={handleWebhookEnabledChange}
+                  className="data-[state=checked]:bg-primary"
+                />
+                <span className="ml-2 text-sm">
+                  {webhookEnabled ? "Permitir disparo via webhook" : "Desabilitar webhook"}
+                </span>
+              </div>
+            </div>
+
+            {webhookEnabled && (
+              <div className="mt-4 space-y-2">
+                <Label htmlFor="webhook-id" className="flex items-center justify-between">
+                  <span>ID do Webhook</span>
+                  {generatedWebhookId !== webhookId && webhookId && (
+                    <button 
+                      type="button" 
+                      onClick={handleUseGeneratedId}
+                      className="text-xs text-primary hover:underline"
+                    >
+                      Usar sugerido: {generatedWebhookId}
+                    </button>
+                  )}
+                </Label>
+                <div className="relative">
+                  <Input 
+                    id="webhook-id" 
+                    value={webhookId || ''} 
+                    onChange={(e) => handleWebhookIdChange(e.target.value)}
+                    placeholder="id-do-webhook"
+                    className={!isWebhookIdUnique ? "border-red-500" : ""}
+                    disabled={isValidatingWebhookId}
+                  />
+                  {!isWebhookIdUnique && webhookId && (
+                    <p className="text-red-500 text-xs mt-1">
+                      Este ID já está em uso por outra sequência neste cliente
+                    </p>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Use apenas letras, números e hífens. Esse ID será usado na URL do webhook.
+                </p>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

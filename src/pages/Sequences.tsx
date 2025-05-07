@@ -11,7 +11,8 @@ import {
   MoreVertical,
   MessageCircle,
   FileCode,
-  Bot
+  Bot,
+  Globe
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -404,14 +405,29 @@ export default function Sequences() {
                   </div>
                 </div>
                 
-                <div>
-                  <div className="text-sm font-medium mb-1 flex items-center">
-                    <Activity className="h-4 w-4 mr-1" />
-                    Status
+                <div className="flex justify-between">
+                  <div>
+                    <div className="text-sm font-medium mb-1 flex items-center">
+                      <Activity className="h-4 w-4 mr-1" />
+                      Status
+                    </div>
+                    <Badge variant={sequence.status === "active" ? "default" : "outline"}>
+                      {sequence.status === "active" ? "Ativa" : "Inativa"}
+                    </Badge>
                   </div>
-                  <Badge variant={sequence.status === "active" ? "default" : "outline"}>
-                    {sequence.status === "active" ? "Ativa" : "Inativa"}
-                  </Badge>
+                  
+                  {/* Webhook Badge */}
+                  {sequence.webhookEnabled && (
+                    <div className="text-right">
+                      <div className="text-sm font-medium mb-1 flex items-center justify-end">
+                        <Globe className="h-4 w-4 mr-1" />
+                        Webhook
+                      </div>
+                      <Badge variant="outline" className="bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/30">
+                        {sequence.webhookId}
+                      </Badge>
+                    </div>
+                  )}
                 </div>
               </div>
             </CardContent>

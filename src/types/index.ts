@@ -1,4 +1,3 @@
-
 // User related types
 export interface User {
   id: string;
@@ -50,6 +49,8 @@ export interface Sequence {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+  webhookEnabled: boolean; // New field for webhook support
+  webhookId?: string; // New field for webhook ID
 }
 
 export interface TagCondition {
@@ -226,6 +227,20 @@ export interface DeliveryStatusPayload {
   attempts?: number;
   authToken: string; // Added auth token for authentication
   adminId?: string; // Added admin ID for security
+}
+
+export interface WebhookTriggerPayload {
+  webhookId: string;
+  accountData: {
+    accountId: number;
+    adminId?: string;
+  };
+  contactData: {
+    name: string;
+    phoneNumber: string;
+  };
+  variables?: Record<string, string | number>; 
+  authToken: string;
 }
 
 export interface Database {
