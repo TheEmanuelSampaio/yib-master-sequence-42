@@ -75,13 +75,15 @@ serve(async (req) => {
       );
     }
 
-    // Create Supabase client
+    // Create Supabase client with service role to bypass RLS
     console.log("[CLIENT] Criando cliente Supabase...");
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE);
     console.log("[CLIENT] Cliente Supabase criado com sucesso");
 
     // Authenticate with token
     console.log("[SEGURANÇA] Verificando token de autenticação...");
+    
+    // Importante: Usar o service role para verificar o token
     const { data: profileData, error: profileError } = await supabase
       .from("profiles")
       .select("id, account_name, role")
@@ -100,6 +102,25 @@ serve(async (req) => {
         
       if (clientError || !clientData) {
         console.error("[SEGURANÇA] Falha na autenticação de cliente: " + (clientError?.message || "Token inválido"));
+        console.log("[DEBUG] Auth token recebido: " + authToken);
+        
+        // Log todos os tokens de usuários para debug (remover em produção)
+        const { data: allProfiles, error: allProfilesError } = await supabase
+          .from("profiles")
+          .select("id, auth_token")
+          .limit(5);
+          
+        if (!allProfilesError && allProfiles) {
+          console.log("[DEBUG] Exemplos de tokens de perfis:");
+          allProfiles.forEach((p, idx) => {
+            if (p.auth_token) {
+              console.log(`[DEBUG] Perfil ${idx + 1}: ${p.auth_token.substring(0, 10)}...`);
+            } else {
+              console.log(`[DEBUG] Perfil ${idx + 1}: sem token`);
+            }
+          });
+        }
+        
         return new Response(
           JSON.stringify({ error: "Autenticação falhou. Token inválido." }),
           {

@@ -1520,6 +1520,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           instanceId: seq.instance_id,
           type: (seq as any).type || sequenceType,
           status: seq.status as "active" | "inactive",
+          createdBy: seq.created_by,
           startCondition: {
             type: seq.start_condition_type,
             tags: seq.start_condition_tags || []
@@ -1532,9 +1533,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           timeRestrictions,
           createdAt: seq.created_at,
           updatedAt: seq.updated_at,
-          createdBy: seq.created_by, // Add missing createdBy field
-          webhookEnabled: seq.webhook_enabled || false, // Add the webhook enabled field
-          webhookId: seq.webhook_id // Add the webhook ID field
+          webhookEnabled: seq.webhook_enabled || false,
+          webhookId: seq.webhook_id
         });
       }
       
@@ -1546,11 +1546,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const transformSequence = (seq) => {
-    // Ensure types are properly cast
-    const startType = seq.start_condition_type === "AND" ? "AND" : "OR";
-    const stopType = seq.stop_condition_type === "AND" ? "AND" : "OR";
-    
+  const transformSequence = (seq: any): Sequence => {
+    // Validate that start and stop condition types are valid union types
+    const startType = (seq.start_condition_type === "AND" || seq.start_condition_type === "OR") 
+      ? seq.start_condition_type as "AND" | "OR"
+      : "AND"; // Default to "AND" if invalid value
+      
+    const stopType = (seq.stop_condition_type === "AND" || seq.stop_condition_type === "OR") 
+      ? seq.stop_condition_type as "AND" | "OR"
+      : "AND"; // Default to "AND" if invalid value
+      
     return {
       id: seq.id,
       name: seq.name,
@@ -1589,53 +1594,49 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       }));
   };
 
-  const value = {
-    clients,
-    instances,
-    currentInstance,
-    sequences,
-    contacts,
-    scheduledMessages,
-    contactSequences,
-    tags,
-    timeRestrictions,
-    users,
-    stats,
-    setCurrentInstance,
-    addInstance,
-    updateInstance,
-    deleteInstance,
-    addSequence,
-    updateSequence,
-    deleteSequence,
-    addTimeRestriction,
-    updateTimeRestriction,
-    deleteTimeRestriction,
-    addContact,
-    getContactSequences,
-    addClient,
-    updateClient,
-    deleteClient,
-    addUser,
-    updateUser,
-    deleteUser,
-    addTag,
-    deleteTag,
-    refreshData,
-    isDataInitialized,
-    
-    // Funções de manipulação de contatos
-    deleteContact: contactFunctions.deleteContact,
-    updateContact: contactFunctions.updateContact,
-    removeFromSequence: contactFunctions.removeFromSequence,
-    updateContactSequence: contactFunctions.updateContactSequence,
-  };
-
   return (
-    <AppContext.Provider value={value}>
-      <AppContactContext.Provider value={contactFunctions}>
-        {children}
-      </AppContactContext.Provider>
+    <AppContext.Provider value={{
+      clients,
+      instances,
+      currentInstance,
+      sequences,
+      contacts,
+      scheduledMessages,
+      contactSequences,
+      tags,
+      timeRestrictions,
+      users,
+      stats,
+      setCurrentInstance,
+      addInstance,
+      updateInstance,
+      deleteInstance,
+      addSequence,
+      updateSequence,
+      deleteSequence,
+      addTimeRestriction,
+      updateTimeRestriction,
+      deleteTimeRestriction,
+      addContact,
+      getContactSequences,
+      addClient,
+      updateClient,
+      deleteClient,
+      addUser,
+      updateUser,
+      deleteUser,
+      addTag,
+      deleteTag,
+      refreshData,
+      isDataInitialized,
+      
+      // Funções de manipulação de contatos
+      deleteContact: contactFunctions.deleteContact,
+      updateContact: contactFunctions.updateContact,
+      removeFromSequence: contactFunctions.removeFromSequence,
+      updateContactSequence: contactFunctions.updateContactSequence,
+    }}>
+      {children}
     </AppContext.Provider>
   );
 };
