@@ -1,10 +1,11 @@
+
 import { useState, useEffect } from "react";
 import { Save, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useApp } from "@/context/AppContext";
-import { Sequence, SequenceStage, TagCondition, TimeRestriction } from "@/types";
+import { Sequence, SequenceStage, TagCondition, TimeRestriction, ConditionStructure } from "@/types";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
 import { isValidUUID } from "@/integrations/supabase/client";

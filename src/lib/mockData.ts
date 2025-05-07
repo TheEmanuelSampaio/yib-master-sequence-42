@@ -1,3 +1,4 @@
+
 import { Instance, Sequence, User, Contact, DailyStats, TimeRestriction, TagCondition } from '@/types';
 
 // User mock data
@@ -383,8 +384,8 @@ export const mockSequences: Sequence[] = [
   // ... outros exemplos de sequências
 ];
 
-// Atualizando ContactSequence para não usar campos não definidos na interface
-export const mockContactSequences: ContactSequence[] = [
+// Atualizando o objeto mockContactSequences para remover campos não existentes na interface ContactSequence
+export const mockContactSequences = [
   {
     id: "01e8400-e29b-41d4-a716-446655440001",
     contactId: "9f8e7d6c-5b4a-3210-1e2d-3f4g5h6j7k8l",

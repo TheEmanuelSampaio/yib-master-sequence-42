@@ -63,9 +63,9 @@ export function TagConditionSection({
   const addConditionGroup = () => {
     if (!advancedCondition || !setAdvancedCondition) return;
 
-    const newGroup = {
+    const newGroup: ConditionGroup = {
       id: generateGroupId(),
-      operator: "AND" as const,
+      operator: "AND",
       tags: []
     };
 

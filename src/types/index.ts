@@ -1,3 +1,4 @@
+
 // User related types
 export interface User {
   id: string;
