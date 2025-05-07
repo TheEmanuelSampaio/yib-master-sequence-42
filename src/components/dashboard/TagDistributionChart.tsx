@@ -6,13 +6,18 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recha
 export function TagDistributionChart() {
   const { contacts } = useApp();
   
+  // Ensure contacts is an array
+  const contactsArray = Array.isArray(contacts) ? contacts : [];
+  
   // Count tag occurrences
   const tagCounts: Record<string, number> = {};
   
-  contacts.forEach(contact => {
-    contact.tags.forEach(tag => {
-      tagCounts[tag] = (tagCounts[tag] || 0) + 1;
-    });
+  contactsArray.forEach(contact => {
+    if (Array.isArray(contact.tags)) {
+      contact.tags.forEach(tag => {
+        tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+      });
+    }
   });
 
   // Convert to chart data format and sort by count
