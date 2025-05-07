@@ -553,7 +553,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           id: sequence.id,
           name: sequence.name,
           instanceId: sequence.instance_id,
-          type: sequence.type || "message", // Default to message if not specified
+          type: sequenceType, // Fix the error here
           startCondition,
           stopCondition,
           stages,
@@ -1500,6 +1500,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           account_id: client.accountId,
           account_name: client.accountName,
           created_by: user.id,
+          creator_account_name: user.accountName // Add this field
         })
         .select();
       

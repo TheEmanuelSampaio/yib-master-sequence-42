@@ -269,18 +269,32 @@ export const mockContactSequences: ContactSequence[] = [
   {
     contactId: "16087",
     sequenceId: "1",
-    stageId: "101",
+    currentStageId: "101",
+    currentStageIndex: 0,
     status: "active",
     createdAt: "2023-12-01T10:00:00Z",
-    updatedAt: "2023-12-01T10:00:00Z"
+    updatedAt: "2023-12-01T10:00:00Z",
+    id: uuidv4(),
+    startedAt: "2023-12-01T10:00:00Z",
+    lastMessageAt: null,
+    completedAt: null,
+    removedAt: null,
+    stageProgress: []
   },
   {
     contactId: "16088",
     sequenceId: "2",
-    stageId: "201",
-    status: "inactive",
+    currentStageId: "201",
+    currentStageIndex: 0,
+    status: "active",
     createdAt: "2023-12-01T11:00:00Z",
-    updatedAt: "2023-12-01T11:00:00Z"
+    updatedAt: "2023-12-01T11:00:00Z",
+    id: uuidv4(),
+    startedAt: "2023-12-01T11:00:00Z",
+    lastMessageAt: null,
+    completedAt: null,
+    removedAt: null,
+    stageProgress: []
   }
 ];
 

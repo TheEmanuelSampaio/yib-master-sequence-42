@@ -3,7 +3,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { DashboardStats } from "@/components/dashboard/DashboardStats";
 import { MessagesChart } from "@/components/dashboard/MessagesChart";
 import { SequenceOverview } from "@/components/dashboard/SequenceOverview";
-import { Alert as AlertIcon } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 
 export default function Dashboard() {
@@ -12,7 +12,7 @@ export default function Dashboard() {
   if (!currentInstance) {
     return (
       <Alert className="mb-6">
-        <AlertIcon className="h-4 w-4" />
+        <AlertTriangle className="h-4 w-4" />
         <AlertDescription>
           Selecione uma instância para ver o dashboard
         </AlertDescription>
