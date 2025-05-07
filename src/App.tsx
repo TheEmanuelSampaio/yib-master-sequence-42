@@ -3,6 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/context/AuthContext";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
@@ -28,8 +29,14 @@ import { RequireSetup } from "./components/auth/RequireSetup";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: 1,
+      // Increase retry attempts for better reliability
+      retry: 2,
+      // Don't refetch on window focus for better performance
       refetchOnWindowFocus: false,
+      // Reuse the cached data first while fetching in the background
+      staleTime: 1000 * 30, // 30 seconds (short enough for freshness, long enough for performance)
+      // Show queries for up to 5 minutes before garbage collection
+      gcTime: 1000 * 60 * 5,
     },
   },
 });
@@ -67,6 +74,8 @@ const App = () => (
         </AuthProvider>
       </BrowserRouter>
     </ThemeProvider>
+    {/* Add React Query DevTools for development */}
+    <ReactQueryDevtools initialIsOpen={false} />
   </QueryClientProvider>
 );
 

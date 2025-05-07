@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useApp } from '@/context/AppContext';
 import {
@@ -11,7 +12,8 @@ import {
   MoreVertical,
   MessageCircle,
   FileCode,
-  Bot
+  Bot,
+  Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,51 +42,58 @@ import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { isValidUUID } from "@/integrations/supabase/client";
+import { useSequences, useUpdateSequence, useDeleteSequence } from "@/hooks/queries/useSequences";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Sequences() {
-  const { sequences, currentInstance, addSequence, updateSequence, deleteSequence, refreshData, isDataInitialized } = useApp();
+  const { currentInstance } = useApp();
   const [isCreateMode, setIsCreateMode] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [currentSequence, setCurrentSequence] = useState<Sequence | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   
-  // Fetch data only if not initialized yet
-  useEffect(() => {
-    if (!isDataInitialized && currentInstance) {
-      console.log("Sequences page - loading initial data");
-      refreshData();
-    }
-  }, [refreshData, currentInstance, isDataInitialized]);
+  // Use the new React Query hook
+  const { 
+    data: sequences = [], 
+    isLoading, 
+    isError, 
+    error,
+    refetch 
+  } = useSequences({ 
+    instanceId: currentInstance?.id,
+  });
   
-  const instanceSequences = sequences
-    .filter(seq => seq.instanceId === currentInstance?.id)
+  const updateSequenceMutation = useUpdateSequence();
+  const deleteSequenceMutation = useDeleteSequence();
+  
+  // Filter sequences based on search query
+  const filteredSequences = sequences
     .filter(seq => 
       searchQuery === '' || 
       seq.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
     
-  const activeSequences = instanceSequences.filter(seq => seq.status === 'active');
-  const inactiveSequences = instanceSequences.filter(seq => seq.status === 'inactive');
+  const activeSequences = filteredSequences.filter(seq => seq.status === 'active');
+  const inactiveSequences = filteredSequences.filter(seq => seq.status === 'inactive');
   
   const handleSaveSequence = async (sequence: Omit<Sequence, "id" | "createdAt" | "updatedAt">) => {
     if (isEditMode && currentSequence) {
-      const result = await updateSequence(currentSequence.id, sequence);
-      
-      if (result.success) {
-        setIsEditMode(false);
-        setCurrentSequence(null);
-        toast.success("Sequência atualizada com sucesso");
-        setHasUnsavedChanges(false);
-      } else {
-        // Exibir mensagem de erro específica
-        toast.error(result.error || "Erro ao atualizar sequência");
-        // Não fechamos o modo de edição aqui, permitindo que o usuário corrija o problema
-      }
+      updateSequenceMutation.mutate(
+        { id: currentSequence.id, updates: sequence },
+        {
+          onSuccess: () => {
+            setIsEditMode(false);
+            setCurrentSequence(null);
+            setHasUnsavedChanges(false);
+          }
+        }
+      );
     } else {
-      await addSequence(sequence);
+      // Use addSequence from AppContext for now, as it's already implemented
+      // Later we can replace with the useAddSequence hook
+      await useApp().addSequence(sequence);
       setIsCreateMode(false);
-      toast.success("Sequência criada com sucesso");
       setHasUnsavedChanges(false);
     }
   };
@@ -96,24 +105,14 @@ export default function Sequences() {
   };
   
   const handleToggleStatus = (sequence: Sequence) => {
-    updateSequence(sequence.id, {
-      status: sequence.status === 'active' ? 'inactive' : 'active'
-    }).then(result => {
-      if (result.success) {
-        toast.success(
-          sequence.status === 'active' 
-            ? "Sequência desativada com sucesso" 
-            : "Sequência ativada com sucesso"
-        );
-      } else {
-        toast.error(result.error || "Erro ao alterar status da sequência");
-      }
+    updateSequenceMutation.mutate({ 
+      id: sequence.id, 
+      updates: { status: sequence.status === 'active' ? 'inactive' : 'active' }
     });
   };
   
   const handleDeleteSequence = (id: string) => {
-    deleteSequence(id);
-    toast.success("Sequência excluída com sucesso");
+    deleteSequenceMutation.mutate(id);
   };
   
   const getStageIcon = (type: string) => {
@@ -207,33 +206,106 @@ export default function Sequences() {
           </Button>
         </div>
         
-        <Button onClick={() => setIsCreateMode(true)}>
-          <PlusCircle className="h-4 w-4 mr-2" />
-          Nova Sequência
-        </Button>
+        <div className="flex space-x-2">
+          {isLoading && (
+            <Button variant="outline" disabled>
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              Carregando...
+            </Button>
+          )}
+          
+          {!isLoading && (
+            <Button variant="outline" onClick={() => refetch()} disabled={isLoading}>
+              <Activity className="h-4 w-4 mr-2" />
+              Atualizar
+            </Button>
+          )}
+          
+          <Button onClick={() => setIsCreateMode(true)}>
+            <PlusCircle className="h-4 w-4 mr-2" />
+            Nova Sequência
+          </Button>
+        </div>
       </div>
       
-      <Tabs defaultValue="all">
-        <TabsList>
-          <TabsTrigger value="all">Todas ({instanceSequences.length})</TabsTrigger>
-          <TabsTrigger value="active">Ativas ({activeSequences.length})</TabsTrigger>
-          <TabsTrigger value="inactive">Inativas ({inactiveSequences.length})</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="all" className="mt-4">
-          {renderSequenceList(instanceSequences)}
-        </TabsContent>
-        
-        <TabsContent value="active" className="mt-4">
-          {renderSequenceList(activeSequences)}
-        </TabsContent>
-        
-        <TabsContent value="inactive" className="mt-4">
-          {renderSequenceList(inactiveSequences)}
-        </TabsContent>
-      </Tabs>
+      {isError && (
+        <Card className="p-8 flex flex-col items-center justify-center text-center">
+          <div className="rounded-full bg-red-100 text-red-600 p-3 mb-4">
+            <Activity className="h-6 w-6" />
+          </div>
+          <h3 className="font-semibold text-lg mb-1">
+            Erro ao carregar sequências
+          </h3>
+          <p className="text-muted-foreground mb-4">
+            {error instanceof Error ? error.message : "Ocorreu um erro ao carregar as sequências."}
+          </p>
+          <Button onClick={() => refetch()}>
+            Tentar novamente
+          </Button>
+        </Card>
+      )}
+      
+      {!isError && (
+        <Tabs defaultValue="all">
+          <TabsList>
+            <TabsTrigger value="all">Todas ({filteredSequences.length})</TabsTrigger>
+            <TabsTrigger value="active">Ativas ({activeSequences.length})</TabsTrigger>
+            <TabsTrigger value="inactive">Inativas ({inactiveSequences.length})</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="all" className="mt-4">
+            {isLoading ? renderSkeletons() : renderSequenceList(filteredSequences)}
+          </TabsContent>
+          
+          <TabsContent value="active" className="mt-4">
+            {isLoading ? renderSkeletons() : renderSequenceList(activeSequences)}
+          </TabsContent>
+          
+          <TabsContent value="inactive" className="mt-4">
+            {isLoading ? renderSkeletons() : renderSequenceList(inactiveSequences)}
+          </TabsContent>
+        </Tabs>
+      )}
     </div>
   );
+  
+  function renderSkeletons() {
+    return (
+      <div className="grid gap-6 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
+        {Array(3).fill(0).map((_, i) => (
+          <Card key={i} className="overflow-hidden">
+            <CardHeader className="pb-3">
+              <div className="flex justify-between items-center">
+                <Skeleton className="h-6 w-40" />
+                <Skeleton className="h-8 w-8 rounded-full" />
+              </div>
+              <Skeleton className="h-4 w-32 mt-1" />
+            </CardHeader>
+            <CardContent className="pb-3">
+              <div className="space-y-3">
+                <div>
+                  <Skeleton className="h-4 w-24 mb-2" />
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    <Skeleton className="h-5 w-16 rounded-full" />
+                    <Skeleton className="h-5 w-20 rounded-full" />
+                  </div>
+                </div>
+                <div>
+                  <Skeleton className="h-4 w-28 mb-2" />
+                  <div className="flex flex-wrap gap-1">
+                    <Skeleton className="h-5 w-24 rounded-full" />
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Skeleton className="h-10 w-full" />
+            </CardFooter>
+          </Card>
+        ))}
+      </div>
+    );
+  }
   
   function renderSequenceList(sequenceList: Sequence[]) {
     if (sequenceList.length === 0) {
