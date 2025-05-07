@@ -275,7 +275,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       
       setTimeRestrictions(typedRestrictions);
       
-      // Buscar sequências e seus estágios - FIX: Added type annotation for sequencesData
+      // Buscar sequências e seus estágios - FIX: Added type annotation and explicit array check
       const { data: sequencesData, error: sequencesError } = await supabase
         .from('sequences')
         .select(`
@@ -290,8 +290,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       
       if (sequencesError) throw sequencesError;
       
+      // Ensure sequencesData is always an array
+      const safeSequencesData = Array.isArray(sequencesData) ? sequencesData : [];
+      
       // Processar sequências - FIX: Explicitly cast sequencesData to array
-      const processedSequences = (sequencesData || []) as ExtendedSequence[];
+      const processedSequences = safeSequencesData as ExtendedSequence[];
       
       for (const sequence of processedSequences) {
         // Add local time restrictions logic
@@ -325,7 +328,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         }
       }
       
-      console.log(`Sequences fetched: ${sequencesData?.length || 0}`);
+      console.log(`Sequences fetched: ${processedSequences.length}`);
       
       const typedSequences: Sequence[] = processedSequences.map(sequence => {
         // Transform stages and time restrictions
