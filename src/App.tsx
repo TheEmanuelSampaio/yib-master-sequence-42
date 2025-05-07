@@ -34,7 +34,6 @@ const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
       staleTime: 1000 * 30, // 30 seconds before data is considered stale
       gcTime: 1000 * 60 * 5, // Cache for 5 minutes
-      keepPreviousData: true // Keep showing previous data while fetching
     },
   },
 });

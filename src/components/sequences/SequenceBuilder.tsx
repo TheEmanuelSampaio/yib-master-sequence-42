@@ -433,7 +433,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
     }
   };
   
-  // Update the handleSubmit function to update all typebot stage content with the current URL when saving
+  // Update the handleSubmit function to include createdBy
   const handleSubmit = () => {
     try {
       if (!name) {
@@ -482,6 +482,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         stages: finalStages,
         timeRestrictions,
         status,
+        createdBy: sequence?.createdBy || currentInstance.createdBy // Use existing createdBy or instance createdBy
       };
       
       console.log("Dados da sequência sendo enviados:", JSON.stringify(newSequence, null, 2));
