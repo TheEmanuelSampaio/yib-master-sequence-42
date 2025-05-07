@@ -344,7 +344,76 @@ export default function Sequences() {
               </CardDescription>
             </CardHeader>
             <CardContent className="pb-3">
-              {renderConditions(sequence)}
+              <div className="space-y-3">
+                <div>
+                  <div className="text-sm font-medium mb-1 flex items-center">
+                    <Tag className="h-4 w-4 mr-1" />
+                    Condições
+                  </div>
+                  <div className="flex flex-col space-y-2">
+                    <div>
+                      <span className="text-xs text-muted-foreground">Início ({sequence.startCondition.type}):</span>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {sequence.startCondition.tags.map(tag => (
+                          <Badge key={tag} variant="outline" className="bg-green-500/10 text-green-700 dark:text-green-400 text-xs py-0">
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-xs text-muted-foreground">Parada ({sequence.stopCondition.type}):</span>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {sequence.stopCondition.tags.map(tag => (
+                          <Badge key={tag} variant="outline" className="bg-red-500/10 text-red-700 dark:text-red-400 text-xs py-0">
+                            {tag}
+                          </Badge>
+                        ))}
+                        {sequence.stopCondition.tags.length === 0 && (
+                          <span className="text-xs text-muted-foreground italic">Nenhuma</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div>
+                  <div className="text-sm font-medium mb-1 flex items-center">
+                    <Clock className="h-4 w-4 mr-1" />
+                    Estágios ({sequence.stages.length})
+                  </div>
+                  <div className="flex items-center mt-1">
+                    {sequence.stages.map((stage, idx) => (
+                      <div 
+                        key={stage.id}
+                        className="flex items-center"
+                      >
+                        <Badge variant="outline" className={cn(
+                          "flex items-center px-1.5 text-xs",
+                          stage.type === "message" && "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/30",
+                          stage.type === "pattern" && "bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/30",
+                          stage.type === "typebot" && "bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/30"
+                        )}>
+                          {getStageIcon(stage.type)}
+                        </Badge>
+                        {idx < sequence.stages.length - 1 && (
+                          <div className="h-px w-4 bg-border" />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                <div>
+                  <div className="text-sm font-medium mb-1 flex items-center">
+                    <Activity className="h-4 w-4 mr-1" />
+                    Status
+                  </div>
+                  <Badge variant={sequence.status === "active" ? "default" : "outline"}>
+                    {sequence.status === "active" ? "Ativa" : "Inativa"}
+                  </Badge>
+                </div>
+              </div>
             </CardContent>
             <CardFooter>
               <Button 
@@ -358,123 +427,6 @@ export default function Sequences() {
             </CardFooter>
           </Card>
         ))}
-      </div>
-    );
-  }
-
-  // Função auxiliar para renderizar condições
-  function renderConditions(sequence: Sequence) {
-    return (
-      <div className="space-y-3">
-        <div>
-          <div className="text-sm font-medium mb-1 flex items-center">
-            <Tag className="h-4 w-4 mr-1" />
-            Condições
-          </div>
-          <div className="flex flex-col space-y-2">
-            <div>
-              <div className="flex items-center">
-                <span className="text-xs text-muted-foreground">Início:</span>
-                {sequence.useAdvancedStartCondition && (
-                  <Badge variant="outline" className="ml-2 bg-blue-500/10 text-blue-700 dark:text-blue-400 text-xs py-0">
-                    Avançado
-                  </Badge>
-                )}
-              </div>
-              
-              <div className="flex flex-wrap gap-1 mt-1">
-                {sequence.useAdvancedStartCondition ? (
-                  sequence.advancedStartCondition && sequence.advancedStartCondition.groups ? (
-                    // Exibir resumo de condições avançadas
-                    <div className="text-xs">
-                      {sequence.advancedStartCondition.groups.length} grupo(s) de condições
-                    </div>
-                  ) : (
-                    <span className="text-xs text-muted-foreground italic">Configuração avançada</span>
-                  )
-                ) : (
-                  // Exibir tags de condição simples
-                  sequence.startCondition.tags.map(tag => (
-                    <Badge key={tag} variant="outline" className="bg-green-500/10 text-green-700 dark:text-green-400 text-xs py-0">
-                      {tag}
-                    </Badge>
-                  ))
-                )}
-              </div>
-            </div>
-            <div>
-              <div className="flex items-center">
-                <span className="text-xs text-muted-foreground">Parada:</span>
-                {sequence.useAdvancedStopCondition && (
-                  <Badge variant="outline" className="ml-2 bg-blue-500/10 text-blue-700 dark:text-blue-400 text-xs py-0">
-                    Avançado
-                  </Badge>
-                )}
-              </div>
-              
-              <div className="flex flex-wrap gap-1 mt-1">
-                {sequence.useAdvancedStopCondition ? (
-                  sequence.advancedStopCondition && sequence.advancedStopCondition.groups ? (
-                    // Exibir resumo de condições avançadas
-                    <div className="text-xs">
-                      {sequence.advancedStopCondition.groups.length} grupo(s) de condições
-                    </div>
-                  ) : (
-                    <span className="text-xs text-muted-foreground italic">Configuração avançada</span>
-                  )
-                ) : (
-                  // Exibir tags de condição simples
-                  sequence.stopCondition.tags.length > 0 ? (
-                    sequence.stopCondition.tags.map(tag => (
-                      <Badge key={tag} variant="outline" className="bg-red-500/10 text-red-700 dark:text-red-400 text-xs py-0">
-                        {tag}
-                      </Badge>
-                    ))
-                  ) : (
-                    <span className="text-xs text-muted-foreground italic">Nenhuma</span>
-                  )
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <div>
-          <div className="text-sm font-medium mb-1 flex items-center">
-            <Clock className="h-4 w-4 mr-1" />
-            Estágios ({sequence.stages.length})
-          </div>
-          <div className="flex items-center mt-1">
-            {sequence.stages.map((stage, idx) => (
-              <div 
-                key={stage.id}
-                className="flex items-center"
-              >
-                <Badge variant="outline" className={cn(
-                  "flex items-center px-1.5 text-xs",
-                  stage.type === "message" && "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/30",
-                  stage.type === "pattern" && "bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/30",
-                  stage.type === "typebot" && "bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/30"
-                )}>
-                  {getStageIcon(stage.type)}
-                </Badge>
-                {idx < sequence.stages.length - 1 && (
-                  <div className="h-px w-4 bg-border" />
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-        
-        <div>
-          <div className="text-sm font-medium mb-1 flex items-center">
-            <Activity className="h-4 w-4 mr-1" />
-            Status
-          </div>
-          <Badge variant={sequence.status === "active" ? "default" : "outline"}>
-            {sequence.status === "active" ? "Ativa" : "Inativa"}
-          </Badge>
-        </div>
       </div>
     );
   }

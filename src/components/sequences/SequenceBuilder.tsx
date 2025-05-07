@@ -1,10 +1,11 @@
+
 import { useState, useEffect } from "react";
 import { Save, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useApp } from "@/context/AppContext";
-import { Sequence, SequenceStage, TagCondition, TimeRestriction } from "@/types";
+import { Sequence, SequenceStage, TagCondition, TimeRestriction, ConditionStructure } from "@/types";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
 import { isValidUUID } from "@/integrations/supabase/client";
@@ -14,8 +15,6 @@ import { StagesSection } from "./StagesSection";
 import { TimeRestrictionsSection } from "./TimeRestrictionsSection";
 import { NewRestrictionDialog } from "./NewRestrictionDialog";
 import { Dialog } from "@/components/ui/dialog";
-import { AdvancedConditionBuilder } from "./AdvancedConditionBuilder";
-import { AdvancedCondition, convertSimpleToAdvanced } from "@/types/conditionTypes";
 
 interface SequenceBuilderProps {
   sequence?: Sequence;
@@ -27,13 +26,10 @@ interface SequenceBuilderProps {
 export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: SequenceBuilderProps) {
   const { tags, currentInstance, timeRestrictions: globalTimeRestrictions, addTag } = useApp();
   
-  // Campos básicos
   const [name, setName] = useState(sequence?.name || "");
   const [type, setType] = useState<"message" | "pattern" | "typebot">(
     sequence?.type || "message"
   );
-  
-  // Condições simples
   const [startCondition, setStartCondition] = useState<TagCondition>(
     sequence?.startCondition || { type: "AND", tags: [] }
   );
@@ -41,21 +37,28 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
     sequence?.stopCondition || { type: "OR", tags: [] }
   );
   
-  // NOVO: Condições avançadas
+  // Adicionando estados para condições avançadas
   const [useAdvancedStartCondition, setUseAdvancedStartCondition] = useState<boolean>(
-    sequence?.useAdvancedStartCondition || false
+    !!sequence?.advancedStartCondition
   );
   const [useAdvancedStopCondition, setUseAdvancedStopCondition] = useState<boolean>(
-    sequence?.useAdvancedStopCondition || false
-  );
-  const [advancedStartCondition, setAdvancedStartCondition] = useState<AdvancedCondition>(
-    sequence?.advancedStartCondition || { type: "start", groups: [] }
-  );
-  const [advancedStopCondition, setAdvancedStopCondition] = useState<AdvancedCondition>(
-    sequence?.advancedStopCondition || { type: "stop", groups: [] }
+    !!sequence?.advancedStopCondition
   );
   
-  // Outros campos
+  const [advancedStartCondition, setAdvancedStartCondition] = useState<ConditionStructure>(
+    sequence?.advancedStartCondition || {
+      groups: [],
+      mainOperator: "OR"
+    }
+  );
+  
+  const [advancedStopCondition, setAdvancedStopCondition] = useState<ConditionStructure>(
+    sequence?.advancedStopCondition || {
+      groups: [],
+      mainOperator: "OR"
+    }
+  );
+  
   const [stages, setStages] = useState<SequenceStage[]>(
     sequence?.stages || []
   );
@@ -69,7 +72,6 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
     sequence?.type === "typebot" && stages[0]?.content ? stages[0].content : ""
   );
   
-  // Estados de UI
   const [showTagSelector, setShowTagSelector] = useState<"start" | "stop" | null>(null);
   const [newTag, setNewTag] = useState("");
   
@@ -125,42 +127,13 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
     gr => !timeRestrictions.some(tr => tr.id === gr.id && tr.isGlobal)
   );
 
-  // Notificar mudanças para o componente pai
+  // Notify parent component when changes are made
   const notifyChanges = () => {
     if (onChangesMade) {
       onChangesMade();
     }
   };
 
-  // NOVO: Toggle para alternar entre condições simples e avançadas
-  const toggleAdvancedStartCondition = () => {
-    const newValue = !useAdvancedStartCondition;
-    setUseAdvancedStartCondition(newValue);
-    
-    // Se estamos habilitando condições avançadas, converter a condição simples para avançada
-    if (newValue && advancedStartCondition.groups.length === 0) {
-      setAdvancedStartCondition(
-        convertSimpleToAdvanced("start", startCondition.type, startCondition.tags)
-      );
-    }
-    
-    notifyChanges();
-  };
-  
-  const toggleAdvancedStopCondition = () => {
-    const newValue = !useAdvancedStopCondition;
-    setUseAdvancedStopCondition(newValue);
-    
-    // Se estamos habilitando condições avançadas, converter a condição simples para avançada
-    if (newValue && advancedStopCondition.groups.length === 0) {
-      setAdvancedStopCondition(
-        convertSimpleToAdvanced("stop", stopCondition.type, stopCondition.tags)
-      );
-    }
-    
-    notifyChanges();
-  };
-  
   // Função para lidar com a mudança de tipo da sequência
   const handleTypeChange = (newType: "message" | "pattern" | "typebot") => {
     console.log(`Mudando tipo da sequência para: ${newType}`);
@@ -492,21 +465,18 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         return;
       }
       
-      // Validar condições de início
-      if (useAdvancedStartCondition) {
-        if (!advancedStartCondition?.groups || advancedStartCondition.groups.length === 0) {
-          toast.error("Por favor, adicione pelo menos um grupo de condições de início.");
-          return;
-        }
-        
-        // Verificar se todos os grupos possuem tags
-        const emptyGroups = advancedStartCondition.groups.filter(g => !g.tags || g.tags.length === 0);
-        if (emptyGroups.length > 0) {
-          toast.error(`Por favor, adicione tags a todos os grupos de condições de início. Há ${emptyGroups.length} grupo(s) sem tags.`);
-          return;
-        }
-      } else if (startCondition.tags.length === 0) {
+      // Verificar se pelo menos uma condição de início está definida
+      if (!useAdvancedStartCondition && startCondition.tags.length === 0) {
         toast.error("Por favor, adicione pelo menos uma tag para a condição de início.");
+        return;
+      }
+      
+      if (useAdvancedStartCondition && 
+          (!advancedStartCondition || 
+           !advancedStartCondition.groups || 
+           advancedStartCondition.groups.length === 0 || 
+           advancedStartCondition.groups.every(g => g.tags.length === 0))) {
+        toast.error("Por favor, adicione pelo menos um grupo com tags para a condição de início avançada.");
         return;
       }
       
@@ -546,11 +516,16 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         stages: finalStages,
         timeRestrictions,
         status,
-        useAdvancedStartCondition,
-        useAdvancedStopCondition,
-        advancedStartCondition: useAdvancedStartCondition ? advancedStartCondition : undefined,
-        advancedStopCondition: useAdvancedStopCondition ? advancedStopCondition : undefined
       };
+      
+      // Adicionar condições avançadas se ativadas
+      if (useAdvancedStartCondition) {
+        (newSequence as any).advancedStartCondition = advancedStartCondition;
+      }
+      
+      if (useAdvancedStopCondition) {
+        (newSequence as any).advancedStopCondition = advancedStopCondition;
+      }
       
       console.log("Dados da sequência sendo enviados:", JSON.stringify(newSequence, null, 2));
       
@@ -628,7 +603,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         <div className="flex gap-2">
           <Button 
             variant="outline" 
-            onClick={onCancel}
+            onClick={handleCancel}
           >
             <X className="h-4 w-4 mr-1" />
             Cancelar
@@ -636,6 +611,8 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
           <Button 
             variant="default" 
             onClick={handleSubmit}
+            disabled={!hasBeenModified()}
+            className={!hasBeenModified() ? "opacity-50" : ""}
           >
             <Save className="h-4 w-4 mr-1" />
             Salvar
@@ -643,7 +620,11 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         </div>
       </div>
 
-      <Tabs defaultValue="basic">
+      <Tabs 
+        defaultValue="basic"
+        value={currentTab}
+        onValueChange={setCurrentTab}
+      >
         <TabsList className="w-full">
           <TabsTrigger value="basic" className="flex-1">Informações Básicas</TabsTrigger>
           <TabsTrigger value="stages" className="flex-1">
@@ -652,7 +633,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
           </TabsTrigger>
           <TabsTrigger value="restrictions" className="flex-1">
             Restrições de Horário
-            <Badge variant="secondary" className="ml-2">{timeRestrictions.filter(r => r.active).length}</Badge>
+            <Badge variant="secondary" className="ml-2">{getActiveRestrictionCount()}</Badge>
           </TabsTrigger>
         </TabsList>
         
@@ -673,84 +654,48 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
 
             <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
               {/* Start Condition */}
-              <div>
-                {/* Componente de condição simples */}
-                <TagConditionSection
-                  title="Condição de Início"
-                  description="Define quando um contato deve entrar nesta sequência"
-                  badgeColor="bg-green-600"
-                  condition={startCondition}
-                  setCondition={setStartCondition}
-                  availableTags={tags}
-                  newTag={newTag}
-                  setNewTag={setNewTag}
-                  showTagSelector={showTagSelector === "start"}
-                  setShowTagSelector={() => setShowTagSelector("start")}
-                  addTagToCondition={(tag) => addTagToCondition("start", tag)}
-                  removeTag={(tag) => removeTag("start", tag)}
-                  toggleConditionType={() => toggleConditionType("start")}
-                  notifyChanges={notifyChanges}
-                  useAdvancedCondition={useAdvancedStartCondition}
-                  toggleAdvancedCondition={toggleAdvancedStartCondition}
-                  conditionType="start"
-                />
-                
-                {/* Componente de condição avançada */}
-                {useAdvancedStartCondition && (
-                  <div className="mt-4">
-                    <AdvancedConditionBuilder
-                      title="Condição de Início"
-                      description="Define quando um contato deve entrar nesta sequência"
-                      badgeColor="bg-green-600"
-                      initialCondition={advancedStartCondition}
-                      availableTags={tags}
-                      onChange={setAdvancedStartCondition}
-                      onChangesMade={notifyChanges}
-                      conditionType="start"
-                    />
-                  </div>
-                )}
-              </div>
+              <TagConditionSection
+                title="Condição de Início"
+                description="Define quando um contato deve entrar nesta sequência"
+                badgeColor="bg-green-600"
+                condition={startCondition}
+                setCondition={setStartCondition}
+                advancedMode={useAdvancedStartCondition}
+                setAdvancedMode={setUseAdvancedStartCondition}
+                advancedCondition={advancedStartCondition}
+                setAdvancedCondition={setAdvancedStartCondition}
+                availableTags={tags}
+                newTag={newTag}
+                setNewTag={setNewTag}
+                showTagSelector={showTagSelector === "start"}
+                setShowTagSelector={() => setShowTagSelector("start")}
+                addTagToCondition={(tag) => addTagToCondition("start", tag)}
+                removeTag={(tag) => removeTag("start", tag)}
+                toggleConditionType={() => toggleConditionType("start")}
+                notifyChanges={notifyChanges}
+              />
               
               {/* Stop Condition */}
-              <div>
-                {/* Componente de condição simples */}
-                <TagConditionSection
-                  title="Condição de Parada"
-                  description="Define quando um contato deve ser removido desta sequência"
-                  badgeColor="bg-red-600"
-                  condition={stopCondition}
-                  setCondition={setStopCondition}
-                  availableTags={tags}
-                  newTag={newTag}
-                  setNewTag={setNewTag}
-                  showTagSelector={showTagSelector === "stop"}
-                  setShowTagSelector={() => setShowTagSelector("stop")}
-                  addTagToCondition={(tag) => addTagToCondition("stop", tag)}
-                  removeTag={(tag) => removeTag("stop", tag)}
-                  toggleConditionType={() => toggleConditionType("stop")}
-                  notifyChanges={notifyChanges}
-                  useAdvancedCondition={useAdvancedStopCondition}
-                  toggleAdvancedCondition={toggleAdvancedStopCondition}
-                  conditionType="stop"
-                />
-                
-                {/* Componente de condição avançada */}
-                {useAdvancedStopCondition && (
-                  <div className="mt-4">
-                    <AdvancedConditionBuilder
-                      title="Condição de Parada"
-                      description="Define quando um contato deve ser removido desta sequência"
-                      badgeColor="bg-red-600"
-                      initialCondition={advancedStopCondition}
-                      availableTags={tags}
-                      onChange={setAdvancedStopCondition}
-                      onChangesMade={notifyChanges}
-                      conditionType="stop"
-                    />
-                  </div>
-                )}
-              </div>
+              <TagConditionSection
+                title="Condição de Parada"
+                description="Define quando um contato deve ser removido desta sequência"
+                badgeColor="bg-red-600"
+                condition={stopCondition}
+                setCondition={setStopCondition}
+                advancedMode={useAdvancedStopCondition}
+                setAdvancedMode={setUseAdvancedStopCondition}
+                advancedCondition={advancedStopCondition}
+                setAdvancedCondition={setAdvancedStopCondition}
+                availableTags={tags}
+                newTag={newTag}
+                setNewTag={setNewTag}
+                showTagSelector={showTagSelector === "stop"}
+                setShowTagSelector={() => setShowTagSelector("stop")}
+                addTagToCondition={(tag) => addTagToCondition("stop", tag)}
+                removeTag={(tag) => removeTag("stop", tag)}
+                toggleConditionType={() => toggleConditionType("stop")}
+                notifyChanges={notifyChanges}
+              />
             </div>
           </div>
         </TabsContent>

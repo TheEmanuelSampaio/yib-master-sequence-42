@@ -1,70 +1,96 @@
 
-import React, { useState } from 'react';
+import { useState } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { PlusCircle } from "lucide-react";
+import { Tag, Trash2 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
-import { toast } from 'sonner';
+import { toast } from "sonner";
 
-export function TagsTab() {
-  const { tags, addTag } = useApp();
-  const [newTag, setNewTag] = useState("");
-  
+export const TagsTab = () => {
+  const { tags, addTag, deleteTag } = useApp();
+  const [newTagName, setNewTagName] = useState("");
+
   const handleAddTag = async () => {
-    if (!newTag) {
-      toast.error("Digite uma tag");
+    if (!newTagName.trim()) {
+      toast.error("Digite o nome da tag");
       return;
     }
     
     try {
-      const result = await addTag(newTag);
-      if (result.success) {
-        toast.success("Tag adicionada com sucesso!");
-        setNewTag("");
-      } else {
-        toast.error(result.error || "Erro ao adicionar tag");
-      }
+      await addTag(newTagName.trim());
+      setNewTagName("");
+      toast.success("Tag adicionada com sucesso");
     } catch (error) {
-      console.error("Erro ao adicionar tag:", error);
+      console.error(error);
       toast.error("Erro ao adicionar tag");
     }
   };
-  
+
+  const handleDeleteTag = async (tagName: string) => {
+    try {
+      await deleteTag(tagName);
+      toast.success("Tag removida com sucesso");
+    } catch (error) {
+      console.error(error);
+      toast.error("Erro ao remover tag");
+    }
+  };
+
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold">Tags</h2>
-      </div>
-      
-      <div className="flex gap-2">
-        <Input
-          placeholder="Nova tag..."
-          value={newTag}
-          onChange={(e) => setNewTag(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              handleAddTag();
-            }
-          }}
-        />
-        <Button onClick={handleAddTag}>
-          <PlusCircle className="h-4 w-4 mr-2" /> Adicionar
-        </Button>
-      </div>
-      
-      <div className="flex flex-wrap gap-2 mt-4">
-        {tags.length === 0 ? (
-          <div className="text-muted-foreground">Nenhuma tag encontrada. Adicione sua primeira tag.</div>
-        ) : (
-          tags.map((tag) => (
-            <Badge key={tag} variant="outline" className="text-sm py-1 px-3">
-              {tag}
+    <Card className="mt-6">
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <CardTitle>Tags</CardTitle>
+          <CardDescription>
+            Gerencie as tags usadas em sequências e contatos
+          </CardDescription>
+        </div>
+        <div className="flex space-x-2">
+          <div className="flex">
+            <Input
+              placeholder="Nome da tag"
+              value={newTagName}
+              onChange={(e) => setNewTagName(e.target.value)}
+              className="w-[200px]"
+            />
+            <Button 
+              className="ml-2" 
+              onClick={handleAddTag}
+              disabled={!newTagName.trim()}
+            >
+              <Tag className="h-4 w-4 mr-2" />
+              Adicionar
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-wrap gap-2">
+          {tags.map((tag) => (
+            <Badge key={tag} variant="secondary" className="px-3 py-1 text-sm">
+              <span className="mr-1">{tag}</span>
+              <button 
+                onClick={() => handleDeleteTag(tag)}
+                className="text-muted-foreground hover:text-red-500 transition-colors ml-1"
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
             </Badge>
-          ))
-        )}
-      </div>
-    </div>
+          ))}
+          
+          {tags.length === 0 && (
+            <div className="w-full flex flex-col items-center justify-center py-8 bg-muted/30 rounded-lg">
+              <Tag className="h-12 w-12 text-muted-foreground mb-4" />
+              <h3 className="text-lg font-medium mb-2">Nenhuma tag cadastrada</h3>
+              <p className="text-center text-muted-foreground mb-4">
+                Adicione tags para usar em sequências e contatos
+              </p>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
-}
+};

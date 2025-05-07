@@ -1,3 +1,4 @@
+
 import { Instance, Sequence, User, Contact, DailyStats, TimeRestriction, TagCondition } from '@/types';
 
 // User mock data
@@ -311,5 +312,140 @@ export const stats: DailyStats[] = [
     messagesFailed: 3,
     newContacts: 18,
     completedSequences: 8
+  }
+];
+
+// Atualize os dados simulados para sequências para incluir o campo "type"
+export const mockSequences: Sequence[] = [
+  {
+    id: "550e8400-e29b-41d4-a716-446655440000",
+    instanceId: "123e4567-e89b-12d3-a456-426614174001",
+    name: "Sequência de Boas-vindas",
+    type: "message",
+    startCondition: {
+      type: "AND",
+      tags: ["novo-cliente", "site"]
+    },
+    stopCondition: {
+      type: "OR",
+      tags: ["desativado", "não-responde"]
+    },
+    // Exemplo de condição avançada
+    advancedStartCondition: {
+      groups: [
+        {
+          id: "group1",
+          operator: "AND",
+          tags: ["novo-cliente", "site"]
+        },
+        {
+          id: "group2",
+          operator: "OR",
+          tags: ["indicação", "formulário"]
+        }
+      ],
+      mainOperator: "OR"
+    },
+    stages: [
+      {
+        id: "650e8400-e29b-41d4-a716-446655440001",
+        name: "Mensagem de Boas-vindas",
+        type: "message",
+        content: "Olá! Bem-vindo(a) à nossa empresa. Como posso ajudar você hoje?",
+        delay: 5,
+        delayUnit: "minutes"
+      },
+      {
+        id: "650e8400-e29b-41d4-a716-446655440002",
+        name: "Pergunta sobre Interesses",
+        type: "message",
+        content: "Estamos curiosos para saber mais sobre seus interesses. Em quais produtos você tem mais interesse?",
+        delay: 1,
+        delayUnit: "days"
+      }
+    ],
+    timeRestrictions: [
+      {
+        id: "750e8400-e29b-41d4-a716-446655440001",
+        name: "Horário Comercial",
+        active: true,
+        days: [1, 2, 3, 4, 5],
+        startHour: 8,
+        startMinute: 0,
+        endHour: 18,
+        endMinute: 0,
+        isGlobal: false
+      }
+    ],
+    status: "active",
+    createdAt: "2023-10-01T00:00:00.000Z",
+    updatedAt: "2023-10-01T00:00:00.000Z"
+  },
+  // ... outros exemplos de sequências
+];
+
+// Atualizando o objeto mockContactSequences para remover campos não existentes na interface ContactSequence
+export const mockContactSequences = [
+  {
+    id: "01e8400-e29b-41d4-a716-446655440001",
+    contactId: "9f8e7d6c-5b4a-3210-1e2d-3f4g5h6j7k8l",
+    sequenceId: "550e8400-e29b-41d4-a716-446655440000",
+    currentStageIndex: 1,
+    currentStageId: "650e8400-e29b-41d4-a716-446655440001",
+    status: "active",
+    startedAt: "2023-10-10T08:30:00.000Z",
+    lastMessageAt: "2023-10-10T09:00:00.000Z",
+    stageProgress: [
+      {
+        stageId: "650e8400-e29b-41d4-a716-446655440001",
+        status: "completed",
+        completedAt: "2023-10-10T09:00:00.000Z"
+      }
+    ]
+  },
+  {
+    id: "02e8400-e29b-41d4-a716-446655440002",
+    contactId: "8e7d6c5b-4a32-1012-e2d3-f4g5h6j7k8l9",
+    sequenceId: "550e8400-e29b-41d4-a716-446655440000",
+    currentStageIndex: 0,
+    status: "paused",
+    startedAt: "2023-10-09T14:15:00.000Z"
+  },
+  {
+    id: "03e8400-e29b-41d4-a716-446655440003",
+    contactId: "7d6c5b4a-3210-12ed-23f4-g5h6j7k8l9m0",
+    sequenceId: "550e8400-e29b-41d4-a716-446655440001",
+    currentStageIndex: 2,
+    currentStageId: "650e8400-e29b-41d4-a716-446655440005",
+    status: "completed",
+    startedAt: "2023-10-05T10:00:00.000Z",
+    lastMessageAt: "2023-10-08T16:30:00.000Z",
+    completedAt: "2023-10-08T16:30:00.000Z",
+    stageProgress: [
+      {
+        stageId: "650e8400-e29b-41d4-a716-446655440003",
+        status: "completed",
+        completedAt: "2023-10-06T11:00:00.000Z"
+      },
+      {
+        stageId: "650e8400-e29b-41d4-a716-446655440004",
+        status: "completed",
+        completedAt: "2023-10-07T14:00:00.000Z"
+      },
+      {
+        stageId: "650e8400-e29b-41d4-a716-446655440005",
+        status: "completed",
+        completedAt: "2023-10-08T16:30:00.000Z"
+      }
+    ]
+  },
+  {
+    id: "04e8400-e29b-41d4-a716-446655440004",
+    contactId: "6c5b4a32-1012-ed23-f4g5-h6j7k8l9m0n1",
+    sequenceId: "550e8400-e29b-41d4-a716-446655440000",
+    currentStageIndex: 0,
+    status: "removed",
+    startedAt: "2023-10-02T09:45:00.000Z",
+    removedAt: "2023-10-03T10:00:00.000Z"
   }
 ];
