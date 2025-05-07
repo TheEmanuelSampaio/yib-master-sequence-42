@@ -1,65 +1,19 @@
-
-// Substitua o componente SequenceBuilder existente com esta versão atualizada
-// que implementa o suporte a condições avançadas
-
-import React, { useState, useEffect } from 'react';
-import { useApp } from '@/context/AppContext';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { useState, useEffect } from "react";
+import { Save, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import * as z from "zod";
-import { Sequence, TimeRestriction } from "@/types";
-import { v4 as uuidv4 } from 'uuid';
-import { StageBuilder } from './StageBuilder';
-import { TimeRestrictionBuilder } from './TimeRestrictionBuilder';
-import { cn } from '@/lib/utils';
-import { Tag, Plus, X, ArrowLeftCircle, Clock, MessageCircle, FileCode, Bot } from 'lucide-react';
-import { AdvancedCondition, ConditionGroup, simpleToAdvanced, advancedToSimple } from '@/types/conditionTypes';
-import { AdvancedConditionBuilder } from './AdvancedConditionBuilder';
-import { toast } from 'sonner';
-
-// Esquema de validação do formulário usando zod
-const sequenceFormSchema = z.object({
-  name: z.string().min(1, "Nome é obrigatório"),
-  status: z.enum(["active", "inactive"]),
-  type: z.enum(["message", "pattern", "typebot"]),
-  instanceId: z.string().min(1, "Selecione uma instância"),
-});
+import { useApp } from "@/context/AppContext";
+import { Sequence, SequenceStage, TagCondition, TimeRestriction } from "@/types";
+import { toast } from "sonner";
+import { v4 as uuidv4 } from "uuid";
+import { isValidUUID } from "@/integrations/supabase/client";
+import { BasicInfoSection } from "./BasicInfoSection";
+import { TagConditionSection } from "./TagConditionSection";
+import { StagesSection } from "./StagesSection";
+import { TimeRestrictionsSection } from "./TimeRestrictionsSection";
+import { NewRestrictionDialog } from "./NewRestrictionDialog";
+import { Dialog } from "@/components/ui/dialog";
 
 interface SequenceBuilderProps {
   sequence?: Sequence;
@@ -69,747 +23,685 @@ interface SequenceBuilderProps {
 }
 
 export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: SequenceBuilderProps) {
-  const { currentInstance, tags: availableTags, timeRestrictions: globalRestrictions } = useApp();
-  const [stages, setStages] = useState<any[]>(sequence?.stages || []);
-  const [startTags, setStartTags] = useState<string[]>(sequence?.startCondition?.tags || []);
-  const [stopTags, setStopTags] = useState<string[]>(sequence?.stopCondition?.tags || []);
-  const [selectedStartConditionType, setSelectedStartConditionType] = useState<"AND" | "OR">(
-    sequence?.startCondition?.type || "AND"
+  const { tags, currentInstance, timeRestrictions: globalTimeRestrictions, addTag } = useApp();
+  
+  const [name, setName] = useState(sequence?.name || "");
+  const [type, setType] = useState<"message" | "pattern" | "typebot">(
+    sequence?.type || "message"
   );
-  const [selectedStopConditionType, setSelectedStopConditionType] = useState<"AND" | "OR">(
-    sequence?.stopCondition?.type || "AND"
+  const [startCondition, setStartCondition] = useState<TagCondition>(
+    sequence?.startCondition || { type: "AND", tags: [] }
+  );
+  const [stopCondition, setStopCondition] = useState<TagCondition>(
+    sequence?.stopCondition || { type: "OR", tags: [] }
+  );
+  const [stages, setStages] = useState<SequenceStage[]>(
+    sequence?.stages || []
   );
   const [timeRestrictions, setTimeRestrictions] = useState<TimeRestriction[]>(
     sequence?.timeRestrictions || []
   );
-  const [newTag, setNewTag] = useState<string>("");
-  const [newStartTag, setNewStartTag] = useState<string>("");
-  const [newStopTag, setNewStopTag] = useState<string>("");
+  const [status, setStatus] = useState<"active" | "inactive">(
+    sequence?.status || "active"
+  );
+  const [typebotUrl, setTypebotUrl] = useState<string>(
+    sequence?.type === "typebot" && stages[0]?.content ? stages[0].content : ""
+  );
   
-  // Estados para condições avançadas
-  const [useAdvancedStartCondition, setUseAdvancedStartCondition] = useState<boolean>(
-    sequence?.useAdvancedStartCondition || false
-  );
-  const [useAdvancedStopCondition, setUseAdvancedStopCondition] = useState<boolean>(
-    sequence?.useAdvancedStopCondition || false
-  );
-  const [advancedStartCondition, setAdvancedStartCondition] = useState<AdvancedCondition>(
-    sequence?.advancedStartCondition || simpleToAdvanced(selectedStartConditionType, startTags)
-  );
-  const [advancedStopCondition, setAdvancedStopCondition] = useState<AdvancedCondition>(
-    sequence?.advancedStopCondition || simpleToAdvanced(selectedStopConditionType, stopTags)
-  );
-
-  // Criar formulário
-  const form = useForm<z.infer<typeof sequenceFormSchema>>({
-    resolver: zodResolver(sequenceFormSchema),
-    defaultValues: {
-      name: sequence?.name || "",
-      status: sequence?.status || "active",
-      type: sequence?.type || "message",
-      instanceId: sequence?.instanceId || currentInstance?.id || "",
-    },
+  const [showTagSelector, setShowTagSelector] = useState<"start" | "stop" | null>(null);
+  const [newTag, setNewTag] = useState("");
+  
+  const [newStage, setNewStage] = useState<Omit<SequenceStage, "id">>({
+    name: "",
+    type: type,
+    content: "",
+    delay: 60,
+    delayUnit: "minutes",
+  });
+  
+  // Update newStage.type when the sequence type changes
+  useEffect(() => {
+    setNewStage(prev => ({
+      ...prev,
+      type: type
+    }));
+    
+    // Para typebot, podemos pré-configurar o nome do estágio
+    if (type === 'typebot') {
+      const nextStageNumber = stages.length + 1;
+      setNewStage(prev => ({
+        ...prev,
+        name: `Estágio ${nextStageNumber}`,
+        typebotStage: `stg${nextStageNumber}`,
+      }));
+    }
+  }, [type, stages.length]);
+  
+  const [newRestriction, setNewRestriction] = useState<Omit<TimeRestriction, "id">>({
+    name: "Nova restrição",
+    active: true,
+    days: [1, 2, 3, 4, 5], // Monday to Friday
+    startHour: 22,
+    startMinute: 0,
+    endHour: 8,
+    endMinute: 0,
+    isGlobal: false, // Por padrão, novas restrições são locais
   });
 
-  // Efeito para notificar mudanças
-  useEffect(() => {
+  const [showTagDialog, setShowTagDialog] = useState(false);
+  const [showGlobalRestrictionsDialog, setShowGlobalRestrictionsDialog] = useState(false);
+  const [editingStageId, setEditingStageId] = useState<string | null>(null);
+  const [stageToEdit, setStageToEdit] = useState<SequenceStage | null>(null);
+  const [showAddRestrictionDialog, setShowAddRestrictionDialog] = useState(false);
+  const [currentTab, setCurrentTab] = useState("basic");
+  
+  // Define dayNames for use throughout the component
+  const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+  
+  // Filtra restrições globais disponíveis (que não estão já adicionadas à sequência)
+  const availableGlobalRestrictions = globalTimeRestrictions.filter(
+    gr => !timeRestrictions.some(tr => tr.id === gr.id && tr.isGlobal)
+  );
+
+  // Notify parent component when changes are made
+  const notifyChanges = () => {
     if (onChangesMade) {
       onChangesMade();
     }
-  }, [
-    stages, 
-    startTags, 
-    stopTags, 
-    selectedStartConditionType, 
-    selectedStopConditionType, 
-    timeRestrictions,
-    useAdvancedStartCondition,
-    useAdvancedStopCondition,
-    advancedStartCondition,
-    advancedStopCondition,
-    form.formState.isDirty
-  ]);
+  };
 
-  // Atualizar instância selecionada quando currentInstance mudar
-  useEffect(() => {
-    if (currentInstance && !sequence) {
-      form.setValue("instanceId", currentInstance.id);
+  // Função para lidar com a mudança de tipo da sequência
+  const handleTypeChange = (newType: "message" | "pattern" | "typebot") => {
+    console.log(`Mudando tipo da sequência para: ${newType}`);
+    
+    // Preservar IDs, mas limpar conteúdos dos estágios
+    if (stages.length > 0) {
+      const updatedStages = stages.map((stage, index) => {
+        // Manter o ID e alguns campos básicos, mas limpar o conteúdo específico
+        return {
+          id: stage.id,
+          name: stage.name,
+          type: newType, // Atualizar para o novo tipo
+          content: newType === 'typebot' ? typebotUrl : "", // Para typebot, usar a URL do typebot
+          delay: stage.delay,
+          delayUnit: stage.delayUnit,
+          typebotStage: newType === 'typebot' ? `stg${index + 1}` : undefined
+        };
+      });
+      
+      // Se mudar para typebot, ajustar alguns campos necessários
+      if (newType === 'typebot') {
+        // Não vamos mais sobrescrever o array de estágios
+        // Apenas garantir que todos os estágios tenham os typebotStage corretos
+        const finalStages = updatedStages.map((stage, index) => ({
+          ...stage,
+          typebotStage: `stg${index + 1}`
+        }));
+        
+        setStages(finalStages);
+      } else {
+        // Para outros tipos, apenas limpar os conteúdos
+        setStages(updatedStages);
+      }
+      
+      console.log("Estágios resetados com sucesso, mantendo IDs.");
+      notifyChanges();
     }
-  }, [currentInstance, form, sequence]);
-
-  // Atualizar condições avançadas quando as condições simples mudarem e não estiver no modo avançado
-  useEffect(() => {
-    if (!useAdvancedStartCondition) {
-      setAdvancedStartCondition(simpleToAdvanced(selectedStartConditionType, startTags));
-    }
-  }, [selectedStartConditionType, startTags, useAdvancedStartCondition]);
-
-  useEffect(() => {
-    if (!useAdvancedStopCondition) {
-      setAdvancedStopCondition(simpleToAdvanced(selectedStopConditionType, stopTags));
-    }
-  }, [selectedStopConditionType, stopTags, useAdvancedStopCondition]);
-
-  // Funções para manipulação de tags
-  const addStartTag = (tag: string) => {
-    if (!tag) return;
-    if (startTags.includes(tag)) {
-      alert(`Tag "${tag}" já existe na condição de início`);
-      return;
-    }
-    setStartTags([...startTags, tag]);
-    setNewStartTag("");
-  };
-
-  const removeStartTag = (tag: string) => {
-    setStartTags(startTags.filter((t) => t !== tag));
-  };
-
-  const addStopTag = (tag: string) => {
-    if (!tag) return;
-    if (stopTags.includes(tag)) {
-      alert(`Tag "${tag}" já existe na condição de parada`);
-      return;
-    }
-    setStopTags([...stopTags, tag]);
-    setNewStopTag("");
-  };
-
-  const removeStopTag = (tag: string) => {
-    setStopTags(stopTags.filter((t) => t !== tag));
-  };
-
-  // Funções para manipular stages
-  const handleAddStage = (stage: any) => {
-    const newStage = {
-      ...stage,
-      id: stage.id || uuidv4(), // Garantir que o stage tenha um ID
-    };
-    setStages([...stages, newStage]);
-  };
-
-  const handleUpdateStage = (stageId: string, updatedStage: any) => {
-    setStages(stages.map((stage) => (stage.id === stageId ? updatedStage : stage)));
-  };
-
-  const handleRemoveStage = (stageId: string) => {
-    setStages(stages.filter((stage) => stage.id !== stageId));
-  };
-
-  const handleMoveStage = (stageId: string, direction: "up" | "down") => {
-    const index = stages.findIndex((stage) => stage.id === stageId);
-    if (index === -1) return;
-
-    if (direction === "up" && index > 0) {
-      const newStages = [...stages];
-      [newStages[index - 1], newStages[index]] = [newStages[index], newStages[index - 1]];
-      setStages(newStages);
-    } else if (direction === "down" && index < stages.length - 1) {
-      const newStages = [...stages];
-      [newStages[index], newStages[index + 1]] = [newStages[index + 1], newStages[index]];
-      setStages(newStages);
-    }
-  };
-
-  // Funções para manipular restrições de tempo
-  const handleAddTimeRestriction = (restriction: TimeRestriction) => {
-    setTimeRestrictions([...timeRestrictions, restriction]);
-  };
-
-  const handleUpdateTimeRestriction = (restrictionId: string, updatedRestriction: Partial<TimeRestriction>) => {
-    setTimeRestrictions(
-      timeRestrictions.map((r) => (r.id === restrictionId ? { ...r, ...updatedRestriction } : r))
-    );
-  };
-
-  const handleRemoveTimeRestriction = (restrictionId: string) => {
-    setTimeRestrictions(timeRestrictions.filter((r) => r.id !== restrictionId));
+    
+    // Atualizar novo tipo
+    setType(newType);
   };
   
-  // Funções para manipular condições avançadas
-  const toggleAdvancedStartCondition = () => {
-    if (!useAdvancedStartCondition) {
-      // Ao ativar o modo avançado, converter condição simples para avançada
-      setAdvancedStartCondition(simpleToAdvanced(selectedStartConditionType, startTags));
+  const addTagToCondition = (target: "start" | "stop", tag: string) => {
+    if (!tag) return;
+
+    // Save tag to the global tag list for reuse
+    if (!tags.includes(tag)) {
+      addTag(tag);
+    }
+    
+    if (target === "start") {
+      if (!startCondition.tags.includes(tag)) {
+        setStartCondition({
+          ...startCondition,
+          tags: [...startCondition.tags, tag],
+        });
+        notifyChanges();
+      }
     } else {
-      // Ao desativar o modo avançado, tentar converter para condição simples
-      const simpleCondition = advancedToSimple(advancedStartCondition);
-      if (simpleCondition) {
-        setSelectedStartConditionType(simpleCondition.type);
-        setStartTags(simpleCondition.tags);
-      } else {
-        // Se não for possível simplificar, mostrar aviso
-        const confirmSimplify = window.confirm(
-          "A condição avançada não pode ser simplificada automaticamente. Ao mudar para o modo simples, você perderá a configuração avançada. Deseja continuar?"
-        );
-        if (confirmSimplify) {
-          setStartTags([]);
-          setSelectedStartConditionType("AND");
-        } else {
-          return; // Cancelar a mudança
-        }
+      if (!stopCondition.tags.includes(tag)) {
+        setStopCondition({
+          ...stopCondition,
+          tags: [...stopCondition.tags, tag],
+        });
+        notifyChanges();
       }
     }
-    setUseAdvancedStartCondition(!useAdvancedStartCondition);
+    setNewTag("");
+    setShowTagSelector(null);
   };
-
-  const toggleAdvancedStopCondition = () => {
-    if (!useAdvancedStopCondition) {
-      setAdvancedStopCondition(simpleToAdvanced(selectedStopConditionType, stopTags));
+  
+  const removeTag = (target: "start" | "stop", tag: string) => {
+    if (target === "start") {
+      setStartCondition({
+        ...startCondition,
+        tags: startCondition.tags.filter(t => t !== tag),
+      });
     } else {
-      const simpleCondition = advancedToSimple(advancedStopCondition);
-      if (simpleCondition) {
-        setSelectedStopConditionType(simpleCondition.type);
-        setStopTags(simpleCondition.tags);
-      } else {
-        const confirmSimplify = window.confirm(
-          "A condição avançada não pode ser simplificada automaticamente. Ao mudar para o modo simples, você perderá a configuração avançada. Deseja continuar?"
-        );
-        if (confirmSimplify) {
-          setStopTags([]);
-          setSelectedStopConditionType("AND");
-        } else {
-          return;
-        }
-      }
+      setStopCondition({
+        ...stopCondition,
+        tags: stopCondition.tags.filter(t => t !== tag),
+      });
     }
-    setUseAdvancedStopCondition(!useAdvancedStopCondition);
+    notifyChanges();
+  };
+  
+  const toggleConditionType = (target: "start" | "stop") => {
+    if (target === "start") {
+      setStartCondition({
+        ...startCondition,
+        type: startCondition.type === "AND" ? "OR" : "AND",
+      });
+    } else {
+      setStopCondition({
+        ...stopCondition,
+        type: stopCondition.type === "AND" ? "OR" : "AND",
+      });
+    }
+    notifyChanges();
+  };
+  
+  const addStage = () => {
+    if (!newStage.name) return;
+    
+    // Para typebot, não precisamos verificar o conteúdo
+    if (type !== 'typebot' && !newStage.content) return;
+    
+    try {
+      // Para typebot, usamos o número do estágio
+      const stageToAdd: Omit<SequenceStage, "id"> = {
+        ...newStage
+      };
+      
+      if (type === 'typebot') {
+        const nextStageNumber = stages.length + 1;
+        stageToAdd.typebotStage = `stg${nextStageNumber}`;
+        // Não definimos o content aqui - será definido na hora de salvar
+      }
+      
+      const stage: SequenceStage = {
+        ...stageToAdd,
+        id: uuidv4(),
+      };
+      
+      setStages([...stages, stage]);
+      notifyChanges();
+      
+      // Reset form com valor apropriado para o próximo estágio
+      if (type === 'typebot') {
+        const nextStageNumber = stages.length + 2;
+        setNewStage({
+          name: `Estágio ${nextStageNumber}`,
+          type: type,
+          content: "",
+          typebotStage: `stg${nextStageNumber}`,
+          delay: 60,
+          delayUnit: "minutes",
+        });
+      } else {
+        setNewStage({
+          name: "",
+          type: type,
+          content: "",
+          delay: 60,
+          delayUnit: "minutes",
+        });
+      }
+    } catch (error) {
+      console.error("Erro ao adicionar estágio:", error);
+      toast.error("Erro ao adicionar estágio. Verifique o console para mais detalhes.");
+    }
+  };
+  
+  const removeStage = (id: string) => {
+    try {
+      if (!id || !isValidUUID(id)) {
+        console.error("ID de estágio inválido:", id);
+        toast.error("ID de estágio inválido");
+        return;
+      }
+      
+      setStages(stages.filter(stage => stage.id !== id));
+      if (editingStageId === id) {
+        setEditingStageId(null);
+        setStageToEdit(null);
+      }
+      notifyChanges();
+    } catch (error) {
+      console.error("Erro ao remover estágio:", error);
+      toast.error("Erro ao remover estágio. Verifique o console para mais detalhes.");
+    }
   };
 
-  const handleUpdateAdvancedStartCondition = (condition: AdvancedCondition) => {
-    setAdvancedStartCondition(condition);
+  const startEditingStage = (stage: SequenceStage) => {
+    try {
+      if (!stage.id || !isValidUUID(stage.id)) {
+        console.error("ID de estágio inválido:", stage.id);
+        toast.error("ID de estágio inválido");
+        return;
+      }
+      
+      setEditingStageId(stage.id);
+      setStageToEdit({...stage});
+    } catch (error) {
+      console.error("Erro ao editar estágio:", error);
+      toast.error("Erro ao editar estágio. Verifique o console para mais detalhes.");
+    }
   };
 
-  const handleUpdateAdvancedStopCondition = (condition: AdvancedCondition) => {
-    setAdvancedStopCondition(condition);
+  const updateStage = (updatedStage: SequenceStage) => {
+    try {
+      if (!updatedStage.id || !isValidUUID(updatedStage.id)) {
+        console.error("ID de estágio inválido:", updatedStage.id);
+        toast.error("ID de estágio inválido");
+        return;
+      }
+      
+      setStages(stages.map(stage => 
+        stage.id === updatedStage.id ? updatedStage : stage
+      ));
+      setEditingStageId(null);
+      setStageToEdit(null);
+      toast.success("Estágio atualizado com sucesso");
+      notifyChanges();
+    } catch (error) {
+      console.error("Erro ao atualizar estágio:", error);
+      toast.error("Erro ao atualizar estágio. Verifique o console para mais detalhes.");
+    }
+  };
+  
+  const moveStage = (id: string, direction: "up" | "down") => {
+    try {
+      if (!id || !isValidUUID(id)) {
+        console.error("ID de estágio inválido:", id);
+        toast.error("ID de estágio inválido");
+        return;
+      }
+      
+      const index = stages.findIndex(s => s.id === id);
+      if (
+        (direction === "up" && index === 0) ||
+        (direction === "down" && index === stages.length - 1)
+      ) {
+        return;
+      }
+      
+      const newStages = [...stages];
+      const step = direction === "up" ? -1 : 1;
+      [newStages[index], newStages[index + step]] = [newStages[index + step], newStages[index]];
+      
+      setStages(newStages);
+      notifyChanges();
+    } catch (error) {
+      console.error("Erro ao mover estágio:", error);
+      toast.error("Erro ao mover estágio. Verifique o console para mais detalhes.");
+    }
+  };
+  
+  const addLocalRestriction = () => {
+    try {
+      const restriction: TimeRestriction = {
+        ...newRestriction,
+        id: uuidv4(),
+        isGlobal: false, // Sempre marca como restrição local
+      };
+      
+      setTimeRestrictions([...timeRestrictions, restriction]);
+      notifyChanges();
+      setShowAddRestrictionDialog(false);
+      
+      // Reset form
+      setNewRestriction({
+        name: "Nova restrição",
+        active: true,
+        days: [1, 2, 3, 4, 5],
+        startHour: 22,
+        startMinute: 0,
+        endHour: 8,
+        endMinute: 0,
+        isGlobal: false,
+      });
+    } catch (error) {
+      console.error("Erro ao adicionar restrição local:", error);
+      toast.error("Erro ao adicionar restrição local. Verifique o console para mais detalhes.");
+    }
   };
 
-  const onSubmit = (data: z.infer<typeof sequenceFormSchema>) => {
-    const sequenceData: Omit<Sequence, "id" | "createdAt" | "updatedAt"> = {
-      name: data.name,
-      instanceId: data.instanceId,
-      status: data.status,
-      type: data.type,
-      startCondition: {
-        type: selectedStartConditionType,
-        tags: startTags,
-      },
-      stopCondition: {
-        type: selectedStopConditionType,
-        tags: stopTags,
-      },
-      stages: stages.map((stage, index) => ({
-        ...stage,
-        orderIndex: index, // Garantir a ordem correta dos estágios
-      })),
-      timeRestrictions: timeRestrictions,
-      useAdvancedStartCondition,
-      useAdvancedStopCondition,
-      advancedStartCondition,
-      advancedStopCondition
+  const addGlobalRestriction = (restriction: TimeRestriction) => {
+    try {
+      // Verifica se já não existe na lista
+      if (timeRestrictions.some(r => r.id === restriction.id)) return;
+      
+      if (!restriction.id || !isValidUUID(restriction.id)) {
+        console.error("ID de restrição inválido:", restriction.id);
+        toast.error("ID de restrição inválido");
+        return;
+      }
+      
+      setTimeRestrictions([...timeRestrictions, { ...restriction, isGlobal: true }]);
+      notifyChanges();
+    } catch (error) {
+      console.error("Erro ao adicionar restrição global:", error);
+      toast.error("Erro ao adicionar restrição global. Verifique o console para mais detalhes.");
+    }
+  };
+  
+  const removeTimeRestriction = (id: string) => {
+    try {
+      if (!id || !isValidUUID(id)) {
+        console.error("ID de restrição inválido:", id);
+        toast.error("ID de restrição inválido");
+        return;
+      }
+      
+      setTimeRestrictions(timeRestrictions.filter(r => r.id !== id));
+      notifyChanges();
+    } catch (error) {
+      console.error("Erro ao remover restrição de tempo:", error);
+      toast.error("Erro ao remover restrição de tempo. Verifique o console para mais detalhes.");
+    }
+  };
+
+  const updateLocalRestriction = (updatedRestriction: TimeRestriction) => {
+    try {
+      // Apenas permite atualizar restrições locais
+      if (updatedRestriction.isGlobal) return;
+      
+      if (!updatedRestriction.id || !isValidUUID(updatedRestriction.id)) {
+        console.error("ID de restrição inválido:", updatedRestriction.id);
+        toast.error("ID de restrição inválido");
+        return;
+      }
+      
+      setTimeRestrictions(timeRestrictions.map(r => 
+        r.id === updatedRestriction.id ? updatedRestriction : r
+      ));
+      notifyChanges();
+    } catch (error) {
+      console.error("Erro ao atualizar restrição local:", error);
+      toast.error("Erro ao atualizar restrição local. Verifique o console para mais detalhes.");
+    }
+  };
+  
+  // Update the handleSubmit function to update all typebot stage content with the current URL when saving
+  const handleSubmit = () => {
+    try {
+      if (!name) {
+        toast.error("Por favor, informe um nome para a sequência.");
+        return;
+      }
+      
+      if (startCondition.tags.length === 0) {
+        toast.error("Por favor, adicione pelo menos uma tag para a condição de início.");
+        return;
+      }
+      
+      if (stages.length === 0) {
+        toast.error("Por favor, adicione pelo menos um estágio à sequência.");
+        return;
+      }
+      
+      if (!currentInstance || !currentInstance.id) {
+        toast.error("Nenhuma instância selecionada.");
+        return;
+      }
+      
+      // Validar a instanceId
+      if (!isValidUUID(currentInstance.id)) {
+        console.error("ID de instância inválido:", currentInstance.id);
+        toast.error("ID de instância inválido");
+        return;
+      }
+      
+      // Update all typebot stage content with the current URL before saving
+      let finalStages = [...stages];
+      if (type === 'typebot' && typebotUrl) {
+        finalStages = stages.map((stage, index) => ({
+          ...stage,
+          content: typebotUrl,
+          typebotStage: `stg${index + 1}`
+        }));
+      }
+      
+      const newSequence: Omit<Sequence, "id" | "createdAt" | "updatedAt"> = {
+        name,
+        type,
+        instanceId: currentInstance.id,
+        startCondition,
+        stopCondition,
+        stages: finalStages,
+        timeRestrictions,
+        status,
+      };
+      
+      console.log("Dados da sequência sendo enviados:", JSON.stringify(newSequence, null, 2));
+      
+      onSave(newSequence);
+    } catch (error) {
+      console.error("Erro ao enviar sequência:", error);
+      toast.error("Erro ao criar sequência. Verifique o console para mais detalhes.");
+    }
+  };
+  
+  // Separate global and local restrictions
+  const globalRestrictions = timeRestrictions.filter(r => r.isGlobal);
+  const localRestrictions = timeRestrictions.filter(r => !r.isGlobal);
+
+  // Verify if a global restriction is selected
+  const isGlobalRestrictionSelected = (id: string) => {
+    return timeRestrictions.some(r => r.id === id && r.isGlobal);
+  };
+  
+  // Check if form has been modified from initial values
+  const hasBeenModified = () => {
+    if (!sequence) return name !== '' || startCondition.tags.length > 0 || stages.length > 0;
+    
+    return (
+      name !== sequence.name ||
+      type !== sequence.type ||
+      JSON.stringify(startCondition) !== JSON.stringify(sequence.startCondition) ||
+      JSON.stringify(stopCondition) !== JSON.stringify(sequence.stopCondition) ||
+      JSON.stringify(stages) !== JSON.stringify(sequence.stages) ||
+      JSON.stringify(timeRestrictions) !== JSON.stringify(sequence.timeRestrictions) ||
+      status !== sequence.status
+    );
+  };
+  
+  // Close the dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showTagSelector && !(event.target as Element).closest('.tag-selector')) {
+        setShowTagSelector(null);
+      }
     };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showTagSelector]);
 
-    onSave(sequenceData);
+  const handleCancel = () => {
+    if (hasBeenModified()) {
+      toast.warning("Atenção! Você tem alterações não salvas. Deseja mesmo sair?", {
+        action: {
+          label: "Sim, sair",
+          onClick: () => onCancel()
+        },
+        cancel: {
+          label: "Não, continuar editando",
+          onClick: () => {}
+        }
+      });
+    } else {
+      onCancel();
+    }
+  };
+
+  const getActiveRestrictionCount = () => {
+    return timeRestrictions.filter(r => r.active).length;
   };
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="md:col-span-2 space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Informações Básicas</CardTitle>
-                <CardDescription>
-                  Defina as informações básicas da sequência
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Nome da Sequência</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Digite o nome da sequência" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="status"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Status</FormLabel>
-                        <Select value={field.value} onValueChange={field.onChange}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione um status" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="active">Ativa</SelectItem>
-                            <SelectItem value="inactive">Inativa</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
+    <div className="space-y-6">
+      {/* Header com botões - apenas botão de salvar */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-semibold">Configuração da Sequência</h2>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={handleCancel}
+          >
+            <X className="h-4 w-4 mr-1" />
+            Cancelar
+          </Button>
+          <Button 
+            variant="default" 
+            onClick={handleSubmit}
+            disabled={!hasBeenModified()}
+            className={!hasBeenModified() ? "opacity-50" : ""}
+          >
+            <Save className="h-4 w-4 mr-1" />
+            Salvar
+          </Button>
+        </div>
+      </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                  <FormField
-                    control={form.control}
-                    name="type"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Tipo de Sequência</FormLabel>
-                        <Select value={field.value} onValueChange={field.onChange}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione um tipo" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="message">Mensagem</SelectItem>
-                            <SelectItem value="pattern">Padrão</SelectItem>
-                            <SelectItem value="typebot">Typebot</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormDescription>
-                          Define como o conteúdo da mensagem será processado
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="instanceId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Instância</FormLabel>
-                        <FormControl>
-                          <Input type="hidden" {...field} />
-                        </FormControl>
-                        <div className="h-10 px-3 py-2 rounded-md border border-input bg-background text-sm">
-                          {currentInstance?.name || "Selecione uma instância"}
-                        </div>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </CardContent>
-            </Card>
+      <Tabs 
+        defaultValue="basic"
+        value={currentTab}
+        onValueChange={setCurrentTab}
+      >
+        <TabsList className="w-full">
+          <TabsTrigger value="basic" className="flex-1">Informações Básicas</TabsTrigger>
+          <TabsTrigger value="stages" className="flex-1">
+            Estágios
+            <Badge variant="secondary" className="ml-2">{stages.length}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="restrictions" className="flex-1">
+            Restrições de Horário
+            <Badge variant="secondary" className="ml-2">{getActiveRestrictionCount()}</Badge>
+          </TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="basic" className="pt-6">
+          <div className="grid gap-6 grid-cols-1">
+            {/* Basic Info */}
+            <BasicInfoSection
+              name={name}
+              setName={setName}
+              status={status}
+              setStatus={setStatus}
+              type={type}
+              setType={setType}
+              notifyChanges={notifyChanges}
+              onTypeChange={handleTypeChange}
+              isEditMode={!!sequence} // Passa true se estiver editando uma sequência existente
+            />
 
-            <Tabs defaultValue="start-condition">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="start-condition">Condições de Início</TabsTrigger>
-                <TabsTrigger value="stop-condition">Condições de Parada</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="start-condition">
-                <Card>
-                  <CardHeader>
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <CardTitle>Condições de Início</CardTitle>
-                        <CardDescription>
-                          Defina quando esta sequência deve ser ativada
-                        </CardDescription>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Switch
-                          id="advanced-start-condition"
-                          checked={useAdvancedStartCondition}
-                          onCheckedChange={toggleAdvancedStartCondition}
-                        />
-                        <Label htmlFor="advanced-start-condition">Modo Avançado</Label>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    {useAdvancedStartCondition ? (
-                      <AdvancedConditionBuilder
-                        condition={advancedStartCondition}
-                        availableTags={availableTags}
-                        onChange={handleUpdateAdvancedStartCondition}
-                        onToggleSimpleMode={toggleAdvancedStartCondition}
-                      />
-                    ) : (
-                      <>
-                        <div className="mb-4">
-                          <Label htmlFor="start-condition-type">Operador</Label>
-                          <Select
-                            value={selectedStartConditionType}
-                            onValueChange={(value) => setSelectedStartConditionType(value as "AND" | "OR")}
-                          >
-                            <SelectTrigger id="start-condition-type">
-                              <SelectValue placeholder="Selecione um operador" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="AND">E (AND)</SelectItem>
-                              <SelectItem value="OR">OU (OR)</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            {selectedStartConditionType === "AND"
-                              ? "O contato deve ter TODAS as tags selecionadas"
-                              : "O contato deve ter PELO MENOS UMA das tags selecionadas"}
-                          </p>
-                        </div>
-
-                        <div className="mb-4">
-                          <Label>Tags</Label>
-                          <div className="flex flex-wrap gap-2 mb-2">
-                            {startTags.map((tag) => (
-                              <Badge key={tag} variant="secondary" className="flex items-center gap-1">
-                                <Tag className="h-3 w-3" />
-                                {tag}
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-4 w-4 ml-1 p-0"
-                                  onClick={() => removeStartTag(tag)}
-                                >
-                                  <X className="h-3 w-3" />
-                                  <span className="sr-only">Remover tag</span>
-                                </Button>
-                              </Badge>
-                            ))}
-                            {startTags.length === 0 && (
-                              <div className="text-sm text-muted-foreground">
-                                Nenhuma tag adicionada
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="flex gap-2">
-                            <Select value={newStartTag} onValueChange={setNewStartTag}>
-                              <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Selecionar tag" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectGroup>
-                                  {availableTags.map((tag) => (
-                                    <SelectItem key={tag} value={tag}>
-                                      {tag}
-                                    </SelectItem>
-                                  ))}
-                                </SelectGroup>
-                              </SelectContent>
-                            </Select>
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              onClick={() => addStartTag(newStartTag)}
-                              disabled={!newStartTag}
-                            >
-                              Adicionar
-                            </Button>
-                          </div>
-                        </div>
-
-                        <Button 
-                          type="button" 
-                          variant="outline" 
-                          onClick={toggleAdvancedStartCondition}
-                          className="w-full"
-                        >
-                          Mudar para modo avançado
-                        </Button>
-                      </>
-                    )}
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              <TabsContent value="stop-condition">
-                <Card>
-                  <CardHeader>
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <CardTitle>Condições de Parada</CardTitle>
-                        <CardDescription>
-                          Defina quando esta sequência deve ser interrompida
-                        </CardDescription>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Switch
-                          id="advanced-stop-condition"
-                          checked={useAdvancedStopCondition}
-                          onCheckedChange={toggleAdvancedStopCondition}
-                        />
-                        <Label htmlFor="advanced-stop-condition">Modo Avançado</Label>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    {useAdvancedStopCondition ? (
-                      <AdvancedConditionBuilder
-                        condition={advancedStopCondition}
-                        availableTags={availableTags}
-                        onChange={handleUpdateAdvancedStopCondition}
-                        onToggleSimpleMode={toggleAdvancedStopCondition}
-                      />
-                    ) : (
-                      <>
-                        <div className="mb-4">
-                          <Label htmlFor="stop-condition-type">Operador</Label>
-                          <Select
-                            value={selectedStopConditionType}
-                            onValueChange={(value) => setSelectedStopConditionType(value as "AND" | "OR")}
-                          >
-                            <SelectTrigger id="stop-condition-type">
-                              <SelectValue placeholder="Selecione um operador" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="AND">E (AND)</SelectItem>
-                              <SelectItem value="OR">OU (OR)</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            {selectedStopConditionType === "AND"
-                              ? "O contato deve ter TODAS as tags selecionadas para parar a sequência"
-                              : "O contato deve ter PELO MENOS UMA das tags selecionadas para parar a sequência"}
-                          </p>
-                        </div>
-
-                        <div className="mb-4">
-                          <Label>Tags</Label>
-                          <div className="flex flex-wrap gap-2 mb-2">
-                            {stopTags.map((tag) => (
-                              <Badge key={tag} variant="secondary" className="flex items-center gap-1">
-                                <Tag className="h-3 w-3" />
-                                {tag}
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-4 w-4 ml-1 p-0"
-                                  onClick={() => removeStopTag(tag)}
-                                >
-                                  <X className="h-3 w-3" />
-                                  <span className="sr-only">Remover tag</span>
-                                </Button>
-                              </Badge>
-                            ))}
-                            {stopTags.length === 0 && (
-                              <div className="text-sm text-muted-foreground">
-                                Nenhuma tag adicionada
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="flex gap-2">
-                            <Select value={newStopTag} onValueChange={setNewStopTag}>
-                              <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Selecionar tag" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectGroup>
-                                  {availableTags.map((tag) => (
-                                    <SelectItem key={tag} value={tag}>
-                                      {tag}
-                                    </SelectItem>
-                                  ))}
-                                </SelectGroup>
-                              </SelectContent>
-                            </Select>
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              onClick={() => addStopTag(newStopTag)}
-                              disabled={!newStopTag}
-                            >
-                              Adicionar
-                            </Button>
-                          </div>
-                        </div>
-
-                        <Button 
-                          type="button" 
-                          variant="outline" 
-                          onClick={toggleAdvancedStopCondition}
-                          className="w-full"
-                        >
-                          Mudar para modo avançado
-                        </Button>
-                      </>
-                    )}
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            </Tabs>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Estágios da Sequência</CardTitle>
-                <CardDescription>
-                  Defina as mensagens e atrasos de cada estágio da sequência
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {stages.length === 0 && (
-                    <div className="text-center p-8 border rounded-md bg-muted/30">
-                      <p className="text-muted-foreground mb-4">
-                        Nenhum estágio adicionado à sequência
-                      </p>
-                      <Button type="button" onClick={() => handleAddStage({
-                        name: `Estágio ${stages.length + 1}`,
-                        type: form.getValues("type"),
-                        content: "",
-                        delay: 60,
-                        delayUnit: "minutes"
-                      })}>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Adicionar primeiro estágio
-                      </Button>
-                    </div>
-                  )}
-
-                  {stages.map((stage, index) => (
-                    <div key={stage.id} className="border rounded-md p-4 bg-card relative">
-                      <div className="absolute top-2 right-2 flex space-x-1">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => handleMoveStage(stage.id, "up")}
-                          disabled={index === 0}
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            className="lucide lucide-arrow-up"
-                          >
-                            <path d="m5 11 7-7 7 7" />
-                            <path d="M12 4v16" />
-                          </svg>
-                          <span className="sr-only">Mover para cima</span>
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => handleMoveStage(stage.id, "down")}
-                          disabled={index === stages.length - 1}
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            className="lucide lucide-arrow-down"
-                          >
-                            <path d="M12 5v14" />
-                            <path d="m19 12-7 7-7-7" />
-                          </svg>
-                          <span className="sr-only">Mover para baixo</span>
-                        </Button>
-                      </div>
-
-                      <div className="grid grid-cols-1 gap-4">
-                        <div className="flex items-center gap-2">
-                          <div className="rounded-full h-6 w-6 bg-primary text-primary-foreground flex items-center justify-center text-sm font-medium">
-                            {index + 1}
-                          </div>
-                          <h3 className="text-lg font-medium">
-                            {stage.name || `Estágio ${index + 1}`}
-                          </h3>
-                          <Badge variant="outline" className={cn(
-                            "ml-2 flex items-center gap-1",
-                            stage.type === "message" && "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/30",
-                            stage.type === "pattern" && "bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/30",
-                            stage.type === "typebot" && "bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/30"
-                          )}>
-                            {stage.type === "message" && <MessageCircle className="h-3 w-3" />}
-                            {stage.type === "pattern" && <FileCode className="h-3 w-3" />}
-                            {stage.type === "typebot" && <Bot className="h-3 w-3" />}
-                            {stage.type === "message" ? "Mensagem" : 
-                             stage.type === "pattern" ? "Padrão" : "Typebot"}
-                          </Badge>
-                        </div>
-                        
-                        <StageBuilder
-                          stage={stage}
-                          sequenceType={form.getValues("type")}
-                          onSave={(updatedStage) => handleUpdateStage(stage.id, updatedStage)}
-                          onRemove={() => handleRemoveStage(stage.id)}
-                        />
-                      </div>
-                    </div>
-                  ))}
-
-                  {stages.length > 0 && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full"
-                      onClick={() => handleAddStage({
-                        name: `Estágio ${stages.length + 1}`,
-                        type: form.getValues("type"),
-                        content: "",
-                        delay: 60,
-                        delayUnit: "minutes"
-                      })}
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Adicionar estágio
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Restrições de Horário</CardTitle>
-                <CardDescription>
-                  Defina horários em que as mensagens não serão enviadas
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <TimeRestrictionBuilder
-                  restrictions={timeRestrictions}
-                  globalRestrictions={globalRestrictions}
-                  onAddRestriction={handleAddTimeRestriction}
-                  onUpdateRestriction={handleUpdateTimeRestriction}
-                  onRemoveRestriction={handleRemoveTimeRestriction}
-                />
-              </CardContent>
-            </Card>
-
-            <div className="flex justify-between">
-              <Button type="button" variant="ghost" onClick={onCancel}>
-                <ArrowLeftCircle className="h-4 w-4 mr-2" />
-                Cancelar
-              </Button>
-              <Button type="submit">Salvar Sequência</Button>
+            <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
+              {/* Start Condition */}
+              <TagConditionSection
+                title="Condição de Início"
+                description="Define quando um contato deve entrar nesta sequência"
+                badgeColor="bg-green-600"
+                condition={startCondition}
+                setCondition={setStartCondition}
+                availableTags={tags}
+                newTag={newTag}
+                setNewTag={setNewTag}
+                showTagSelector={showTagSelector === "start"}
+                setShowTagSelector={() => setShowTagSelector("start")}
+                addTagToCondition={(tag) => addTagToCondition("start", tag)}
+                removeTag={(tag) => removeTag("start", tag)}
+                toggleConditionType={() => toggleConditionType("start")}
+                notifyChanges={notifyChanges}
+              />
+              
+              {/* Stop Condition */}
+              <TagConditionSection
+                title="Condição de Parada"
+                description="Define quando um contato deve ser removido desta sequência"
+                badgeColor="bg-red-600"
+                condition={stopCondition}
+                setCondition={setStopCondition}
+                availableTags={tags}
+                newTag={newTag}
+                setNewTag={setNewTag}
+                showTagSelector={showTagSelector === "stop"}
+                setShowTagSelector={() => setShowTagSelector("stop")}
+                addTagToCondition={(tag) => addTagToCondition("stop", tag)}
+                removeTag={(tag) => removeTag("stop", tag)}
+                toggleConditionType={() => toggleConditionType("stop")}
+                notifyChanges={notifyChanges}
+              />
             </div>
           </div>
-        </div>
-      </form>
-    </Form>
+        </TabsContent>
+        
+        <TabsContent value="stages" className="pt-6">
+          <StagesSection 
+            stages={stages}
+            editingStageId={editingStageId}
+            stageToEdit={stageToEdit}
+            sequenceType={type}
+            typebotUrl={typebotUrl}
+            setTypebotUrl={setTypebotUrl}
+            onEdit={startEditingStage}
+            onUpdate={updateStage}
+            onCancel={() => {
+              setEditingStageId(null);
+              setStageToEdit(null);
+            }}
+            onRemove={removeStage}
+            onMove={moveStage}
+            newStage={newStage}
+            setNewStage={setNewStage}
+            addStage={addStage}
+            notifyChanges={notifyChanges}
+          />
+        </TabsContent>
+        
+        <TabsContent value="restrictions" className="pt-6">
+          <TimeRestrictionsSection
+            localRestrictions={localRestrictions}
+            globalRestrictions={globalRestrictions}
+            showAddRestrictionDialog={showAddRestrictionDialog}
+            setShowAddRestrictionDialog={setShowAddRestrictionDialog}
+            showGlobalRestrictionsDialog={showGlobalRestrictionsDialog}
+            setShowGlobalRestrictionsDialog={setShowGlobalRestrictionsDialog}
+            onRemoveRestriction={removeTimeRestriction}
+            onUpdateRestriction={updateLocalRestriction}
+            onAddGlobalRestriction={addGlobalRestriction}
+            dayNames={dayNames}
+            availableGlobalRestrictions={availableGlobalRestrictions}
+            NewRestrictionDialog={NewRestrictionDialog}
+            isGlobalRestrictionSelected={isGlobalRestrictionSelected}
+          />
+        </TabsContent>
+      </Tabs>
+      
+      {/* Dialog for adding restriction - Now as a standalone Dialog */}
+      <Dialog open={showAddRestrictionDialog} onOpenChange={setShowAddRestrictionDialog}>
+        <NewRestrictionDialog 
+          open={showAddRestrictionDialog}
+          onOpenChange={setShowAddRestrictionDialog}
+          newRestriction={newRestriction}
+          setNewRestriction={setNewRestriction}
+          addLocalRestriction={addLocalRestriction}
+          dayNames={dayNames}
+        />
+      </Dialog>
+    </div>
   );
 }
