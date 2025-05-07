@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -23,6 +22,7 @@ interface BasicInfoSectionProps {
   webhookId?: string;
   setWebhookId: (id: string) => void;
   instanceId?: string;
+  sequenceId?: string; // Add sequenceId prop for edit mode
 }
 
 export function BasicInfoSection({ 
@@ -39,7 +39,8 @@ export function BasicInfoSection({
   setWebhookEnabled,
   webhookId,
   setWebhookId,
-  instanceId
+  instanceId,
+  sequenceId // Include sequenceId in destructuring
 }: BasicInfoSectionProps) {
   const [showTypeChangeAlert, setShowTypeChangeAlert] = useState(false);
   const [pendingType, setPendingType] = useState<"message" | "pattern" | "typebot" | null>(null);
@@ -84,16 +85,33 @@ export function BasicInfoSection({
     setIsValidatingWebhookId(true);
     
     try {
-      const { data, error } = await supabase.rpc('is_webhook_id_unique_for_client', {
-        p_webhook_id: id,
-        p_instance_id: instanceId
-      });
+      // Use the new function that excludes the current sequence when in edit mode
+      if (isEditMode && sequenceId) {
+        const { data, error } = await supabase.rpc('is_webhook_id_unique_for_client_except_self', {
+          p_webhook_id: id,
+          p_instance_id: instanceId,
+          p_sequence_id: sequenceId
+        });
 
-      if (error) {
-        console.error('Error validating webhook ID:', error);
-        setIsWebhookIdUnique(true); // Assume unique in case of error
+        if (error) {
+          console.error('Error validating webhook ID:', error);
+          setIsWebhookIdUnique(true); // Assume unique in case of error
+        } else {
+          setIsWebhookIdUnique(!!data);
+        }
       } else {
-        setIsWebhookIdUnique(!!data);
+        // For new sequences, use the original function
+        const { data, error } = await supabase.rpc('is_webhook_id_unique_for_client', {
+          p_webhook_id: id,
+          p_instance_id: instanceId
+        });
+
+        if (error) {
+          console.error('Error validating webhook ID:', error);
+          setIsWebhookIdUnique(true); // Assume unique in case of error
+        } else {
+          setIsWebhookIdUnique(!!data);
+        }
       }
     } catch (error) {
       console.error('Error validating webhook ID:', error);
@@ -112,7 +130,7 @@ export function BasicInfoSection({
       
       return () => clearTimeout(timeoutId);
     }
-  }, [webhookId, webhookEnabled, instanceId]);
+  }, [webhookId, webhookEnabled, instanceId, sequenceId, isEditMode]);
 
   const handleTypeChange = (newType: "message" | "pattern" | "typebot") => {
     if (newType !== type) {

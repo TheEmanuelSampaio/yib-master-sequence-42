@@ -729,6 +729,14 @@ export type Database = {
         Args: { p_webhook_id: string; p_instance_id: string }
         Returns: boolean
       }
+      is_webhook_id_unique_for_client_except_self: {
+        Args: {
+          p_webhook_id: string
+          p_instance_id: string
+          p_sequence_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       user_role: "super_admin" | "admin"

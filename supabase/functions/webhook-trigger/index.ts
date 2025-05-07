@@ -82,26 +82,43 @@ serve(async (req) => {
 
     // Authenticate with token
     console.log("[SEGURANÇA] Verificando token de autenticação...");
+    
+    // Debug: Log the token prefix to help debug without revealing full token
+    console.log("[SEGURANÇA] Token prefix recebido: " + authToken.substring(0, 5) + "..." + 
+                authToken.substring(authToken.length - 5));
+    
+    // First check profiles table
     const { data: profileData, error: profileError } = await supabase
       .from("profiles")
-      .select("id, account_name, role")
+      .select("id, account_name, role, auth_token")
       .eq("auth_token", authToken)
       .maybeSingle();
       
+    console.log("[SEGURANÇA] Resultado da busca em profiles:", 
+                profileError ? "ERRO: " + profileError.message : 
+                (profileData ? "ENCONTRADO" : "NÃO ENCONTRADO"));
+    
     if (profileError || !profileData) {
-      console.error("[SEGURANÇA] Falha na autenticação: " + (profileError?.message || "Token inválido"));
+      console.log("[SEGURANÇA] Falha na autenticação por profile, tentando client token");
       
       // Check if token is a client token
       const { data: clientData, error: clientError } = await supabase
         .from("clients")
-        .select("id, account_name")
+        .select("id, account_name, auth_token")
         .eq("auth_token", authToken)
         .maybeSingle();
         
+      console.log("[SEGURANÇA] Resultado da busca em clients:", 
+                  clientError ? "ERRO: " + clientError.message : 
+                  (clientData ? "ENCONTRADO" : "NÃO ENCONTRADO"));
+      
       if (clientError || !clientData) {
-        console.error("[SEGURANÇA] Falha na autenticação de cliente: " + (clientError?.message || "Token inválido"));
+        console.error("[SEGURANÇA] Falha na autenticação de cliente: Token inválido");
         return new Response(
-          JSON.stringify({ error: "Autenticação falhou. Token inválido." }),
+          JSON.stringify({ 
+            error: "Autenticação falhou. Token inválido.",
+            details: "O token fornecido não corresponde a nenhum usuário ou cliente"
+          }),
           {
             status: 401, 
             headers: { ...corsHeaders, "Content-Type": "application/json" },
