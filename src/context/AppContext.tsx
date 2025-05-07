@@ -79,6 +79,8 @@ interface ExtendedSequence {
   sequence_time_restrictions: any[];
   localTimeRestrictions?: TimeRestriction[]; // Add this property to the interface
   type?: "message" | "pattern" | "typebot"; // Make type optional since it might not exist in database response
+  webhook_enabled?: boolean; // Add webhook_enabled property
+  webhook_id?: string; // Add webhook_id property
 }
 
 // Create a default context value to prevent "undefined" errors
@@ -288,8 +290,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       
       if (sequencesError) throw sequencesError;
       
-      // Buscar também as restrições locais para cada sequência
-      // Adicionar essas informações aos objetos de sequência
+      // Buscar sequências e seus estágios
+      const { data: sequencesData, error: sequencesError } = await supabase
+        .from('sequences')
+        .select(`
+          *,
+          sequence_stages (*),
+          sequence_time_restrictions (
+            *,
+            time_restrictions (*)
+          )
+        `)
+        .order('created_at', { ascending: false });
+      
+      if (sequencesError) throw sequencesError;
+      
+      // Processar sequências
       const processedSequences = sequencesData as ExtendedSequence[];
       
       for (const sequence of processedSequences) {
@@ -400,8 +416,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           createdAt: sequence.created_at,
           updatedAt: sequence.updated_at,
           createdBy: sequence.created_by,
-          webhookEnabled: sequence.webhook_enabled || false, // Add the webhook enabled field
-          webhookId: sequence.webhook_id || undefined // Add the webhook ID field
+          webhookEnabled: sequence.webhook_enabled || false,
+          webhookId: sequence.webhook_id || undefined
         };
       });
       
@@ -1056,7 +1072,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const addTimeRestriction = async (restrictionData: Omit<TimeRestriction, "id">) => {
     try {
       if (!user) {
-        toast.error("Usuário não autenticado");
+        toast.error("Usu��rio não autenticado");
         return;
       }
       
