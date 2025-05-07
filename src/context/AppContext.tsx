@@ -553,7 +553,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           id: sequence.id,
           name: sequence.name,
           instanceId: sequence.instance_id,
-          type: sequenceType, // Fix the error here
+          type: sequence.type || "message", // Use the type from the sequence or default to message
           startCondition,
           stopCondition,
           stages,
