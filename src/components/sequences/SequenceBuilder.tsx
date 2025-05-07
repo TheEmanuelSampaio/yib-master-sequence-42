@@ -1,419 +1,707 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { v4 as uuidv4 } from 'uuid';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { useState, useEffect } from "react";
+import { Save, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Plus, X, GripVertical, Settings } from "lucide-react";
-import { Stage, Sequence, SequenceStage } from "@/types";
-import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
-import { toast } from "sonner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { useApp } from "@/context/AppContext";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
-import { Separator } from "@/components/ui/separator";
-import { TagConditionSection } from "@/components/sequences/TagConditionSection";
-import { useAdvancedConditions } from "@/hooks/useAdvancedConditions";
-import { TimeRestrictionSelector } from "@/components/sequences/TimeRestrictionSelector";
+import { Sequence, SequenceStage, TagCondition, TimeRestriction } from "@/types";
+import { toast } from "sonner";
+import { v4 as uuidv4 } from "uuid";
+import { isValidUUID } from "@/integrations/supabase/client";
+import { BasicInfoSection } from "./BasicInfoSection";
+import { TagConditionSection } from "./TagConditionSection";
+import { StagesSection } from "./StagesSection";
+import { TimeRestrictionsSection } from "./TimeRestrictionsSection";
+import { NewRestrictionDialog } from "./NewRestrictionDialog";
+import { Dialog } from "@/components/ui/dialog";
 
 interface SequenceBuilderProps {
   sequence?: Sequence;
-  onSave: (sequence: Omit<Sequence, "id" | "createdAt" | "updatedAt">) => Promise<void>;
+  onSave: (sequence: Omit<Sequence, "id" | "createdAt" | "updatedAt">) => void;
   onCancel: () => void;
-  onChangesMade: () => void;
+  onChangesMade?: () => void;
 }
 
-export const SequenceBuilder: React.FC<SequenceBuilderProps> = ({ sequence, onSave, onCancel, onChangesMade }) => {
-  const { currentInstance, tags: availableTags, timeRestrictions: globalTimeRestrictions } = useApp();
+export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: SequenceBuilderProps) {
+  const { tags, currentInstance, timeRestrictions: globalTimeRestrictions, addTag } = useApp();
+  
   const [name, setName] = useState(sequence?.name || "");
-  const [stages, setStages] = useState<SequenceStage[]>(sequence?.stages || []);
-  const [newStageContent, setNewStageContent] = useState("");
-  const [newStageType, setNewStageType] = useState<"message" | "pattern" | "typebot">("message");
-  const [newStageName, setNewStageName] = useState("");
-  const [newStageDelay, setNewStageDelay] = useState(1);
-  const [newStageDelayUnit, setNewStageDelayUnit] = useState<"minutes" | "hours" | "days">("minutes");
-  const [status, setStatus] = useState<"active" | "inactive">(sequence?.status || "active");
-  const [saving, setSaving] = useState(false);
-  const [selectedTimeRestrictions, setSelectedTimeRestrictions] = useState(sequence?.timeRestrictions || []);
-  const [sequenceType, setSequenceType] = useState<"message" | "pattern" | "typebot">(sequence?.type || "message");
+  const [type, setType] = useState<"message" | "pattern" | "typebot">(
+    sequence?.type || "message"
+  );
+  const [startCondition, setStartCondition] = useState<TagCondition>(
+    sequence?.startCondition || { type: "AND", tags: [] }
+  );
+  const [stopCondition, setStopCondition] = useState<TagCondition>(
+    sequence?.stopCondition || { type: "OR", tags: [] }
+  );
+  const [stages, setStages] = useState<SequenceStage[]>(
+    sequence?.stages || []
+  );
+  const [timeRestrictions, setTimeRestrictions] = useState<TimeRestriction[]>(
+    sequence?.timeRestrictions || []
+  );
+  const [status, setStatus] = useState<"active" | "inactive">(
+    sequence?.status || "active"
+  );
+  const [typebotUrl, setTypebotUrl] = useState<string>(
+    sequence?.type === "typebot" && stages[0]?.content ? stages[0].content : ""
+  );
   
-  // Tag conditions using the custom hook
-  const {
-    conditionType: startConditionType,
-    tags: startTags,
-    useAdvancedMode: useAdvancedStartCondition,
-    advancedCondition: advancedStartCondition,
-    setAdvancedCondition: setAdvancedStartCondition,
-    setUseAdvancedMode: setUseAdvancedStartCondition,
-    toggleConditionType: toggleStartConditionType,
-    addTag: addStartTag,
-    removeTag: removeStartTag,
-  } = useAdvancedConditions(sequence?.startCondition || { type: "AND", tags: [] });
+  const [showTagSelector, setShowTagSelector] = useState<"start" | "stop" | null>(null);
+  const [newTag, setNewTag] = useState("");
   
-  const {
-    conditionType: stopConditionType,
-    tags: stopTags,
-    useAdvancedMode: useAdvancedStopCondition,
-    advancedCondition: advancedStopCondition,
-    setAdvancedCondition: setAdvancedStopCondition,
-    setUseAdvancedMode: setUseAdvancedStopCondition,
-    toggleConditionType: toggleStopConditionType,
-    addTag: addStopTag,
-    removeTag: removeStopTag,
-  } = useAdvancedConditions(sequence?.stopCondition || { type: "OR", tags: [] });
+  const [newStage, setNewStage] = useState<Omit<SequenceStage, "id">>({
+    name: "",
+    type: type,
+    content: "",
+    delay: 60,
+    delayUnit: "minutes",
+  });
   
-  const [newStartTag, setNewStartTag] = useState("");
-  const [showStartTagSelector, setShowStartTagSelector] = useState(false);
-  const [newStopTag, setNewStopTag] = useState("");
-  const [showStopTagSelector, setShowStopTagSelector] = useState(false);
-  
+  // Update newStage.type when the sequence type changes
   useEffect(() => {
-    onChangesMade();
-  }, [name, stages, status, startTags, stopTags, selectedTimeRestrictions, onChangesMade]);
+    setNewStage(prev => ({
+      ...prev,
+      type: type
+    }));
+    
+    // Para typebot, podemos pré-configurar o nome do estágio
+    if (type === 'typebot') {
+      const nextStageNumber = stages.length + 1;
+      setNewStage(prev => ({
+        ...prev,
+        name: `Estágio ${nextStageNumber}`,
+        typebotStage: `stg${nextStageNumber}`,
+      }));
+    }
+  }, [type, stages.length]);
   
-  const addStage = () => {
-    if (!newStageContent.trim() || !newStageName.trim()) {
-      toast.error("Conteúdo e nome do estágio são obrigatórios");
-      return;
+  const [newRestriction, setNewRestriction] = useState<Omit<TimeRestriction, "id">>({
+    name: "Nova restrição",
+    active: true,
+    days: [1, 2, 3, 4, 5], // Monday to Friday
+    startHour: 22,
+    startMinute: 0,
+    endHour: 8,
+    endMinute: 0,
+    isGlobal: false, // Por padrão, novas restrições são locais
+  });
+
+  const [showTagDialog, setShowTagDialog] = useState(false);
+  const [showGlobalRestrictionsDialog, setShowGlobalRestrictionsDialog] = useState(false);
+  const [editingStageId, setEditingStageId] = useState<string | null>(null);
+  const [stageToEdit, setStageToEdit] = useState<SequenceStage | null>(null);
+  const [showAddRestrictionDialog, setShowAddRestrictionDialog] = useState(false);
+  const [currentTab, setCurrentTab] = useState("basic");
+  
+  // Define dayNames for use throughout the component
+  const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+  
+  // Filtra restrições globais disponíveis (que não estão já adicionadas à sequência)
+  const availableGlobalRestrictions = globalTimeRestrictions.filter(
+    gr => !timeRestrictions.some(tr => tr.id === gr.id && tr.isGlobal)
+  );
+
+  // Notify parent component when changes are made
+  const notifyChanges = () => {
+    if (onChangesMade) {
+      onChangesMade();
+    }
+  };
+
+  // Função para lidar com a mudança de tipo da sequência
+  const handleTypeChange = (newType: "message" | "pattern" | "typebot") => {
+    console.log(`Mudando tipo da sequência para: ${newType}`);
+    
+    // Preservar IDs, mas limpar conteúdos dos estágios
+    if (stages.length > 0) {
+      const updatedStages = stages.map((stage, index) => {
+        // Manter o ID e alguns campos básicos, mas limpar o conteúdo específico
+        return {
+          id: stage.id,
+          name: stage.name,
+          type: newType, // Atualizar para o novo tipo
+          content: newType === 'typebot' ? typebotUrl : "", // Para typebot, usar a URL do typebot
+          delay: stage.delay,
+          delayUnit: stage.delayUnit,
+          typebotStage: newType === 'typebot' ? `stg${index + 1}` : undefined
+        };
+      });
+      
+      // Se mudar para typebot, ajustar alguns campos necessários
+      if (newType === 'typebot') {
+        // Não vamos mais sobrescrever o array de estágios
+        // Apenas garantir que todos os estágios tenham os typebotStage corretos
+        const finalStages = updatedStages.map((stage, index) => ({
+          ...stage,
+          typebotStage: `stg${index + 1}`
+        }));
+        
+        setStages(finalStages);
+      } else {
+        // Para outros tipos, apenas limpar os conteúdos
+        setStages(updatedStages);
+      }
+      
+      console.log("Estágios resetados com sucesso, mantendo IDs.");
+      notifyChanges();
     }
     
-    const newStage: SequenceStage = {
-      id: uuidv4(),
-      name: newStageName.trim(),
-      type: newStageType,
-      content: newStageContent.trim(),
-      delay: newStageDelay,
-      delayUnit: newStageDelayUnit
-    };
+    // Atualizar novo tipo
+    setType(newType);
+  };
+  
+  const addTagToCondition = (target: "start" | "stop", tag: string) => {
+    if (!tag) return;
+
+    // Save tag to the global tag list for reuse
+    if (!tags.includes(tag)) {
+      addTag(tag);
+    }
     
-    setStages(prev => [...prev, newStage]);
-    setNewStageContent("");
-    setNewStageName("");
+    if (target === "start") {
+      if (!startCondition.tags.includes(tag)) {
+        setStartCondition({
+          ...startCondition,
+          tags: [...startCondition.tags, tag],
+        });
+        notifyChanges();
+      }
+    } else {
+      if (!stopCondition.tags.includes(tag)) {
+        setStopCondition({
+          ...stopCondition,
+          tags: [...stopCondition.tags, tag],
+        });
+        notifyChanges();
+      }
+    }
+    setNewTag("");
+    setShowTagSelector(null);
+  };
+  
+  const removeTag = (target: "start" | "stop", tag: string) => {
+    if (target === "start") {
+      setStartCondition({
+        ...startCondition,
+        tags: startCondition.tags.filter(t => t !== tag),
+      });
+    } else {
+      setStopCondition({
+        ...stopCondition,
+        tags: stopCondition.tags.filter(t => t !== tag),
+      });
+    }
+    notifyChanges();
+  };
+  
+  const toggleConditionType = (target: "start" | "stop") => {
+    if (target === "start") {
+      setStartCondition({
+        ...startCondition,
+        type: startCondition.type === "AND" ? "OR" : "AND",
+      });
+    } else {
+      setStopCondition({
+        ...stopCondition,
+        type: stopCondition.type === "AND" ? "OR" : "AND",
+      });
+    }
+    notifyChanges();
+  };
+  
+  const addStage = () => {
+    if (!newStage.name) return;
+    
+    // Para typebot, não precisamos verificar o conteúdo
+    if (type !== 'typebot' && !newStage.content) return;
+    
+    try {
+      // Para typebot, usamos o número do estágio
+      const stageToAdd: Omit<SequenceStage, "id"> = {
+        ...newStage
+      };
+      
+      if (type === 'typebot') {
+        const nextStageNumber = stages.length + 1;
+        stageToAdd.typebotStage = `stg${nextStageNumber}`;
+        // Não definimos o content aqui - será definido na hora de salvar
+      }
+      
+      const stage: SequenceStage = {
+        ...stageToAdd,
+        id: uuidv4(),
+      };
+      
+      setStages([...stages, stage]);
+      notifyChanges();
+      
+      // Reset form com valor apropriado para o próximo estágio
+      if (type === 'typebot') {
+        const nextStageNumber = stages.length + 2;
+        setNewStage({
+          name: `Estágio ${nextStageNumber}`,
+          type: type,
+          content: "",
+          typebotStage: `stg${nextStageNumber}`,
+          delay: 60,
+          delayUnit: "minutes",
+        });
+      } else {
+        setNewStage({
+          name: "",
+          type: type,
+          content: "",
+          delay: 60,
+          delayUnit: "minutes",
+        });
+      }
+    } catch (error) {
+      console.error("Erro ao adicionar estágio:", error);
+      toast.error("Erro ao adicionar estágio. Verifique o console para mais detalhes.");
+    }
   };
   
   const removeStage = (id: string) => {
-    setStages(prev => prev.filter(stage => stage.id !== id));
-  };
-  
-  const handleDragEnd = (result: any) => {
-    if (!result.destination) return;
-    
-    const items = Array.from(stages);
-    const [reorderedItem] = items.splice(result.source.index, 1);
-    items.splice(result.destination.index, 0, reorderedItem);
-    
-    setStages(items);
-  };
-  
-  const addStartTagToCondition = (tag: string) => {
-    if (tag.trim() && !startTags.includes(tag.trim())) {
-      addStartTag(tag.trim());
-      setNewStartTag("");
-      setShowStartTagSelector(false);
+    try {
+      if (!id || !isValidUUID(id)) {
+        console.error("ID de estágio inválido:", id);
+        toast.error("ID de estágio inválido");
+        return;
+      }
+      
+      setStages(stages.filter(stage => stage.id !== id));
+      if (editingStageId === id) {
+        setEditingStageId(null);
+        setStageToEdit(null);
+      }
+      notifyChanges();
+    } catch (error) {
+      console.error("Erro ao remover estágio:", error);
+      toast.error("Erro ao remover estágio. Verifique o console para mais detalhes.");
     }
-  };
-  
-  const addStopTagToCondition = (tag: string) => {
-    if (tag.trim() && !stopTags.includes(tag.trim())) {
-      addStopTag(tag.trim());
-      setNewStopTag("");
-      setShowStopTagSelector(false);
-    }
-  };
-  
-  const removeStartTagFromCondition = (tag: string) => {
-    removeStartTag(tag);
-  };
-  
-  const removeStopTagFromCondition = (tag: string) => {
-    removeStopTag(tag);
   };
 
-  const handleSave = async () => {
-    if (saving) return;
-    
-    if (!name.trim()) {
-      toast.error("Nome da sequência é obrigatório");
-      return;
-    }
-    
-    if (stages.length === 0) {
-      toast.error("Adicione pelo menos um estágio à sequência");
-      return;
-    }
-    
-    setSaving(true);
-    
+  const startEditingStage = (stage: SequenceStage) => {
     try {
-      // Build sequence object
-      const sequenceData: Omit<Sequence, "id" | "createdAt" | "updatedAt"> = {
-        instanceId: currentInstance?.id || "",
-        name: name.trim(),
-        type: sequenceType,
-        startCondition: {
-          type: startConditionType,
-          tags: startTags
-        },
-        stopCondition: {
-          type: stopConditionType,
-          tags: stopTags
-        },
-        status,
-        stages: stages.map((stage, index) => ({
-          ...stage,
-          orderIndex: index
-        })),
-        timeRestrictions: selectedTimeRestrictions
+      if (!stage.id || !isValidUUID(stage.id)) {
+        console.error("ID de estágio inválido:", stage.id);
+        toast.error("ID de estágio inválido");
+        return;
+      }
+      
+      setEditingStageId(stage.id);
+      setStageToEdit({...stage});
+    } catch (error) {
+      console.error("Erro ao editar estágio:", error);
+      toast.error("Erro ao editar estágio. Verifique o console para mais detalhes.");
+    }
+  };
+
+  const updateStage = (updatedStage: SequenceStage) => {
+    try {
+      if (!updatedStage.id || !isValidUUID(updatedStage.id)) {
+        console.error("ID de estágio inválido:", updatedStage.id);
+        toast.error("ID de estágio inválido");
+        return;
+      }
+      
+      setStages(stages.map(stage => 
+        stage.id === updatedStage.id ? updatedStage : stage
+      ));
+      setEditingStageId(null);
+      setStageToEdit(null);
+      toast.success("Estágio atualizado com sucesso");
+      notifyChanges();
+    } catch (error) {
+      console.error("Erro ao atualizar estágio:", error);
+      toast.error("Erro ao atualizar estágio. Verifique o console para mais detalhes.");
+    }
+  };
+  
+  const moveStage = (id: string, direction: "up" | "down") => {
+    try {
+      if (!id || !isValidUUID(id)) {
+        console.error("ID de estágio inválido:", id);
+        toast.error("ID de estágio inválido");
+        return;
+      }
+      
+      const index = stages.findIndex(s => s.id === id);
+      if (
+        (direction === "up" && index === 0) ||
+        (direction === "down" && index === stages.length - 1)
+      ) {
+        return;
+      }
+      
+      const newStages = [...stages];
+      const step = direction === "up" ? -1 : 1;
+      [newStages[index], newStages[index + step]] = [newStages[index + step], newStages[index]];
+      
+      setStages(newStages);
+      notifyChanges();
+    } catch (error) {
+      console.error("Erro ao mover estágio:", error);
+      toast.error("Erro ao mover estágio. Verifique o console para mais detalhes.");
+    }
+  };
+  
+  const addLocalRestriction = () => {
+    try {
+      const restriction: TimeRestriction = {
+        ...newRestriction,
+        id: uuidv4(),
+        isGlobal: false, // Sempre marca como restrição local
       };
       
-      // Add advanced conditions if enabled
-      if (useAdvancedStartCondition) {
-        sequenceData.advancedStartCondition = advancedStartCondition;
-      }
+      setTimeRestrictions([...timeRestrictions, restriction]);
+      notifyChanges();
+      setShowAddRestrictionDialog(false);
       
-      if (useAdvancedStopCondition) {
-        sequenceData.advancedStopCondition = advancedStopCondition;
-      }
-      
-      await onSave(sequenceData);
-      toast.success("Sequência salva com sucesso");
+      // Reset form
+      setNewRestriction({
+        name: "Nova restrição",
+        active: true,
+        days: [1, 2, 3, 4, 5],
+        startHour: 22,
+        startMinute: 0,
+        endHour: 8,
+        endMinute: 0,
+        isGlobal: false,
+      });
     } catch (error) {
-      console.error("Error saving sequence:", error);
-      toast.error("Erro ao salvar sequência");
-    } finally {
-      setSaving(false);
+      console.error("Erro ao adicionar restrição local:", error);
+      toast.error("Erro ao adicionar restrição local. Verifique o console para mais detalhes.");
     }
+  };
+
+  const addGlobalRestriction = (restriction: TimeRestriction) => {
+    try {
+      // Verifica se já não existe na lista
+      if (timeRestrictions.some(r => r.id === restriction.id)) return;
+      
+      if (!restriction.id || !isValidUUID(restriction.id)) {
+        console.error("ID de restrição inválido:", restriction.id);
+        toast.error("ID de restrição inválido");
+        return;
+      }
+      
+      setTimeRestrictions([...timeRestrictions, { ...restriction, isGlobal: true }]);
+      notifyChanges();
+    } catch (error) {
+      console.error("Erro ao adicionar restrição global:", error);
+      toast.error("Erro ao adicionar restrição global. Verifique o console para mais detalhes.");
+    }
+  };
+  
+  const removeTimeRestriction = (id: string) => {
+    try {
+      if (!id || !isValidUUID(id)) {
+        console.error("ID de restrição inválido:", id);
+        toast.error("ID de restrição inválido");
+        return;
+      }
+      
+      setTimeRestrictions(timeRestrictions.filter(r => r.id !== id));
+      notifyChanges();
+    } catch (error) {
+      console.error("Erro ao remover restrição de tempo:", error);
+      toast.error("Erro ao remover restrição de tempo. Verifique o console para mais detalhes.");
+    }
+  };
+
+  const updateLocalRestriction = (updatedRestriction: TimeRestriction) => {
+    try {
+      // Apenas permite atualizar restrições locais
+      if (updatedRestriction.isGlobal) return;
+      
+      if (!updatedRestriction.id || !isValidUUID(updatedRestriction.id)) {
+        console.error("ID de restrição inválido:", updatedRestriction.id);
+        toast.error("ID de restrição inválido");
+        return;
+      }
+      
+      setTimeRestrictions(timeRestrictions.map(r => 
+        r.id === updatedRestriction.id ? updatedRestriction : r
+      ));
+      notifyChanges();
+    } catch (error) {
+      console.error("Erro ao atualizar restrição local:", error);
+      toast.error("Erro ao atualizar restrição local. Verifique o console para mais detalhes.");
+    }
+  };
+  
+  // Update the handleSubmit function to update all typebot stage content with the current URL when saving
+  const handleSubmit = () => {
+    try {
+      if (!name) {
+        toast.error("Por favor, informe um nome para a sequência.");
+        return;
+      }
+      
+      if (startCondition.tags.length === 0) {
+        toast.error("Por favor, adicione pelo menos uma tag para a condição de início.");
+        return;
+      }
+      
+      if (stages.length === 0) {
+        toast.error("Por favor, adicione pelo menos um estágio à sequência.");
+        return;
+      }
+      
+      if (!currentInstance || !currentInstance.id) {
+        toast.error("Nenhuma instância selecionada.");
+        return;
+      }
+      
+      // Validar a instanceId
+      if (!isValidUUID(currentInstance.id)) {
+        console.error("ID de instância inválido:", currentInstance.id);
+        toast.error("ID de instância inválido");
+        return;
+      }
+      
+      // Update all typebot stage content with the current URL before saving
+      let finalStages = [...stages];
+      if (type === 'typebot' && typebotUrl) {
+        finalStages = stages.map((stage, index) => ({
+          ...stage,
+          content: typebotUrl,
+          typebotStage: `stg${index + 1}`
+        }));
+      }
+      
+      const newSequence: Omit<Sequence, "id" | "createdAt" | "updatedAt"> = {
+        name,
+        type,
+        instanceId: currentInstance.id,
+        startCondition,
+        stopCondition,
+        stages: finalStages,
+        timeRestrictions,
+        status,
+      };
+      
+      console.log("Dados da sequência sendo enviados:", JSON.stringify(newSequence, null, 2));
+      
+      onSave(newSequence);
+    } catch (error) {
+      console.error("Erro ao enviar sequência:", error);
+      toast.error("Erro ao criar sequência. Verifique o console para mais detalhes.");
+    }
+  };
+  
+  // Separate global and local restrictions
+  const globalRestrictions = timeRestrictions.filter(r => r.isGlobal);
+  const localRestrictions = timeRestrictions.filter(r => !r.isGlobal);
+
+  // Verify if a global restriction is selected
+  const isGlobalRestrictionSelected = (id: string) => {
+    return timeRestrictions.some(r => r.id === id && r.isGlobal);
+  };
+  
+  // Check if form has been modified from initial values
+  const hasBeenModified = () => {
+    if (!sequence) return name !== '' || startCondition.tags.length > 0 || stages.length > 0;
+    
+    return (
+      name !== sequence.name ||
+      type !== sequence.type ||
+      JSON.stringify(startCondition) !== JSON.stringify(sequence.startCondition) ||
+      JSON.stringify(stopCondition) !== JSON.stringify(sequence.stopCondition) ||
+      JSON.stringify(stages) !== JSON.stringify(sequence.stages) ||
+      JSON.stringify(timeRestrictions) !== JSON.stringify(sequence.timeRestrictions) ||
+      status !== sequence.status
+    );
+  };
+  
+  // Close the dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showTagSelector && !(event.target as Element).closest('.tag-selector')) {
+        setShowTagSelector(null);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showTagSelector]);
+
+  const handleCancel = () => {
+    if (hasBeenModified()) {
+      toast.warning("Atenção! Você tem alterações não salvas. Deseja mesmo sair?", {
+        action: {
+          label: "Sim, sair",
+          onClick: () => onCancel()
+        },
+        cancel: {
+          label: "Não, continuar editando",
+          onClick: () => {}
+        }
+      });
+    } else {
+      onCancel();
+    }
+  };
+
+  const getActiveRestrictionCount = () => {
+    return timeRestrictions.filter(r => r.active).length;
   };
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Detalhes da Sequência</CardTitle>
-          <CardDescription>
-            Defina o nome e o tipo da sua sequência
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label htmlFor="name">Nome da Sequência</Label>
-            <Input
-              id="name"
-              placeholder="Ex: Follow-up de Vendas"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </div>
-          
-          <div>
-            <Label>Tipo de Sequência</Label>
-            <Select value={sequenceType} onValueChange={setSequenceType}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Selecione o tipo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="message">Mensagem</SelectItem>
-                <SelectItem value="pattern">Padrão</SelectItem>
-                <SelectItem value="typebot">Typebot</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          
-          <div>
-            <Label>Status</Label>
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="active"
-                checked={status === "active"}
-                onCheckedChange={(checked) => setStatus(checked ? "active" : "inactive")}
-              />
-              <Label htmlFor="active" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                {status === "active" ? "Ativa" : "Inativa"}
-              </Label>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-      
-      <TagConditionSection
-        title="Condição de Início"
-        description="Quando o contato deve ser adicionado a esta sequência"
-        badgeColor="bg-green-600"
-        condition={{ type: startConditionType, tags: startTags }}
-        setCondition={() => {}}
-        advancedMode={useAdvancedStartCondition}
-        setAdvancedMode={setUseAdvancedStartCondition}
-        advancedCondition={advancedStartCondition}
-        setAdvancedCondition={setAdvancedStartCondition}
-        availableTags={availableTags}
-        newTag={newStartTag}
-        setNewTag={setNewStartTag}
-        showTagSelector={showStartTagSelector}
-        setShowTagSelector={setShowStartTagSelector}
-        addTagToCondition={addStartTagToCondition}
-        removeTag={removeStartTagFromCondition}
-        toggleConditionType={toggleStartConditionType}
-        notifyChanges={onChangesMade}
-      />
-      
-      <TagConditionSection
-        title="Condição de Parada"
-        description="Quando o contato deve ser removido desta sequência"
-        badgeColor="bg-red-600"
-        condition={{ type: stopConditionType, tags: stopTags }}
-        setCondition={() => {}}
-        advancedMode={useAdvancedStopCondition}
-        setAdvancedMode={setUseAdvancedStopCondition}
-        advancedCondition={advancedStopCondition}
-        setAdvancedCondition={setAdvancedStopCondition}
-        availableTags={availableTags}
-        newTag={newStopTag}
-        setNewTag={setNewStopTag}
-        showTagSelector={showStopTagSelector}
-        setShowTagSelector={setShowStopTagSelector}
-        addTagToCondition={addStopTagToCondition}
-        removeTag={removeStopTagFromCondition}
-        toggleConditionType={toggleStopConditionType}
-        notifyChanges={onChangesMade}
-      />
-      
-      <Card>
-        <CardHeader>
-          <CardTitle>Estágios da Sequência</CardTitle>
-          <CardDescription>
-            Defina os estágios da sua sequência e o conteúdo de cada um
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <DragDropContext onDragEnd={handleDragEnd}>
-            <Droppable droppableId="stages">
-              {(provided) => (
-                <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
-                  {stages.map((stage, index) => (
-                    <Draggable key={stage.id} draggableId={stage.id} index={index}>
-                      {(provided) => (
-                        <div
-                          ref={provided.innerRef}
-                          {...provided.draggableProps}
-                          className="flex items-center justify-between p-3 border rounded-md bg-muted/50"
-                        >
-                          <div className="flex items-center">
-                            <div {...provided.dragHandleProps} className="cursor-grab mr-2">
-                              <GripVertical className="h-4 w-4 text-muted-foreground" />
-                            </div>
-                            <span className="text-sm font-medium">{stage.name}</span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Button variant="outline" size="icon" onClick={() => removeStage(stage.id)}>
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-                    </Draggable>
-                  ))}
-                  {provided.placeholder}
-                </div>
-              )}
-            </Droppable>
-          </DragDropContext>
-          
-          <Separator />
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="newStageName">Nome do Estágio</Label>
-              <Input
-                id="newStageName"
-                placeholder="Ex: Enviar e-mail de apresentação"
-                value={newStageName}
-                onChange={(e) => setNewStageName(e.target.value)}
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="newStageType">Tipo do Estágio</Label>
-              <Select value={newStageType} onValueChange={setNewStageType}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Selecione o tipo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="message">Mensagem</SelectItem>
-                  <SelectItem value="pattern">Padrão</SelectItem>
-                  <SelectItem value="typebot">Typebot</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          
-          <div>
-            <Label htmlFor="newStageContent">Conteúdo do Estágio</Label>
-            <Textarea
-              id="newStageContent"
-              placeholder="Digite o conteúdo do estágio"
-              value={newStageContent}
-              onChange={(e) => setNewStageContent(e.target.value)}
-            />
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <Label htmlFor="newStageDelay">Atraso</Label>
-              <Input
-                id="newStageDelay"
-                type="number"
-                placeholder="Ex: 1"
-                value={newStageDelay.toString()}
-                onChange={(e) => setNewStageDelay(parseInt(e.target.value))}
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="newStageDelayUnit">Unidade de Atraso</Label>
-              <Select value={newStageDelayUnit} onValueChange={setNewStageDelayUnit}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Selecione a unidade" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="minutes">Minutos</SelectItem>
-                  <SelectItem value="hours">Horas</SelectItem>
-                  <SelectItem value="days">Dias</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="flex items-end">
-              <Button onClick={addStage}>
-                <Plus className="h-4 w-4 mr-2" />
-                Adicionar Estágio
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-      
-      <TimeRestrictionSelector
-        selectedRestrictions={selectedTimeRestrictions}
-        setSelectedRestrictions={setSelectedTimeRestrictions}
-        globalRestrictions={globalTimeRestrictions}
-      />
-      
-      <div className="flex justify-end space-x-2">
-        <Button variant="ghost" onClick={onCancel}>
-          Cancelar
-        </Button>
-        <Button onClick={handleSave} disabled={saving}>
-          {saving ? (
-            <>
-              <Settings className="mr-2 h-4 w-4 animate-spin" />
-              Salvando...
-            </>
-          ) : (
-            "Salvar Sequência"
-          )}
-        </Button>
+      {/* Header com botões - apenas botão de salvar */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-semibold">Configuração da Sequência</h2>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={handleCancel}
+          >
+            <X className="h-4 w-4 mr-1" />
+            Cancelar
+          </Button>
+          <Button 
+            variant="default" 
+            onClick={handleSubmit}
+            disabled={!hasBeenModified()}
+            className={!hasBeenModified() ? "opacity-50" : ""}
+          >
+            <Save className="h-4 w-4 mr-1" />
+            Salvar
+          </Button>
+        </div>
       </div>
+
+      <Tabs 
+        defaultValue="basic"
+        value={currentTab}
+        onValueChange={setCurrentTab}
+      >
+        <TabsList className="w-full">
+          <TabsTrigger value="basic" className="flex-1">Informações Básicas</TabsTrigger>
+          <TabsTrigger value="stages" className="flex-1">
+            Estágios
+            <Badge variant="secondary" className="ml-2">{stages.length}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="restrictions" className="flex-1">
+            Restrições de Horário
+            <Badge variant="secondary" className="ml-2">{getActiveRestrictionCount()}</Badge>
+          </TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="basic" className="pt-6">
+          <div className="grid gap-6 grid-cols-1">
+            {/* Basic Info */}
+            <BasicInfoSection
+              name={name}
+              setName={setName}
+              status={status}
+              setStatus={setStatus}
+              type={type}
+              setType={setType}
+              notifyChanges={notifyChanges}
+              onTypeChange={handleTypeChange}
+              isEditMode={!!sequence} // Passa true se estiver editando uma sequência existente
+            />
+
+            <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
+              {/* Start Condition */}
+              <TagConditionSection
+                title="Condição de Início"
+                description="Define quando um contato deve entrar nesta sequência"
+                badgeColor="bg-green-600"
+                condition={startCondition}
+                setCondition={setStartCondition}
+                availableTags={tags}
+                newTag={newTag}
+                setNewTag={setNewTag}
+                showTagSelector={showTagSelector === "start"}
+                setShowTagSelector={() => setShowTagSelector("start")}
+                addTagToCondition={(tag) => addTagToCondition("start", tag)}
+                removeTag={(tag) => removeTag("start", tag)}
+                toggleConditionType={() => toggleConditionType("start")}
+                notifyChanges={notifyChanges}
+              />
+              
+              {/* Stop Condition */}
+              <TagConditionSection
+                title="Condição de Parada"
+                description="Define quando um contato deve ser removido desta sequência"
+                badgeColor="bg-red-600"
+                condition={stopCondition}
+                setCondition={setStopCondition}
+                availableTags={tags}
+                newTag={newTag}
+                setNewTag={setNewTag}
+                showTagSelector={showTagSelector === "stop"}
+                setShowTagSelector={() => setShowTagSelector("stop")}
+                addTagToCondition={(tag) => addTagToCondition("stop", tag)}
+                removeTag={(tag) => removeTag("stop", tag)}
+                toggleConditionType={() => toggleConditionType("stop")}
+                notifyChanges={notifyChanges}
+              />
+            </div>
+          </div>
+        </TabsContent>
+        
+        <TabsContent value="stages" className="pt-6">
+          <StagesSection 
+            stages={stages}
+            editingStageId={editingStageId}
+            stageToEdit={stageToEdit}
+            sequenceType={type}
+            typebotUrl={typebotUrl}
+            setTypebotUrl={setTypebotUrl}
+            onEdit={startEditingStage}
+            onUpdate={updateStage}
+            onCancel={() => {
+              setEditingStageId(null);
+              setStageToEdit(null);
+            }}
+            onRemove={removeStage}
+            onMove={moveStage}
+            newStage={newStage}
+            setNewStage={setNewStage}
+            addStage={addStage}
+            notifyChanges={notifyChanges}
+          />
+        </TabsContent>
+        
+        <TabsContent value="restrictions" className="pt-6">
+          <TimeRestrictionsSection
+            localRestrictions={localRestrictions}
+            globalRestrictions={globalRestrictions}
+            showAddRestrictionDialog={showAddRestrictionDialog}
+            setShowAddRestrictionDialog={setShowAddRestrictionDialog}
+            showGlobalRestrictionsDialog={showGlobalRestrictionsDialog}
+            setShowGlobalRestrictionsDialog={setShowGlobalRestrictionsDialog}
+            onRemoveRestriction={removeTimeRestriction}
+            onUpdateRestriction={updateLocalRestriction}
+            onAddGlobalRestriction={addGlobalRestriction}
+            dayNames={dayNames}
+            availableGlobalRestrictions={availableGlobalRestrictions}
+            NewRestrictionDialog={NewRestrictionDialog}
+            isGlobalRestrictionSelected={isGlobalRestrictionSelected}
+          />
+        </TabsContent>
+      </Tabs>
+      
+      {/* Dialog for adding restriction - Now as a standalone Dialog */}
+      <Dialog open={showAddRestrictionDialog} onOpenChange={setShowAddRestrictionDialog}>
+        <NewRestrictionDialog 
+          open={showAddRestrictionDialog}
+          onOpenChange={setShowAddRestrictionDialog}
+          newRestriction={newRestriction}
+          setNewRestriction={setNewRestriction}
+          addLocalRestriction={addLocalRestriction}
+          dayNames={dayNames}
+        />
+      </Dialog>
     </div>
   );
-};
+}
