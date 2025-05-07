@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export const TokensTab = () => {
-  const { user, updateUser, updateProfile } = useAuth();
+  const { user, updateUser } = useAuth();
   const [showToken, setShowToken] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
 

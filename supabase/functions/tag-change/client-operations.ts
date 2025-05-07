@@ -79,6 +79,27 @@ export async function handleClient(supabase: any, accountId: any, accountName: s
     }
     
     client = newClient[0];
+  } else if (!client.auth_token) {
+    // Se o cliente já existe mas não tem token, gerar um
+    console.log('[2. CLIENTE] Cliente encontrado mas sem token, gerando um novo...');
+    
+    const randomBytes = new Uint8Array(24);
+    crypto.getRandomValues(randomBytes);
+    const authToken = Array.from(randomBytes)
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+    
+    const { data: updatedClient, error: updateError } = await supabase
+      .from('clients')
+      .update({ auth_token: authToken })
+      .eq('id', client.id)
+      .select();
+    
+    if (updateError) {
+      console.error(`[2. CLIENTE] Erro ao atualizar token do cliente: ${JSON.stringify(updateError)}`);
+    } else if (updatedClient && updatedClient.length > 0) {
+      client = updatedClient[0];
+    }
   }
   
   return {

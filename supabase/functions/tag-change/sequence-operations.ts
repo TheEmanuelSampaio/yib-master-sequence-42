@@ -95,8 +95,13 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
         continue;
       }
 
+      // Garantir que sequence.sequence_stages seja tratado como array
+      const sequenceStages = Array.isArray(sequence.sequence_stages) 
+        ? sequence.sequence_stages 
+        : [];
+        
       // Ordenar estágios por order_index
-      const sortedStages = [...sequence.sequence_stages].sort((a, b) => a.order_index - b.order_index);
+      const sortedStages = [...sequenceStages].sort((a, b) => a.order_index - b.order_index);
       
       if (sortedStages.length === 0) {
         console.log(`[5.4 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Sequência não tem estágios, pulando...`);

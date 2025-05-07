@@ -14,6 +14,7 @@ interface AuthContextType {
   signup: (email: string, password: string, accountName: string, isSuper: boolean) => Promise<void>;
   logout: () => Promise<void>;
   completeSetup: () => Promise<void>;
+  updateUser: (updates: Partial<User>) => Promise<void>; // Add updateUser method
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -91,6 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   accountName: profileData.account_name,
                   role: profileData.role,
                   avatar: "",
+                  authToken: profileData.auth_token || "", // Include auth token from profile
                 };
                 
                 setUser(userWithProfile);
@@ -137,6 +139,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 accountName: profileData.account_name || "Usuário",
                 role: profileData.role || "admin",
                 avatar: "",
+                authToken: profileData.auth_token || "", // Include auth token from profile
               };
               
               setUser(userWithProfile);
@@ -273,6 +276,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Add method to update user profile
+  const updateUser = async (updates: Partial<User>) => {
+    if (!user?.id) return;
+
+    try {
+      setLoading(true);
+      
+      // Convert user properties to database column names
+      const dbUpdates: any = {};
+      
+      if (updates.accountName) dbUpdates.account_name = updates.accountName;
+      if (updates.role) dbUpdates.role = updates.role;
+      if (updates.authToken !== undefined) dbUpdates.auth_token = updates.authToken;
+      
+      const { error } = await supabase
+        .from('profiles')
+        .update(dbUpdates)
+        .eq('id', user.id);
+        
+      if (error) throw error;
+      
+      // Update local user state with the new values
+      setUser(prev => prev ? { ...prev, ...updates } : null);
+      toast.success("Perfil atualizado com sucesso!");
+    } catch (error: any) {
+      toast.error(`Erro ao atualizar perfil: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -282,7 +316,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       login,
       signup,
       logout,
-      completeSetup
+      completeSetup,
+      updateUser,
     }}>
       {children}
     </AuthContext.Provider>
