@@ -876,4 +876,4 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // Deletar grupos de condição existentes
         const { error: delGroupsError } = await supabase
           .from('sequence_condition_groups')
-          .delete
+          .delete()
