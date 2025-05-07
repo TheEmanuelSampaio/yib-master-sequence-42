@@ -1537,6 +1537,43 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const transformSequence = (seq) => {
+    return {
+      id: seq.id,
+      name: seq.name,
+      instanceId: seq.instance_id,
+      type: seq.type || "message",
+      status: seq.status,
+      createdBy: seq.created_by, // Added missing field
+      startCondition: {
+        type: seq.start_condition_type,
+        tags: seq.start_condition_tags || []
+      },
+      stopCondition: {
+        type: seq.stop_condition_type,
+        tags: seq.stop_condition_tags || []
+      },
+      stages: transformSequenceStages(seq),
+      timeRestrictions: [], // Will be populated separately
+      createdAt: seq.created_at,
+      updatedAt: seq.updated_at
+    };
+  };
+
+  const transformSequenceStages = (seq) => {
+    return seq.sequence_stages
+      .sort((a: any, b: any) => a.order_index - b.order_index)
+      .map((stage: any) => ({
+        id: stage.id,
+        name: stage.name,
+        type: stage.type,
+        content: stage.content,
+        typebotStage: stage.typebot_stage,
+        delay: stage.delay,
+        delayUnit: stage.delay_unit
+      }));
+  };
+
   const value = {
     clients,
     instances,

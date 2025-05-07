@@ -46,6 +46,7 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
         stop_condition_type,
         stop_condition_tags,
         status,
+        created_by,
         sequence_stages (
           id,
           name,
@@ -83,8 +84,17 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
 
     // Passo 2: Filtrar aquelas onde o contato atende as condições de start e não atende as de stop
     const eligibleSequences = sequences.filter(sequence => {
-      const matchesStart = evaluateCondition(sequence.start_condition_type, sequence.start_condition_tags, tags);
-      const matchesStop = evaluateCondition(sequence.stop_condition_type, sequence.stop_condition_tags, tags);
+      // Normalizando as tags do contato para comparação consistente
+      const normalizedContactTags = tags.map(tag => tag.toLowerCase().trim());
+      
+      // Debug da sequência sendo avaliada
+      console.log(`[5.3 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Avaliando elegibilidade`);
+      console.log(`[5.3 SEQUÊNCIA ${sequence.id}] Condição de início: tipo=${sequence.start_condition_type}, tags=${JSON.stringify(sequence.start_condition_tags)}`);
+      console.log(`[5.3 SEQUÊNCIA ${sequence.id}] Condição de parada: tipo=${sequence.stop_condition_type}, tags=${JSON.stringify(sequence.stop_condition_tags)}`);
+      console.log(`[5.3 SEQUÊNCIA ${sequence.id}] Tags do contato: ${JSON.stringify(normalizedContactTags)}`);
+      
+      const matchesStart = evaluateCondition(sequence.start_condition_type, sequence.start_condition_tags, normalizedContactTags);
+      const matchesStop = evaluateCondition(sequence.stop_condition_type, sequence.stop_condition_tags, normalizedContactTags);
       
       const isEligible = matchesStart && !matchesStop;
       console.log(`[5.3 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Elegibilidade: matchesStart=${matchesStart}, matchesStop=${matchesStop}, isEligible=${isEligible}`);
@@ -335,24 +345,47 @@ function processVariables(type, content, variables = {}) {
 function evaluateCondition(conditionType, conditionTags, userTags) {
   if (!conditionTags || conditionTags.length === 0) {
     // Se não houver tags na condição, considerar que atende
+    console.log(`[CONDITION] Condição sem tags, considerada como atendida`);
     return true;
   }
 
   if (!userTags || userTags.length === 0) {
     // Se o usuário não tiver tags, ele não atende a nenhuma condição com tags
+    console.log(`[CONDITION] Usuário sem tags, condição não atendida`);
     return false;
   }
 
   // Normalizar as tags para comparação
-  const normalizedConditionTags = conditionTags.map(tag => tag.toLowerCase().trim());
-  const normalizedUserTags = userTags.map(tag => tag.toLowerCase().trim());
+  const normalizedConditionTags = conditionTags.map(tag => String(tag).toLowerCase().trim());
+  const normalizedUserTags = userTags.map(tag => String(tag).toLowerCase().trim());
+  
+  console.log(`[CONDITION] Condição tipo=${conditionType}, tags normalizadas: ${JSON.stringify(normalizedConditionTags)}`);
+  console.log(`[CONDITION] Tags do contato normalizadas: ${JSON.stringify(normalizedUserTags)}`);
 
   if (conditionType === "AND") {
     // Todas as tags da condição devem estar presentes
-    return normalizedConditionTags.every(tag => normalizedUserTags.includes(tag));
+    const result = normalizedConditionTags.every(tag => normalizedUserTags.includes(tag));
+    console.log(`[CONDITION] Avaliação AND: ${result ? "ATENDIDA" : "NÃO ATENDIDA"}`);
+    
+    // Log detalhado de cada tag verificada
+    normalizedConditionTags.forEach(tag => {
+      const matched = normalizedUserTags.includes(tag);
+      console.log(`[CONDITION] Tag '${tag}' ${matched ? "encontrada" : "NÃO encontrada"} nas tags do contato`);
+    });
+    
+    return result;
   } else {
     // Pelo menos uma tag da condição deve estar presente
-    return normalizedConditionTags.some(tag => normalizedUserTags.includes(tag));
+    const result = normalizedConditionTags.some(tag => normalizedUserTags.includes(tag));
+    console.log(`[CONDITION] Avaliação OR: ${result ? "ATENDIDA" : "NÃO ATENDIDA"}`);
+    
+    // Log detalhado de cada tag verificada
+    normalizedConditionTags.forEach(tag => {
+      const matched = normalizedUserTags.includes(tag);
+      console.log(`[CONDITION] Tag '${tag}' ${matched ? "encontrada" : "NÃO encontrada"} nas tags do contato`);
+    });
+    
+    return result;
   }
 }
 
