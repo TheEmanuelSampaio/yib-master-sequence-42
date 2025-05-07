@@ -1,4 +1,3 @@
-
 export async function processSequences(supabase, clientId, contactId, tags, variables = {}) {
   console.log(`[5.1 SEQUÊNCIAS] Iniciando processamento de sequências para o contato ${contactId} com tags: ${JSON.stringify(tags)}`);
   console.log(`[5.1 SEQUÊNCIAS] Filtrando sequências para o client_id: ${clientId}`);
@@ -96,8 +95,11 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
       const matchesStart = evaluateCondition(sequence.start_condition_type, sequence.start_condition_tags, normalizedContactTags);
       const matchesStop = evaluateCondition(sequence.stop_condition_type, sequence.stop_condition_tags, normalizedContactTags);
       
-      const isEligible = matchesStart && !matchesStop;
-      console.log(`[5.3 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Elegibilidade: matchesStart=${matchesStart}, matchesStop=${matchesStop}, isEligible=${isEligible}`);
+      // Correção: Verificar se existem condições de parada antes de considerá-las
+      const hasStopConditions = sequence.stop_condition_tags && sequence.stop_condition_tags.length > 0;
+      const isEligible = matchesStart && (!hasStopConditions || !matchesStop);
+      
+      console.log(`[5.3 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Elegibilidade: matchesStart=${matchesStart}, matchesStop=${matchesStop}, hasStopConditions=${hasStopConditions}, isEligible=${isEligible}`);
       
       return isEligible;
     });
