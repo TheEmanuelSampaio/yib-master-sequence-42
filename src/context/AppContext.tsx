@@ -128,7 +128,7 @@ const defaultContextValue: AppContextType = {
 
 export const AppContext = createContext<AppContextType>(defaultContextValue);
 
-export function AppProvider({ children }: { children: React.ReactNode }) {
+export const AppProvider = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth();
   
   const [clients, setClients] = useState<Client[]>([]);
@@ -1554,24 +1554,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return {
       id: seq.id,
       name: seq.name,
+      type: seq.type || 'message',
       instanceId: seq.instance_id,
-      type: seq.type || "message",
       status: seq.status,
       createdBy: seq.created_by,
       startCondition: {
-        type: startType as "AND" | "OR",
+        type: startType,
         tags: seq.start_condition_tags || []
       },
       stopCondition: {
-        type: stopType as "AND" | "OR",
+        type: stopType,
         tags: seq.stop_condition_tags || []
       },
       stages: transformSequenceStages(seq),
-      timeRestrictions: [], // Will be populated separately
+      timeRestrictions: [],
       createdAt: seq.created_at,
       updatedAt: seq.updated_at,
-      webhookEnabled: seq.webhook_enabled || false, // Add the webhook enabled field
-      webhookId: seq.webhook_id // Add the webhook ID field
+      webhookEnabled: seq.webhook_enabled || false,
+      webhookId: seq.webhook_id
     };
   };
 

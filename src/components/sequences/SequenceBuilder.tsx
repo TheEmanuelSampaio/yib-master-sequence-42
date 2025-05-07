@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Save, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -573,7 +572,9 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
       JSON.stringify(stopCondition) !== JSON.stringify(sequence.stopCondition) ||
       JSON.stringify(stages) !== JSON.stringify(sequence.stages) ||
       JSON.stringify(timeRestrictions) !== JSON.stringify(sequence.timeRestrictions) ||
-      status !== sequence.status
+      status !== sequence.status ||
+      webhookEnabled !== sequence.webhookEnabled || // Check if webhook state changed
+      (webhookEnabled && webhookId !== sequence.webhookId) // Check if webhook ID changed when enabled
     );
   };
   
