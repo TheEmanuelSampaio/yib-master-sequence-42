@@ -275,7 +275,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       
       setTimeRestrictions(typedRestrictions);
       
-      // Buscar sequências e seus estágios
+      // Buscar sequências e seus estágios - FIX: Added type annotation for sequencesData
       const { data: sequencesData, error: sequencesError } = await supabase
         .from('sequences')
         .select(`
@@ -290,11 +290,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       
       if (sequencesError) throw sequencesError;
       
-      // Processar sequências
-      const processedSequences = sequencesData as ExtendedSequence[];
+      // Processar sequências - FIX: Explicitly cast sequencesData to array
+      const processedSequences = (sequencesData || []) as ExtendedSequence[];
       
       for (const sequence of processedSequences) {
-        // Adicionar uma propriedade para restrições de tempo local
+        // Add local time restrictions logic
         sequence.localTimeRestrictions = [];
         
         const { data: localRestrictions, error: localRestError } = await supabase
@@ -307,7 +307,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           continue;
         }
         
-        // Adicionar restrições locais se existirem
+        // Add restrições locais if exist
         if (localRestrictions && localRestrictions.length > 0) {
           const typedLocalRestrictions = localRestrictions.map(lr => ({
             id: lr.id,
@@ -325,10 +325,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         }
       }
       
-      console.log(`Sequences fetched: ${sequencesData.length}`);
+      console.log(`Sequences fetched: ${sequencesData?.length || 0}`);
       
       const typedSequences: Sequence[] = processedSequences.map(sequence => {
-        // Transformar os estágios no formato correto
+        // Transform stages and time restrictions
         const stages = sequence.sequence_stages
           .sort((a: any, b: any) => a.order_index - b.order_index)
           .map((stage: any) => ({
@@ -341,7 +341,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             delayUnit: stage.delay_unit
           }));
           
-        // Transformar as restrições de tempo globais
+        // Transform global time restrictions
         const globalTimeRestrictions = sequence.sequence_time_restrictions
           .map((str: any) => str.time_restrictions)
           .filter(Boolean)
@@ -357,23 +357,24 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             isGlobal: true // Todas as restrições desta junção são globais
           }));
         
-        // Combinar restrições globais e locais
+        // Combine global and local time restrictions
         const allTimeRestrictions = [
           ...globalTimeRestrictions,
           ...(sequence.localTimeRestrictions || [])
         ];
         
         // Ensure startCondition.type and stopCondition.type are "AND" or "OR"
-        const startType = sequence.start_condition_type === "AND" ? "AND" : "OR";
-        const stopType = sequence.stop_condition_type === "AND" ? "AND" : "OR";
+        // FIX: Explicitly cast the condition types to the allowed union type
+        const startType = (sequence.start_condition_type === "AND" ? "AND" : "OR") as "AND" | "OR";
+        const stopType = (sequence.stop_condition_type === "AND" ? "AND" : "OR") as "AND" | "OR";
         
         // Ensure status is "active" or "inactive"
         const status = sequence.status === "active" ? "active" : "inactive";
         
-        // Determinar o tipo de sequência com base nos estágios ou usar um valor padrão
+        // Determine the type of sequence with base on stages or use default
         let sequenceType: "message" | "pattern" | "typebot" = "message";
         if (stages.length > 0) {
-          // Se o último estágio for um typebot, consideramos que é uma sequência de typebot
+          // If the last stage is a typebot, consider it as typebot sequence
           const lastStage = stages[stages.length - 1];
           if (lastStage.type === "typebot") {
             sequenceType = "typebot";
@@ -388,11 +389,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           instanceId: sequence.instance_id,
           type: sequence.type || sequenceType, // Use the type of the sequence or determine by the last stage
           startCondition: {
-            type: startType as "AND" | "OR",
+            type: startType,
             tags: sequence.start_condition_tags
           },
           stopCondition: {
-            type: stopType as "AND" | "OR",
+            type: stopType,
             tags: sequence.stop_condition_tags
           },
           status: status as "active" | "inactive",
@@ -1546,10 +1547,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const transformSequence = (seq) => {
-    // Ensure types are properly cast
-    const startType = seq.start_condition_type === "AND" ? "AND" : "OR";
-    const stopType = seq.stop_condition_type === "AND" ? "AND" : "OR";
+  const transformSequence = (seq: any) => {
+    // Ensure types are properly cast - FIX: Explicit type casting
+    const startType = (seq.start_condition_type === "AND" ? "AND" : "OR") as "AND" | "OR";
+    const stopType = (seq.stop_condition_type === "AND" ? "AND" : "OR") as "AND" | "OR";
     
     return {
       id: seq.id,
