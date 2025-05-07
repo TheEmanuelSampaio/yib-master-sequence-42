@@ -95,8 +95,7 @@ Deno.serve(async (req) => {
     const filterAdminId = (adminId && admin.role === 'super_admin') ? adminId : admin.id;
     
     // Se não for super_admin e adminId é fornecido, filtrar apenas para esse admin
-    let clientIds = [];
-    let clientIdsQuery;
+    let adminClientIds = [];
     
     if (admin.role !== 'super_admin' || (adminId && admin.role === 'super_admin')) {
       console.log(`[QUERY] Filtrando mensagens para admin_id=${filterAdminId}`);
@@ -119,11 +118,11 @@ Deno.serve(async (req) => {
       }
       
       // Extrair os IDs dos clientes
-      clientIds = clientsData?.map(client => client.id) || [];
-      console.log(`[QUERY] Encontrados ${clientIds.length} clientes para o admin ${filterAdminId}`);
+      adminClientIds = clientsData?.map(client => client.id) || [];
+      console.log(`[QUERY] Encontrados ${adminClientIds.length} clientes para o admin ${filterAdminId}`);
       
       // Se não houver clientes para este admin, retornar array vazio
-      if (clientIds.length === 0) {
+      if (adminClientIds.length === 0) {
         console.log(`[RESULT] Nenhum cliente encontrado para o admin ${filterAdminId}`);
         return new Response(
           JSON.stringify({ 
@@ -142,8 +141,6 @@ Deno.serve(async (req) => {
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      
-      clientIdsQuery = clientIds;
     } else {
       console.log(`[QUERY] Admin é super_admin e não especificou adminId, buscando todas as mensagens pendentes`);
     }
@@ -189,8 +186,8 @@ Deno.serve(async (req) => {
       .order('scheduled_time', { ascending: true });
     
     // Se temos clientIds para filtrar, adicionar à consulta
-    if (clientIdsQuery && clientIdsQuery.length > 0) {
-      pendingMessagesQuery = pendingMessagesQuery.in('contacts.client_id', clientIdsQuery);
+    if (adminClientIds.length > 0) {
+      pendingMessagesQuery = pendingMessagesQuery.in('contacts.client_id', adminClientIds);
     }
       
     // Limitar a 10 mensagens por vez para evitar sobrecarga
