@@ -1,5 +1,50 @@
-
 import { corsHeaders } from '../_shared/cors.ts';
+
+/**
+ * Verifica se as tags do contato atendem a uma condição avançada
+ */
+function checkAdvancedCondition(contactTags: string[], conditionGroups: any[]): boolean {
+  if (!conditionGroups || conditionGroups.length === 0) {
+    return false;
+  }
+
+  let result = false;
+  let isFirst = true;
+
+  // Ordena os grupos por índice
+  const sortedGroups = [...conditionGroups].sort((a, b) => a.group_index - b.group_index);
+
+  for (let i = 0; i < sortedGroups.length; i++) {
+    const group = sortedGroups[i];
+    const groupTags = group.tags || [];
+    
+    // Avalia o grupo atual
+    let groupResult = false;
+    
+    if (group.condition_operator === 'AND') {
+      // Todas as tags do grupo devem existir
+      groupResult = groupTags.length > 0 && groupTags.every(tag => contactTags.includes(tag));
+    } else {
+      // Ao menos uma tag do grupo deve existir
+      groupResult = groupTags.some(tag => contactTags.includes(tag));
+    }
+    
+    if (isFirst) {
+      result = groupResult;
+      isFirst = false;
+    } else {
+      // Aplica o operador do grupo anterior
+      const prevGroup = sortedGroups[i - 1];
+      if (prevGroup.group_operator === 'AND') {
+        result = result && groupResult;
+      } else {
+        result = result || groupResult;
+      }
+    }
+  }
+
+  return result;
+}
 
 /**
  * Verifica se o contato deve ser adicionado a alguma sequência com base nas tags do contato
@@ -104,12 +149,77 @@ export async function processSequences(
           continue;
         }
         
-        // Verificar condições de início da sequência
-        const matchesStartCondition = checkCondition(tags, sequence.start_condition_tags, sequence.start_condition_type);
+        let matchesStartCondition = false;
+        let matchesStopCondition = false;
+        
+        // Verificar se usa condições avançadas para início
+        if (sequence.use_advanced_start_condition) {
+          // Buscar grupos de condições de início
+          const { data: startGroups, error: startGroupsError } = await supabase
+            .from('sequence_condition_groups')
+            .select(`
+              id, 
+              group_index, 
+              group_operator, 
+              condition_operator,
+              tags:sequence_condition_tags(tag_name)
+            `)
+            .eq('sequence_id', sequence.id)
+            .eq('type', 'start');
+            
+          if (startGroupsError) {
+            console.error(`[5. SEQUÊNCIAS] Erro ao buscar grupos de condições de início: ${JSON.stringify(startGroupsError)}`);
+            // Fallback para condição simples
+            matchesStartCondition = checkCondition(tags, sequence.start_condition_tags, sequence.start_condition_type);
+          } else {
+            // Processar os grupos para formato adequado
+            const processedGroups = startGroups.map(group => ({
+              ...group,
+              tags: group.tags?.map(t => t.tag_name) || []
+            }));
+            
+            matchesStartCondition = checkAdvancedCondition(tags, processedGroups);
+          }
+        } else {
+          // Usar condição simples
+          matchesStartCondition = checkCondition(tags, sequence.start_condition_tags, sequence.start_condition_type);
+        }
+        
         console.log(`[5. SEQUÊNCIAS] Verificando condição de início para sequência ${sequence.name}: ${matchesStartCondition ? 'ATENDE' : 'NÃO ATENDE'}`);
         
-        // Verificar condições de parada da sequência
-        const matchesStopCondition = checkCondition(tags, sequence.stop_condition_tags, sequence.stop_condition_type);
+        // Verificar se usa condições avançadas para parada
+        if (sequence.use_advanced_stop_condition) {
+          // Buscar grupos de condições de parada
+          const { data: stopGroups, error: stopGroupsError } = await supabase
+            .from('sequence_condition_groups')
+            .select(`
+              id, 
+              group_index, 
+              group_operator, 
+              condition_operator,
+              tags:sequence_condition_tags(tag_name)
+            `)
+            .eq('sequence_id', sequence.id)
+            .eq('type', 'stop');
+            
+          if (stopGroupsError) {
+            console.error(`[5. SEQUÊNCIAS] Erro ao buscar grupos de condições de parada: ${JSON.stringify(stopGroupsError)}`);
+            // Fallback para condição simples
+            matchesStopCondition = checkCondition(tags, sequence.stop_condition_tags, sequence.stop_condition_type);
+          } else {
+            // Processar os grupos para formato adequado
+            const processedGroups = stopGroups.map(group => ({
+              ...group,
+              tags: group.tags?.map(t => t.tag_name) || []
+            }));
+            
+            matchesStopCondition = checkAdvancedCondition(tags, processedGroups);
+          }
+        } else {
+          // Usar condição simples
+          matchesStopCondition = checkCondition(tags, sequence.stop_condition_tags, sequence.stop_condition_type);
+        }
+        
         console.log(`[5. SEQUÊNCIAS] Verificando condição de parada para sequência ${sequence.name}: ${matchesStopCondition ? 'ATENDE' : 'NÃO ATENDE'}`);
         
         // Se atende à condição de início e não atende à condição de parada, adicionar à sequência

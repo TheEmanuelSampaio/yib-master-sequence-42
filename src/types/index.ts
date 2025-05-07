@@ -1,4 +1,3 @@
-
 // User related types
 export interface User {
   id: string;
@@ -319,3 +318,5 @@ export interface Database {
     };
   };
 }
+
+import { AdvancedCondition } from './conditionTypes';
