@@ -275,21 +275,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       
       setTimeRestrictions(typedRestrictions);
       
-      // Fetch sequences and their stages
-      const { data: sequencesData, error: sequencesError } = await supabase
-        .from('sequences')
-        .select(`
-          *,
-          sequence_stages (*),
-          sequence_time_restrictions (
-            *,
-            time_restrictions (*)
-          )
-        `)
-        .order('created_at', { ascending: false });
-      
-      if (sequencesError) throw sequencesError;
-      
       // Buscar sequências e seus estágios
       const { data: sequencesData, error: sequencesError } = await supabase
         .from('sequences')
