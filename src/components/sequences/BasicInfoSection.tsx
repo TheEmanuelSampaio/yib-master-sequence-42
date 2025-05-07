@@ -23,7 +23,6 @@ interface BasicInfoSectionProps {
   webhookId?: string;
   setWebhookId: (id: string) => void;
   instanceId?: string;
-  sequenceId?: string; // Adicionado o ID da sequência para excluir na validação
 }
 
 export function BasicInfoSection({ 
@@ -40,8 +39,7 @@ export function BasicInfoSection({
   setWebhookEnabled,
   webhookId,
   setWebhookId,
-  instanceId,
-  sequenceId // Recebendo o ID da sequência
+  instanceId
 }: BasicInfoSectionProps) {
   const [showTypeChangeAlert, setShowTypeChangeAlert] = useState(false);
   const [pendingType, setPendingType] = useState<"message" | "pattern" | "typebot" | null>(null);
@@ -79,18 +77,16 @@ export function BasicInfoSection({
     }
   }, [name]);
 
-  // Validate webhook ID uniqueness - Modificado para excluir a própria sequência
+  // Validate webhook ID uniqueness
   const validateWebhookId = async (id: string) => {
     if (!id || !instanceId) return;
     
     setIsValidatingWebhookId(true);
     
     try {
-      // Modificando para passar o ID da sequência atual para exclusão na validação
-      const { data, error } = await supabase.rpc('is_webhook_id_unique_for_client_except_self', {
+      const { data, error } = await supabase.rpc('is_webhook_id_unique_for_client', {
         p_webhook_id: id,
-        p_instance_id: instanceId,
-        p_sequence_id: sequenceId || '00000000-0000-0000-0000-000000000000' // ID nulo para novas sequências
+        p_instance_id: instanceId
       });
 
       if (error) {
