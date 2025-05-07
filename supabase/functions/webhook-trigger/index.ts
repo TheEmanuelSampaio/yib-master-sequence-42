@@ -31,129 +31,6 @@ type WebhookPayload = {
   authToken: string;
 };
 
-// Função auxiliar para sanitizar tokens antes de comparar
-const sanitizeToken = (token: string): string => {
-  // Remove espaços, quebras de linha e outros caracteres que possam ser inseridos por erro
-  return token.trim().replace(/\s+/g, '');
-};
-
-// Função para debug: mostar token parcialmente mascarado (seguro para logs)
-const maskToken = (token: string): string => {
-  if (!token || token.length < 10) return "token-invalido";
-  return token.substring(0, 5) + "..." + token.substring(token.length - 5);
-};
-
-// Função para buscar informações de usuário pelo token
-async function getUserByToken(supabase: any, token: string) {
-  console.log("[AUTH] Buscando usuário pelo token (mascarado): " + maskToken(token));
-  
-  // Primeiro, tenta buscar um profile com este token
-  const { data: profileData, error: profileError } = await supabase
-    .from("profiles")
-    .select("id, account_name, role, auth_token")
-    .eq("auth_token", token)
-    .maybeSingle();
-  
-  if (profileData) {
-    console.log("[AUTH] Token corresponde ao usuário: " + profileData.account_name + " (role: " + profileData.role + ")");
-    return { 
-      type: "profile", 
-      data: profileData, 
-      error: null 
-    };
-  }
-  
-  console.log("[AUTH] Token não encontrado em profiles, tentando em clients...");
-  
-  // Se não encontrar em profiles, tenta em clients
-  const { data: clientData, error: clientError } = await supabase
-    .from("clients")
-    .select("id, account_name, auth_token")
-    .eq("auth_token", token)
-    .maybeSingle();
-    
-  if (clientData) {
-    console.log("[AUTH] Token corresponde ao cliente: " + clientData.account_name);
-    return { 
-      type: "client", 
-      data: clientData, 
-      error: null 
-    };
-  }
-  
-  // Nenhum token encontrado
-  console.error("[AUTH] Token não encontrado em nenhuma tabela");
-  return { 
-    type: null, 
-    data: null, 
-    error: "Token não encontrado" 
-  };
-}
-
-// Função auxiliar para debug: busca tokens similares usando LIKE
-async function findSimilarTokens(supabase: any, token: string) {
-  if (!token || token.length < 10) return;
-  
-  console.log("[DEBUG] Buscando tokens similares...");
-  const tokenFragment = token.substring(5, 15); // Parte do meio do token
-  
-  // Procurar em profiles
-  const { data: profileTokens } = await supabase
-    .from("profiles")
-    .select("id, account_name, auth_token")
-    .ilike("auth_token", `%${tokenFragment}%`)
-    .limit(3);
-    
-  if (profileTokens && profileTokens.length > 0) {
-    console.log("[DEBUG] Tokens similares encontrados em profiles:");
-    for (const item of profileTokens) {
-      console.log(`- ID: ${item.id}, Nome: ${item.account_name}`);
-      console.log(`  Token (mascarado): ${maskToken(item.auth_token || '')}`);
-    }
-  }
-  
-  // Procurar em clients
-  const { data: clientTokens } = await supabase
-    .from("clients")
-    .select("id, account_name, auth_token")
-    .ilike("auth_token", `%${tokenFragment}%`)
-    .limit(3);
-    
-  if (clientTokens && clientTokens.length > 0) {
-    console.log("[DEBUG] Tokens similares encontrados em clients:");
-    for (const item of clientTokens) {
-      console.log(`- ID: ${item.id}, Nome: ${item.account_name}`);
-      console.log(`  Token (mascarado): ${maskToken(item.auth_token || '')}`);
-    }
-  }
-}
-
-// Função auxiliar para verificar se um adminId específico corresponde ao usuário autenticado
-async function validateAdminId(supabase: any, adminId: string, userInfo: any): Promise<boolean> {
-  if (!adminId) return true; // Se não foi especificado adminId, não validamos
-  
-  if (userInfo.type === "profile") {
-    // Se o próprio usuário autenticado é o adminId especificado, ok
-    if (userInfo.data.id === adminId) {
-      console.log("[AUTH] AdminID corresponde ao usuário autenticado");
-      return true;
-    }
-    
-    // Se é um super_admin, também pode acessar
-    if (userInfo.data.role === "super_admin") {
-      console.log("[AUTH] Usuário é super_admin, acesso permitido");
-      return true;
-    }
-    
-    console.error("[AUTH] AdminID não corresponde ao usuário autenticado");
-    return false;
-  }
-  
-  // Para clients, não temos como validar o adminId
-  console.log("[AUTH] Autenticação via client token, ignorando validação de adminId");
-  return true;
-}
-
 serve(async (req) => {
   console.log("[REQUEST] Método: " + req.method + ", URL: " + req.url);
   
@@ -203,67 +80,38 @@ serve(async (req) => {
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     console.log("[CLIENT] Cliente Supabase criado com sucesso");
 
-    // Sanitize the token for consistent comparison
-    const sanitizedToken = sanitizeToken(authToken);
-    
     // Authenticate with token
     console.log("[SEGURANÇA] Verificando token de autenticação...");
-    console.log("[SEGURANÇA] Token sanitizado (mascarado): " + maskToken(sanitizedToken));
-    console.log("[SEGURANÇA] Comprimento do token: " + sanitizedToken.length);
-    
-    // Debug: Listar todos os auth_tokens ativos em profiles (apenas primeiros caracteres e últimos)
-    console.log("[DEBUG] Listando tokens disponíveis em profiles para debug:");
-    const { data: allProfiles } = await supabase
+    const { data: profileData, error: profileError } = await supabase
       .from("profiles")
-      .select("id, account_name, auth_token")
-      .limit(5);
+      .select("id, account_name, role")
+      .eq("auth_token", authToken)
+      .maybeSingle();
       
-    if (allProfiles) {
-      for (const profile of allProfiles) {
-        if (profile.auth_token) {
-          console.log(`- Profile: ${profile.account_name}, ID: ${profile.id}`);
-          console.log(`  Token (mascarado): ${maskToken(profile.auth_token)}`);
-        }
-      }
-    }
-    
-    // Busca o usuário pelo token
-    const userInfo = await getUserByToken(supabase, sanitizedToken);
-    
-    if (!userInfo.data) {
-      // Se não encontrou, tenta buscar tokens similares para debug
-      await findSimilarTokens(supabase, sanitizedToken);
+    if (profileError || !profileData) {
+      console.error("[SEGURANÇA] Falha na autenticação: " + (profileError?.message || "Token inválido"));
       
-      console.error("[SEGURANÇA] Falha na autenticação: Token inválido");
-      return new Response(
-        JSON.stringify({ 
-          error: "Autenticação falhou. Token inválido.",
-          details: "O token fornecido não corresponde a nenhum usuário ou cliente"
-        }),
-        {
-          status: 401, 
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-    
-    // Verificar se o adminId fornecido (se houver) corresponde ao usuário autenticado
-    if (accountData.adminId) {
-      const isValidAdminId = await validateAdminId(supabase, accountData.adminId, userInfo);
-      
-      if (!isValidAdminId) {
-        console.error("[SEGURANÇA] Falha na autenticação: Token não corresponde ao adminId fornecido");
+      // Check if token is a client token
+      const { data: clientData, error: clientError } = await supabase
+        .from("clients")
+        .select("id, account_name")
+        .eq("auth_token", authToken)
+        .maybeSingle();
+        
+      if (clientError || !clientData) {
+        console.error("[SEGURANÇA] Falha na autenticação de cliente: " + (clientError?.message || "Token inválido"));
         return new Response(
-          JSON.stringify({ 
-            error: "Autenticação falhou. O token não corresponde ao adminId fornecido.",
-            details: "O usuário autenticado não tem permissão para acessar este recurso"
-          }),
+          JSON.stringify({ error: "Autenticação falhou. Token inválido." }),
           {
             status: 401, 
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           }
         );
       }
+      
+      console.log("[SEGURANÇA] Autenticação realizada para cliente: " + clientData.account_name);
+    } else {
+      console.log("[SEGURANÇA] Autenticação realizada para " + profileData.account_name + " (" + profileData.role + ")");
     }
     
     console.log("[WEBHOOK] Buscando sequência com webhookId: " + webhookId);

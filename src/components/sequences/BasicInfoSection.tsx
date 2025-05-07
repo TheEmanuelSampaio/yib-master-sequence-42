@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -6,7 +7,6 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/components/ui/use-toast";
 
 interface BasicInfoSectionProps {
   name: string;
@@ -23,7 +23,6 @@ interface BasicInfoSectionProps {
   webhookId?: string;
   setWebhookId: (id: string) => void;
   instanceId?: string;
-  sequenceId?: string; // Add sequenceId prop for edit mode
 }
 
 export function BasicInfoSection({ 
@@ -40,8 +39,7 @@ export function BasicInfoSection({
   setWebhookEnabled,
   webhookId,
   setWebhookId,
-  instanceId,
-  sequenceId // Include sequenceId in destructuring
+  instanceId
 }: BasicInfoSectionProps) {
   const [showTypeChangeAlert, setShowTypeChangeAlert] = useState(false);
   const [pendingType, setPendingType] = useState<"message" | "pattern" | "typebot" | null>(null);
@@ -84,65 +82,21 @@ export function BasicInfoSection({
     if (!id || !instanceId) return;
     
     setIsValidatingWebhookId(true);
-    console.log("Validating webhook ID:", id);
-    console.log("isEditMode:", isEditMode);
-    console.log("sequenceId:", sequenceId);
-    console.log("instanceId:", instanceId);
     
     try {
-      // Use the appropriate function based on whether we're in edit mode
-      if (isEditMode && sequenceId) {
-        console.log("Using is_webhook_id_unique_for_client_except_self with params:", {
-          p_webhook_id: id,
-          p_instance_id: instanceId,
-          p_sequence_id: sequenceId
-        });
-        
-        const { data, error } = await supabase.rpc('is_webhook_id_unique_for_client_except_self', {
-          p_webhook_id: id,
-          p_instance_id: instanceId,
-          p_sequence_id: sequenceId
-        });
+      const { data, error } = await supabase.rpc('is_webhook_id_unique_for_client', {
+        p_webhook_id: id,
+        p_instance_id: instanceId
+      });
 
-        console.log("RPC response for is_webhook_id_unique_for_client_except_self:", { data, error });
-
-        if (error) {
-          console.error('Error validating webhook ID:', error);
-          toast.error(`Erro ao validar ID do webhook: ${error.message}`);
-          setIsWebhookIdUnique(true); // Assume unique in case of error
-        } else {
-          // Verificar o tipo do resultado retornado pela função
-          console.log("Result type:", typeof data);
-          console.log("Result value:", data);
-          setIsWebhookIdUnique(!!data);
-        }
+      if (error) {
+        console.error('Error validating webhook ID:', error);
+        setIsWebhookIdUnique(true); // Assume unique in case of error
       } else {
-        // For new sequences, use the original function
-        console.log("Using is_webhook_id_unique_for_client with params:", {
-          p_webhook_id: id,
-          p_instance_id: instanceId
-        });
-        
-        const { data, error } = await supabase.rpc('is_webhook_id_unique_for_client', {
-          p_webhook_id: id,
-          p_instance_id: instanceId
-        });
-
-        console.log("RPC response for is_webhook_id_unique_for_client:", { data, error });
-        
-        if (error) {
-          console.error('Error validating webhook ID:', error);
-          toast.error(`Erro ao validar ID do webhook: ${error.message}`);
-          setIsWebhookIdUnique(true); // Assume unique in case of error
-        } else {
-          console.log("Result type:", typeof data);
-          console.log("Result value:", data);
-          setIsWebhookIdUnique(!!data);
-        }
+        setIsWebhookIdUnique(!!data);
       }
     } catch (error) {
       console.error('Error validating webhook ID:', error);
-      toast.error(`Erro ao validar ID do webhook: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
       setIsWebhookIdUnique(true); // Assume unique in case of error
     } finally {
       setIsValidatingWebhookId(false);
@@ -158,7 +112,7 @@ export function BasicInfoSection({
       
       return () => clearTimeout(timeoutId);
     }
-  }, [webhookId, webhookEnabled, instanceId, sequenceId, isEditMode]);
+  }, [webhookId, webhookEnabled, instanceId]);
 
   const handleTypeChange = (newType: "message" | "pattern" | "typebot") => {
     if (newType !== type) {
