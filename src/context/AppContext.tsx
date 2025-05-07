@@ -553,7 +553,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           id: sequence.id,
           name: sequence.name,
           instanceId: sequence.instance_id,
-          type: sequence.type || "message", // Use the type from the sequence or default to message
+          type: "message", // Default to "message" type since it doesn't exist in the database yet
           startCondition,
           stopCondition,
           stages,
@@ -661,7 +661,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addInstance = async (instance: Omit<Instance, "id" | "createdAt" | "updatedAt" | "createdBy">) => {
     try {
       if (!user) return { success: false, error: 'User not authenticated' };
-
+      
       // Check if URL is valid (starts with http or https)
       const urlRegex = /^https?:\/\/.+/;
       if (!urlRegex.test(instance.evolutionApiUrl)) {
@@ -1500,7 +1500,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           account_id: client.accountId,
           account_name: client.accountName,
           created_by: user.id,
-          creator_account_name: user.accountName // Add this field
+          creator_account_name: user.accountName // Make sure this field is included
         })
         .select();
       
