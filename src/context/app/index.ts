@@ -1,6 +1,6 @@
 
 import { useContext } from "react";
-import { CoreAppContext } from "./AppProvider";
+import { CoreAppContext, useAppCore } from "./AppProvider";
 import { useClients } from "./clients/ClientsContext";
 import { useInstances } from "./instances/InstancesContext";
 import { useSequences } from "./sequences/SequencesContext";
@@ -27,7 +27,7 @@ export * from "./types";
 
 // Combined hook for backward compatibility
 export const useApp = (): AppContextType => {
-  const coreContext = useContext(CoreAppContext);
+  const coreContext = useAppCore();
   const clients = useClients();
   const instances = useInstances();
   const sequences = useSequences();
@@ -37,10 +37,6 @@ export const useApp = (): AppContextType => {
   const tags = useTags();
   const stats = useStats();
   const messages = useMessages();
-  
-  if (!coreContext) {
-    throw new Error("useApp must be used within an AppProvider");
-  }
   
   return {
     // Core app data

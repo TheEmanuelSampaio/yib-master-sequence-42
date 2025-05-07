@@ -4,23 +4,25 @@ import { Contact, ContactSequence } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "@/components/ui/use-toast";
-import { createContactFunctions, AppContactFunctions } from '@/context/AppContact';
 
 interface ContactsContextType {
   contacts: Contact[];
   contactSequences: ContactSequence[];
   setContacts: (contacts: Contact[]) => void;
-  setContactSequences: (sequences: ContactSequence[]) => void;
-  addContact: (contact: Contact) => Promise<void>;
+  setContactSequences: (contactSequences: ContactSequence[]) => void;
+  addContact: (contact: Contact) => void;
   getContactSequences: (contactId: string) => ContactSequence[];
-  refreshContacts: () => Promise<void>;
   deleteContact: (contactId: string) => Promise<{ success: boolean; error?: string }>;
   updateContact: (contactId: string, data: Partial<Contact>) => Promise<{ success: boolean; error?: string }>;
   removeFromSequence: (contactSequenceId: string) => Promise<{ success: boolean; error?: string }>;
-  updateContactSequence: (contactSequenceId: string, data: {
-    sequenceId?: string;
-    currentStageId?: string;
-  }) => Promise<{ success: boolean; error?: string }>;
+  updateContactSequence: (
+    contactSequenceId: string,
+    data: {
+      sequenceId?: string;
+      currentStageId?: string;
+    }
+  ) => Promise<{ success: boolean; error?: string }>;
+  refreshContacts: () => Promise<void>;
 }
 
 const ContactsContext = createContext<ContactsContextType | undefined>(undefined);
@@ -29,8 +31,8 @@ export const ContactsProvider = ({ children }: { children: React.ReactNode }) =>
   const { user: currentUser } = useAuth();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [contactSequences, setContactSequences] = useState<ContactSequence[]>([]);
-  const contactFunctions = createContactFunctions();
 
+  // Get contact sequences helper function
   const getContactSequences = (contactId: string): ContactSequence[] => {
     return contactSequences.filter(cs => cs.contactId === contactId);
   };
@@ -46,9 +48,9 @@ export const ContactsProvider = ({ children }: { children: React.ReactNode }) =>
       
       if (contactsError) throw contactsError;
       
-      // Start fetching contact_tag data
+      // Iniciar a busca de dados de contato_tag
       const contactPromises = contactsData.map(async (contact) => {
-        // Fetch contact tags
+        // Buscar tags deste contato
         const { data: contactTagsData, error: contactTagsError } = await supabase
           .from('contact_tags')
           .select('tag_name')
@@ -75,7 +77,7 @@ export const ContactsProvider = ({ children }: { children: React.ReactNode }) =>
         };
       });
       
-      // Resolve all promises
+      // Resolver todas as promessas
       const typedContacts = (await Promise.all(contactPromises)).filter(Boolean) as Contact[];
       setContacts(typedContacts);
       
@@ -86,9 +88,9 @@ export const ContactsProvider = ({ children }: { children: React.ReactNode }) =>
       
       if (contactSeqsError) throw contactSeqsError;
       
-      // Start fetching stage progress for each contact sequence
+      // Iniciar a busca de progresso de estágios para cada sequência de contato
       const contactSeqPromises = contactSeqsData.map(async (contactSeq) => {
-        // Fetch stage progress for this contact sequence
+        // Buscar progresso de estágio para esta sequência de contato
         const { data: progressData, error: progressError } = await supabase
           .from('stage_progress')
           .select('*')
@@ -121,68 +123,162 @@ export const ContactsProvider = ({ children }: { children: React.ReactNode }) =>
         };
       });
       
-      // Resolve all contact sequence promises
+      // Resolver todas as promessas de sequências de contato
       const typedContactSeqs = (await Promise.all(contactSeqPromises)).filter(Boolean) as ContactSequence[];
       setContactSequences(typedContactSeqs);
+      
     } catch (error: any) {
       console.error("Error fetching contacts:", error);
       toast.error(`Erro ao carregar contatos: ${error.message}`);
     }
   };
 
-  const addContact = async (contactData: Contact) => {
+  const addContact = (contact: Contact) => {
+    setContacts(prev => [...prev, contact]);
+  };
+
+  // Contact manipulation functions
+  const deleteContact = async (contactId: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      // Check if contact exists
+      const contact = contacts.find(c => c.id === contactId);
+      if (!contact) {
+        return { success: false, error: "Contato não encontrado" };
+      }
+
+      const { error } = await supabase
+        .from('contacts')
+        .delete()
+        .eq('id', contactId);
+
+      if (error) throw error;
+
+      // Update local state
+      setContacts(prev => prev.filter(c => c.id !== contactId));
+      
+      return { success: true };
+    } catch (error: any) {
+      console.error("Error deleting contact:", error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  const updateContact = async (contactId: string, data: Partial<Contact>): Promise<{ success: boolean; error?: string }> => {
     try {
       const { error } = await supabase
         .from('contacts')
-        .insert({
-          id: contactData.id,
-          name: contactData.name,
-          phone_number: contactData.phoneNumber,
-          client_id: contactData.clientId,
-          inbox_id: contactData.inboxId,
-          conversation_id: contactData.conversationId,
-          display_id: contactData.displayId
-        });
-      
+        .update({
+          name: data.name,
+          phone_number: data.phoneNumber,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', contactId);
+
       if (error) throw error;
-      
-      // Add tags
-      if (contactData.tags && contactData.tags.length > 0) {
-        for (const tag of contactData.tags) {
-          // Check if tag exists
-          const { data: existingTag } = await supabase
-            .from('tags')
-            .select('name')
-            .eq('name', tag)
-            .maybeSingle();
-          
-          // Add tag if it doesn't exist
-          if (!existingTag && currentUser) {
-            await supabase
-              .from('tags')
-              .insert({
-                name: tag,
-                created_by: currentUser.id
-              });
-          }
-          
-          // Add tag relation to contact
-          const { error: tagError } = await supabase
+
+      // Handle tags update if provided
+      if (data.tags) {
+        // First delete all existing tags
+        const { error: deleteError } = await supabase
+          .from('contact_tags')
+          .delete()
+          .eq('contact_id', contactId);
+
+        if (deleteError) throw deleteError;
+
+        // Then add new tags
+        if (data.tags.length > 0) {
+          const tagInserts = data.tags.map(tag => ({
+            contact_id: contactId,
+            tag_name: tag
+          }));
+
+          const { error: insertError } = await supabase
             .from('contact_tags')
-            .insert({
-              contact_id: contactData.id,
-              tag_name: tag
-            });
-          
-          if (tagError) console.error("Error adding tag:", tagError);
+            .insert(tagInserts);
+
+          if (insertError) throw insertError;
         }
       }
-      
-      await refreshContacts();
-      toast.success("Contato adicionado com sucesso");
+
+      // Update local state
+      setContacts(prev => 
+        prev.map(contact => 
+          contact.id === contactId ? { ...contact, ...data } : contact
+        )
+      );
+
+      return { success: true };
     } catch (error: any) {
-      console.error("Error adding contact:", error);
-      toast.error(`Erro ao adicionar contato: ${error.message}`);
+      console.error("Error updating contact:", error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  const removeFromSequence = async (contactSequenceId: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const { error } = await supabase
+        .from('contact_sequences')
+        .update({
+          removed_at: new Date().toISOString(),
+          status: 'removed'
+        })
+        .eq('id', contactSequenceId);
+
+      if (error) throw error;
+
+      // Update local state
+      setContactSequences(prev => 
+        prev.map(cs => 
+          cs.id === contactSequenceId 
+            ? { ...cs, removedAt: new Date().toISOString(), status: 'removed' } 
+            : cs
+        )
+      );
+
+      return { success: true };
+    } catch (error: any) {
+      console.error("Error removing contact from sequence:", error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  const updateContactSequence = async (
+    contactSequenceId: string,
+    data: {
+      sequenceId?: string;
+      currentStageId?: string;
+    }
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const updates: any = {};
+      if (data.sequenceId) updates.sequence_id = data.sequenceId;
+      if (data.currentStageId) updates.current_stage_id = data.currentStageId;
+
+      const { error } = await supabase
+        .from('contact_sequences')
+        .update(updates)
+        .eq('id', contactSequenceId);
+
+      if (error) throw error;
+
+      // Update local state
+      setContactSequences(prev => 
+        prev.map(cs => 
+          cs.id === contactSequenceId 
+            ? { 
+                ...cs, 
+                sequenceId: data.sequenceId || cs.sequenceId,
+                currentStageId: data.currentStageId || cs.currentStageId
+              } 
+            : cs
+        )
+      );
+
+      return { success: true };
+    } catch (error: any) {
+      console.error("Error updating contact sequence:", error);
+      return { success: false, error: error.message };
     }
   };
 
@@ -194,11 +290,11 @@ export const ContactsProvider = ({ children }: { children: React.ReactNode }) =>
       setContactSequences,
       addContact,
       getContactSequences,
-      refreshContacts,
-      deleteContact: contactFunctions.deleteContact,
-      updateContact: contactFunctions.updateContact,
-      removeFromSequence: contactFunctions.removeFromSequence,
-      updateContactSequence: contactFunctions.updateContactSequence
+      deleteContact,
+      updateContact,
+      removeFromSequence,
+      updateContactSequence,
+      refreshContacts
     }}>
       {children}
     </ContactsContext.Provider>

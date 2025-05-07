@@ -24,6 +24,7 @@ export const ClientsProvider = ({ children }: { children: React.ReactNode }) => 
     try {
       if (!currentUser) return;
       
+      // Fetch clients
       const { data: clientsData, error: clientsError } = await supabase
         .from('clients')
         .select('*');
@@ -46,7 +47,7 @@ export const ClientsProvider = ({ children }: { children: React.ReactNode }) => 
     }
   };
 
-  const addClient = async (clientData: Omit<Client, "id" | "createdAt" | "updatedAt" | "createdBy">) => {
+  const addClient = async (client: Omit<Client, "id" | "createdAt" | "updatedAt" | "createdBy">) => {
     try {
       if (!currentUser) {
         toast.error("Usuário não autenticado");
@@ -56,10 +57,10 @@ export const ClientsProvider = ({ children }: { children: React.ReactNode }) => 
       const { data, error } = await supabase
         .from('clients')
         .insert({
-          account_id: clientData.accountId,
-          account_name: clientData.accountName,
-          created_by: currentUser.id,
-          creator_account_name: currentUser.accountName || "Usuário"
+          account_id: client.accountId,
+          account_name: client.accountName,
+          creator_account_name: currentUser.accountName || 'Unknown',  // Add this field
+          created_by: currentUser.id
         })
         .select()
         .single();
@@ -76,32 +77,29 @@ export const ClientsProvider = ({ children }: { children: React.ReactNode }) => 
       };
       
       setClients(prev => [...prev, newClient]);
-      toast.success(`Cliente "${data.account_name}" adicionado com sucesso`);
+      toast.success(`Cliente "${client.accountName}" criado com sucesso`);
     } catch (error: any) {
-      console.error("Error adding client:", error);
-      toast.error(`Erro ao adicionar cliente: ${error.message}`);
+      console.error("Error creating client:", error);
+      toast.error(`Erro ao criar cliente: ${error.message}`);
     }
   };
 
-  const updateClient = async (id: string, clientData: Partial<Client>) => {
+  const updateClient = async (id: string, client: Partial<Client>) => {
     try {
-      const updateData: any = {
-        updated_at: new Date().toISOString()
-      };
-      
-      if (clientData.accountId !== undefined) updateData.account_id = clientData.accountId;
-      if (clientData.accountName !== undefined) updateData.account_name = clientData.accountName;
-      
       const { error } = await supabase
         .from('clients')
-        .update(updateData)
+        .update({
+          account_id: client.accountId,
+          account_name: client.accountName,
+          updated_at: new Date().toISOString()
+        })
         .eq('id', id);
       
       if (error) throw error;
       
       setClients(prev => 
-        prev.map(client => 
-          client.id === id ? { ...client, ...clientData } : client
+        prev.map(c => 
+          c.id === id ? { ...c, ...client } : c
         )
       );
       
@@ -130,7 +128,7 @@ export const ClientsProvider = ({ children }: { children: React.ReactNode }) => 
   };
 
   return (
-    <ClientsContext.Provider value={{ 
+    <ClientsContext.Provider value={{
       clients,
       setClients,
       addClient,

@@ -14,9 +14,6 @@ import { TagsProvider, useTags } from "./tags/TagsContext";
 import { StatsProvider, useStats } from "./stats/StatsContext";
 import { MessagesProvider, useMessages } from "./messages/MessagesContext";
 
-// Import types
-import { AppContextType } from "./types";
-
 // Create context for the core app functionality
 interface CoreAppContextType {
   refreshData: () => Promise<void>;
@@ -24,13 +21,24 @@ interface CoreAppContextType {
   isRefreshing: boolean;
 }
 
-const CoreAppContext = createContext<CoreAppContextType | undefined>(undefined);
+export const CoreAppContext = createContext<CoreAppContextType | undefined>(undefined);
 
-export const AppProvider = ({ children }: { children: ReactNode }) => {
+const AppProvider = ({ children }: { children: ReactNode }) => {
   const { user: currentUser } = useAuth();
   const [isDataInitialized, setIsDataInitialized] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(0);
+
+  // Create instances for accessing context functions
+  const clientsInstance = useClients();
+  const instancesInstance = useInstances();
+  const sequencesInstance = useSequences();
+  const contactsInstance = useContacts();
+  const timeRestrictionsInstance = useTimeRestrictions();
+  const usersInstance = useUsers();
+  const tagsInstance = useTags();
+  const statsInstance = useStats();
+  const messagesInstance = useMessages();
 
   const refreshData = async () => {
     if (!currentUser || isRefreshing) return;
@@ -48,7 +56,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       console.log("Refreshing data...");
       
       // Use context providers to refresh all data
-      // The actual implementation of these functions will be in their respective context providers
       await Promise.allSettled([
         clientsInstance.refreshClients(),
         instancesInstance.refreshInstances(),
@@ -86,17 +93,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [currentUser, isDataInitialized]);
 
-  // Create instances for accessing context functions
-  const clientsInstance = useClients();
-  const instancesInstance = useInstances();
-  const sequencesInstance = useSequences();
-  const contactsInstance = useContacts();
-  const timeRestrictionsInstance = useTimeRestrictions();
-  const usersInstance = useUsers();
-  const tagsInstance = useTags();
-  const statsInstance = useStats();
-  const messagesInstance = useMessages();
-
   return (
     <CoreAppContext.Provider value={{
       refreshData,
@@ -133,4 +129,12 @@ export const AppContextProvider = ({ children }: { children: ReactNode }) => {
       </InstancesProvider>
     </ClientsProvider>
   );
+};
+
+export const useAppCore = () => {
+  const context = useContext(CoreAppContext);
+  if (context === undefined) {
+    throw new Error("useAppCore must be used within an AppProvider");
+  }
+  return context;
 };

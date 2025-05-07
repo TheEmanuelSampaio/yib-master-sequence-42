@@ -31,16 +31,16 @@ export const UsersProvider = ({ children }: { children: React.ReactNode }) => {
       
       if (profilesError) throw profilesError;
       
-      // Get user emails from auth.users through function or RPC
+      // Get user emails from auth.users through Supabase function or RPC
       const { data: authUsersData, error: authUsersError } = await supabase
         .rpc('get_users_with_emails');
         
       if (authUsersError) {
         console.error("Error fetching user emails:", authUsersError);
-        // Continue with what we have
+        // Continue with what we have, but log the error
       }
       
-      // Create map of user IDs to emails
+      // Create a map of user IDs to emails for quick lookup
       const emailMap = new Map();
       if (authUsersData && Array.isArray(authUsersData)) {
         authUsersData.forEach(userData => {
@@ -50,8 +50,9 @@ export const UsersProvider = ({ children }: { children: React.ReactNode }) => {
         });
       }
       
-      // Map profiles to users with emails
+      // Now map profiles to users with emails from the emailMap
       const usersWithEmails = profilesData.map(profile => {
+        // Try to get email from the map, fall back to current user email or a placeholder
         const email = emailMap.get(profile.id) || 
                       (profile.id === currentUser.id ? currentUser.email : `user-${profile.id.substring(0, 4)}@example.com`);
         
@@ -71,45 +72,49 @@ export const UsersProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const addUser = async (userData: { email: string; password: string; accountName: string, isAdmin?: boolean }) => {
+  const addUser = async (user: { email: string; password: string; accountName: string, isAdmin?: boolean }) => {
     try {
-      // Use Supabase auth to sign up the user
-      const { data, error } = await supabase.auth.signUp({
-        email: userData.email,
-        password: userData.password
+      // Instead of using rpc, use a custom API call or edge function
+      // This is a temporary workaround until the database function is properly created
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+        },
+        body: JSON.stringify({
+          email: user.email,
+          password: user.password,
+          account_name: user.accountName,
+          role: user.isAdmin ? 'admin' : 'user'
+        })
       });
       
-      if (error) throw error;
-      
-      if (!data.user) {
-        throw new Error("Erro ao criar usuário");
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Error creating user');
       }
       
-      // Update the profile with the account name
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({
-          account_name: userData.accountName,
-          role: userData.isAdmin ? 'admin' : 'admin' // Default to admin for now
-        })
-        .eq('id', data.user.id);
-      
-      if (updateError) throw updateError;
+      // Refresh users list
+      await refreshUsers();
       
       toast.success("Usuário criado com sucesso");
-      refreshUsers();
     } catch (error: any) {
-      console.error("Error adding user:", error);
-      toast.error(`Erro ao adicionar usuário: ${error.message}`);
+      console.error("Error creating user:", error);
+      toast.error(`Erro ao criar usuário: ${error.message}`);
     }
   };
 
   const updateUser = async (id: string, data: { accountName?: string; role?: "super_admin" | "admin" }) => {
     try {
+      // Only update fields that are provided
       const updateData: any = {};
-      
-      if (data.accountName !== undefined) updateData.account_name = data.accountName;
-      if (data.role !== undefined) updateData.role = data.role;
+      if (data.accountName !== undefined) {
+        updateData.account_name = data.accountName;
+      }
+      if (data.role !== undefined) {
+        updateData.role = data.role;
+      }
       
       const { error } = await supabase
         .from('profiles')
@@ -118,9 +123,16 @@ export const UsersProvider = ({ children }: { children: React.ReactNode }) => {
       
       if (error) throw error;
       
+      // Update users list
       setUsers(prev => 
-        prev.map(u => 
-          u.id === id ? { ...u, accountName: data.accountName || u.accountName, role: data.role || u.role } : u
+        prev.map(user => 
+          user.id === id 
+            ? { 
+                ...user, 
+                accountName: data.accountName ?? user.accountName, 
+                role: data.role ?? user.role 
+              } 
+            : user
         )
       );
       
@@ -133,14 +145,27 @@ export const UsersProvider = ({ children }: { children: React.ReactNode }) => {
 
   const deleteUser = async (id: string) => {
     try {
-      // Requires admin privileges in Supabase
-      const { error } = await supabase.functions.invoke('delete-user', {
-        body: { userId: id }
+      // Delete via edge function
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-user`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+        },
+        body: JSON.stringify({
+          user_id: id,
+          requesting_user_id: currentUser?.id
+        })
       });
       
-      if (error) throw error;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Erro ao excluir usuário');
+      }
       
-      setUsers(prev => prev.filter(u => u.id !== id));
+      // Update users list
+      setUsers(prev => prev.filter(user => user.id !== id));
+      
       toast.success("Usuário excluído com sucesso");
     } catch (error: any) {
       console.error("Error deleting user:", error);
