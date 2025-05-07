@@ -93,7 +93,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
     startMinute: 0,
     endHour: 8,
     endMinute: 0,
-    isGlobal: false, // Por padrão, novas restrições são locais
+    isGlobal: false, // Por padr��o, novas restrições são locais
   });
 
   const [showTagDialog, setShowTagDialog] = useState(false);
@@ -673,6 +673,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
               webhookId={webhookId}
               setWebhookId={setWebhookId}
               instanceId={currentInstance?.id}
+              sequenceId={sequence?.id}
             />
 
             <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">

@@ -23,6 +23,7 @@ interface BasicInfoSectionProps {
   webhookId?: string;
   setWebhookId: (id: string) => void;
   instanceId?: string;
+  sequenceId?: string;
 }
 
 export function BasicInfoSection({ 
@@ -39,7 +40,8 @@ export function BasicInfoSection({
   setWebhookEnabled,
   webhookId,
   setWebhookId,
-  instanceId
+  instanceId,
+  sequenceId
 }: BasicInfoSectionProps) {
   const [showTypeChangeAlert, setShowTypeChangeAlert] = useState(false);
   const [pendingType, setPendingType] = useState<"message" | "pattern" | "typebot" | null>(null);
@@ -77,22 +79,37 @@ export function BasicInfoSection({
     }
   }, [name]);
 
-  // Validate webhook ID uniqueness
+  // Validate webhook ID uniqueness - Improved to use the correct function when in edit mode
   const validateWebhookId = async (id: string) => {
     if (!id || !instanceId) return;
     
     setIsValidatingWebhookId(true);
+    console.log("Validating webhook ID:", { id, instanceId, isEditMode, sequenceId });
     
     try {
-      const { data, error } = await supabase.rpc('is_webhook_id_unique_for_client', {
-        p_webhook_id: id,
-        p_instance_id: instanceId
-      });
+      // Use different RPC function based on whether we're in edit mode
+      let data, error;
+      
+      if (isEditMode && sequenceId) {
+        console.log("Using is_webhook_id_unique_for_client_except_self");
+        ({ data, error } = await supabase.rpc('is_webhook_id_unique_for_client_except_self', {
+          p_webhook_id: id,
+          p_instance_id: instanceId,
+          p_sequence_id: sequenceId
+        }));
+      } else {
+        console.log("Using is_webhook_id_unique_for_client");
+        ({ data, error } = await supabase.rpc('is_webhook_id_unique_for_client', {
+          p_webhook_id: id,
+          p_instance_id: instanceId
+        }));
+      }
 
       if (error) {
         console.error('Error validating webhook ID:', error);
         setIsWebhookIdUnique(true); // Assume unique in case of error
       } else {
+        console.log("Webhook ID validation result:", data);
         setIsWebhookIdUnique(!!data);
       }
     } catch (error) {
@@ -103,16 +120,16 @@ export function BasicInfoSection({
     }
   };
 
-  // Debounce webhook ID validation
+  // Debounce webhook ID validation - but only validate while typing, not on initial load
   useEffect(() => {
-    if (webhookEnabled && webhookId) {
+    if (webhookEnabled && webhookId && !isValidatingWebhookId) {
       const timeoutId = setTimeout(() => {
         validateWebhookId(webhookId);
       }, 500);
       
       return () => clearTimeout(timeoutId);
     }
-  }, [webhookId, webhookEnabled, instanceId]);
+  }, [webhookId, webhookEnabled, instanceId, sequenceId]);
 
   const handleTypeChange = (newType: "message" | "pattern" | "typebot") => {
     if (newType !== type) {
