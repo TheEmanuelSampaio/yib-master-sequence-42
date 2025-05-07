@@ -9,8 +9,11 @@ export function DashboardStats() {
   const { stats } = useApp();
   const [chartPeriod, setChartPeriod] = useState<"week" | "month">("week");
   
+  // Ensure stats is an array before using reduce
+  const statsArray = Array.isArray(stats) ? stats : [];
+  
   // Cálculos para estatísticas resumidas
-  const totalStats = stats.reduce((acc, day) => {
+  const totalStats = statsArray.reduce((acc, day) => {
     return {
       messagesSent: acc.messagesSent + day.messagesSent,
       messagesFailed: acc.messagesFailed + day.messagesFailed,
@@ -35,7 +38,7 @@ export function DashboardStats() {
     const oneWeekAgo = new Date(currentDate);
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
     
-    filteredStats = stats.filter(day => {
+    filteredStats = statsArray.filter(day => {
       const dayDate = new Date(day.date);
       return dayDate >= oneWeekAgo && dayDate <= currentDate;
     });
@@ -44,7 +47,7 @@ export function DashboardStats() {
     const oneMonthAgo = new Date(currentDate);
     oneMonthAgo.setDate(oneMonthAgo.getDate() - 30);
     
-    filteredStats = stats.filter(day => {
+    filteredStats = statsArray.filter(day => {
       const dayDate = new Date(day.date);
       return dayDate >= oneMonthAgo && dayDate <= currentDate;
     });
