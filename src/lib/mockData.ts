@@ -158,8 +158,8 @@ export const sequences: Sequence[] = [
     createdBy: "user-1",
     createdAt: "2023-12-05T09:20:00Z",
     updatedAt: "2023-12-12T11:30:00Z",
-    webhookEnabled: false,
-    webhookId: undefined
+    webhookEnabled: true,
+    webhookId: "recuperacao-leads"
   }
 ];
 

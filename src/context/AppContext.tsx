@@ -739,7 +739,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           stop_condition_type: sequenceData.stopCondition.type,
           stop_condition_tags: sequenceData.stopCondition.tags,
           status: sequenceData.status,
-          created_by: user.id
+          created_by: user.id,
+          webhook_enabled: sequenceData.webhookEnabled,
+          webhook_id: sequenceData.webhookId
         })
         .select()
         .single();
@@ -851,7 +853,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           stop_condition_type: updates.stopCondition?.type,
           stop_condition_tags: updates.stopCondition?.tags,
           updated_at: new Date().toISOString(),
-          // Don't update instanceId as this shouldn't change
+          webhook_enabled: updates.webhookEnabled,
+          webhook_id: updates.webhookId
         })
         .eq('id', id);
       
@@ -1518,11 +1521,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           type: (seq as any).type || sequenceType,
           status: seq.status as "active" | "inactive",
           startCondition: {
-            type: seq.start_condition_type as "AND" | "OR",
+            type: seq.start_condition_type,
             tags: seq.start_condition_tags || []
           },
           stopCondition: {
-            type: seq.stop_condition_type as "AND" | "OR",
+            type: seq.stop_condition_type,
             tags: seq.stop_condition_tags || []
           },
           stages,

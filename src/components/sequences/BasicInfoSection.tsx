@@ -145,13 +145,13 @@ export function BasicInfoSection({
   };
 
   const handleWebhookEnabledChange = (enabled: boolean) => {
+    console.log("Webhook enabled changed to:", enabled);
     setWebhookEnabled(enabled);
     if (enabled && !webhookId && name) {
       const newWebhookId = generateWebhookId(name);
       setWebhookId(newWebhookId);
     }
     notifyChanges(); // Make sure to notify changes when enabling/disabling webhook
-    console.log("Webhook enabled changed to:", enabled); // Add logging for debugging
   };
 
   const handleWebhookIdChange = (id: string) => {
@@ -162,7 +162,7 @@ export function BasicInfoSection({
       
     setWebhookId(sanitizedId);
     notifyChanges();
-    console.log("Webhook ID changed to:", sanitizedId); // Add logging for debugging
+    console.log("Webhook ID changed to:", sanitizedId);
   };
 
   const handleUseGeneratedId = () => {
