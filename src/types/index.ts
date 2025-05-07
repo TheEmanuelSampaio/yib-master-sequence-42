@@ -1,11 +1,11 @@
 // User related types
 export interface User {
   id: string;
-  accountName: string;
   email: string;
-  role: 'super_admin' | 'admin';
-  avatar?: string;
-  authToken?: string; // Adicionado global token para usuários
+  accountName: string;
+  role: string;
+  avatar: string;
+  authToken?: string;
 }
 
 export interface Client {
@@ -324,4 +324,16 @@ export interface Database {
       };
     };
   };
+}
+
+export interface AuthContextValue {
+  user: User | null;
+  loading: boolean;
+  isSuper: boolean;
+  setupCompleted: boolean | null;
+  login: (email: string, password: string) => Promise<void>;
+  signup: (email: string, password: string, accountName: string, isSuper: boolean) => Promise<void>;
+  logout: () => Promise<void>;
+  completeSetup: () => Promise<void>;
+  updateUser: (updates: Partial<User>) => Promise<void>;
 }
