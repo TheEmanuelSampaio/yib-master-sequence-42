@@ -4,6 +4,7 @@ import { corsHeaders } from '../_shared/cors.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
 const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
 
 // Logs de inicialização
 console.log(`[INIT] Inicializando função pending-messages`);
@@ -21,7 +22,7 @@ Deno.serve(async (req) => {
 
   try {
     console.log(`[CLIENT] Criando cliente Supabase...`);
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
     console.log(`[CLIENT] Cliente Supabase criado com sucesso`);
     
     // Parse the request body
@@ -41,11 +42,56 @@ Deno.serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
+    
+    // Autenticação com token
+    const { authToken, adminId } = jsonData;
+    
+    if (!authToken) {
+      console.error(`[SEGURANÇA] Tentativa de acesso sem token de autenticação`);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Token de autenticação necessário', 
+          details: 'É necessário fornecer um token de autenticação válido' 
+        }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    // Verificar token de administrador
+    const { data: admin, error: adminError } = await supabase
+      .from("profiles")
+      .select("id, account_name, role, auth_token")
+      .eq("auth_token", authToken)
+      .maybeSingle();
+      
+    if (adminError || !admin) {
+      console.error(`[SEGURANÇA] Token de autenticação inválido ou não pertence a um administrador`);
+      
+      // Registrar tentativa não autorizada
+      await supabase.from("security_logs").insert({
+        client_account_id: "system",
+        action: "pending_messages_unauthorized_access",
+        ip_address: req.headers.get("x-forwarded-for") || "unknown",
+        user_agent: req.headers.get("user-agent") || "unknown",
+        details: { error: "Invalid authentication token" }
+      });
+      
+      return new Response(
+        JSON.stringify({ 
+          error: 'Token de autenticação inválido', 
+          details: 'O token fornecido não é válido ou não pertence a um administrador' 
+        }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    console.log(`[SEGURANÇA] Autenticação realizada para ${admin.account_name} (${admin.role})`);
+    
     // Pegar mensagens pendentes com horário de envio menor que o horário atual
     console.log(`[QUERY] Buscando mensagens pendentes...`);
     const now = new Date();
-    const { data: pendingMessages, error: messagesError } = await supabase
+    
+    let pendingMessagesQuery = supabase
       .from('scheduled_messages')
       .select(`
         id,
@@ -82,8 +128,27 @@ Deno.serve(async (req) => {
       `)
       .eq('status', 'pending')
       .lt('scheduled_time', now.toISOString())
-      .order('scheduled_time', { ascending: true })
-      .limit(10); // Limitar a 10 mensagens por vez para evitar sobrecarga
+      .order('scheduled_time', { ascending: true });
+      
+    // Se não for super_admin e adminId é fornecido, filtrar apenas para esse admin
+    if (admin.role !== 'super_admin' || (adminId && admin.role === 'super_admin')) {
+      const filterAdminId = adminId || admin.id;
+      console.log(`[QUERY] Filtrando mensagens para admin_id=${filterAdminId}`);
+      
+      pendingMessagesQuery = pendingMessagesQuery.filter('contacts.client_id.in', (subquery) => {
+        return subquery
+          .from('clients')
+          .select('id')
+          .eq('created_by', filterAdminId);
+      });
+    } else {
+      console.log(`[QUERY] Admin é super_admin e não especificou adminId, buscando todas as mensagens pendentes`);
+    }
+      
+    // Limitar a 10 mensagens por vez para evitar sobrecarga
+    pendingMessagesQuery = pendingMessagesQuery.limit(10);
+    
+    const { data: pendingMessages, error: messagesError } = await pendingMessagesQuery;
 
     if (messagesError) {
       console.error(`[QUERY] Erro ao buscar mensagens pendentes: ${messagesError.message}`);
@@ -172,6 +237,27 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Obter informações sobre os clientes para incluir adminId
+    const clientIds = [...new Set(pendingMessages.map(msg => msg.contacts.client_id))];
+    const clientsData = {};
+    
+    const { data: clients, error: clientsError } = await supabase
+      .from('clients')
+      .select('id, account_id, account_name, created_by')
+      .in('id', clientIds);
+      
+    if (clientsError) {
+      console.error(`[CLIENTS] Erro ao buscar informações dos clientes: ${clientsError.message}`);
+    } else {
+      clients?.forEach(client => {
+        clientsData[client.id] = {
+          accountId: client.account_id,
+          accountName: client.account_name,
+          adminId: client.created_by
+        };
+      });
+    }
+
     // Formatar mensagens no formato esperado pelo N8N
     const formattedMessages = pendingMessages.map(msg => {
       const contact = msg.contacts;
@@ -181,6 +267,13 @@ Deno.serve(async (req) => {
       
       // Obter tags do contato, se existirem
       const contactTagsList = tagsByContact[contact.id] || [];
+      
+      // Obter dados do cliente, incluindo adminId
+      const clientData = clientsData[contact.client_id] || {
+        accountId: 0,
+        accountName: "Unknown",
+        adminId: admin.id // Fallback para o admin atual
+      };
       
       // Calcular o número do estágio (começando do 1)
       const stageNumber = stagesBySequence[sequence.id]?.[stage.id] || 1;
@@ -222,8 +315,9 @@ Deno.serve(async (req) => {
         stageNumber: stageNumber,
         chatwootData: {
           accountData: {
-            accountId: contact.client_id,
-            accountName: "Account Name" // Idealmente, buscar o nome da conta, mas não temos isso no JOIN acima
+            accountId: clientData.accountId,
+            accountName: clientData.accountName,
+            adminId: clientData.adminId, // Incluir adminId no payload
           },
           contactData: {
             id: contact.id,
@@ -260,13 +354,32 @@ Deno.serve(async (req) => {
       };
     });
 
+    // Registrar o sucesso no log de segurança
+    await supabase.from("security_logs").insert({
+      client_account_id: "system",
+      action: "pending_messages_retrieved",
+      ip_address: req.headers.get("x-forwarded-for") || "unknown",
+      user_agent: req.headers.get("user-agent") || "unknown",
+      details: { 
+        admin_id: admin.id,
+        admin_role: admin.role,
+        messages_count: formattedMessages.length,
+        filtered_by_admin_id: adminId || null
+      }
+    });
+
     return new Response(
       JSON.stringify({ 
         success: true, 
         messages: formattedMessages,
         meta: {
           count: formattedMessages.length,
-          processedAt: now.toISOString()
+          processedAt: now.toISOString(),
+          admin: {
+            id: admin.id,
+            role: admin.role,
+            name: admin.account_name
+          }
         },
         logs: [
           { level: 'info', message: `[RESULT] Processadas ${formattedMessages.length} mensagens pendentes` }

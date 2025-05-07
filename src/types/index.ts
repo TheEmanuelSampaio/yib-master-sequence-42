@@ -46,6 +46,7 @@ export interface Sequence {
   stages: SequenceStage[];
   timeRestrictions: TimeRestriction[];
   status: "active" | "inactive";
+  createdBy: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -155,6 +156,7 @@ export interface TagChangePayload {
   accountData: {
     accountId: number;
     accountName: string;
+    adminId?: string; // Added admin ID for client identification
   };
   contactData: {
     id: number | string;
@@ -171,12 +173,18 @@ export interface TagChangePayload {
   authToken: string; // Token de autenticação (agora obrigatório)
 }
 
+export interface PendingMessagesPayload {
+  adminId?: string; // Added admin ID for filtering messages
+  authToken: string; // Admin auth token
+}
+
 export interface PendingMessagesResponse {
   id: string;
   chatwootData: {
     accountData: {
       accountId: number;
       accountName: string;
+      adminId?: string; // Added admin ID reference
     };
     contactData: {
       id: number | string;
@@ -216,6 +224,8 @@ export interface DeliveryStatusPayload {
   messageId: string;
   status: "success" | "failed";
   attempts?: number;
+  authToken: string; // Added auth token for authentication
+  adminId?: string; // Added admin ID for security
 }
 
 export interface Database {

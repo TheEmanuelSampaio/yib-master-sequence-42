@@ -53,7 +53,8 @@ Deno.serve(async (req) => {
           esperado: {
             accountData: {
               accountId: 'número ou string',
-              accountName: 'string'
+              accountName: 'string',
+              adminId: 'ID do administrador que criou o cliente (opcional)'
             },
             contactData: { 
               id: 'number ou string', 
@@ -77,11 +78,11 @@ Deno.serve(async (req) => {
     
     console.log('[1. BODY] Formato utilizado: data direto');
     
-    const { accountId, accountName } = accountData;
+    const { accountId, accountName, adminId } = accountData;
     const { id: contactId, name: contactName, phoneNumber } = contactData;
     const { inboxId, conversationId, displayId, labels } = conversationData;
     
-    console.log(`[1. BODY] Processando dados: contactId=${contactId}, name=${contactName}, phoneNumber=${phoneNumber}, accountId=${accountId}, accountName=${accountName}, tags=${labels}`);
+    console.log(`[1. BODY] Processando dados: contactId=${contactId}, name=${contactName}, phoneNumber=${phoneNumber}, accountId=${accountId}, accountName=${accountName}, adminId=${adminId || 'não informado'}, tags=${labels}`);
     
     // Validar token de autenticação
     if (!authToken) {
@@ -121,6 +122,42 @@ Deno.serve(async (req) => {
       // Para admins normais, verificar se eles têm acesso a este cliente específico
       if (adminWithToken.role !== 'super_admin') {
         // Verificar se o admin é o criador deste cliente
+        const clientQueryParams = { 
+          account_id: accountId 
+        };
+        
+        // Se o adminId foi fornecido, usa-lo para busca mais específica
+        if (adminId && adminId !== adminWithToken.id) {
+          console.log(`[SEGURANÇA] adminId fornecido (${adminId}) é diferente do token owner (${adminWithToken.id}), verificando permissões`);
+          
+          // Admin está tentando acessar cliente de outro admin, verificar se é super_admin
+          if (adminWithToken.role !== 'super_admin') {
+            console.error(`[SEGURANÇA] Admin não super_admin tentando acessar cliente de outro admin`);
+            
+            await supabase.from("security_logs").insert({
+              client_account_id: String(accountId),
+              action: "tag_change_admin_unauthorized_cross_access",
+              ip_address: req.headers.get("x-forwarded-for") || "unknown",
+              user_agent: req.headers.get("user-agent") || "unknown",
+              details: { 
+                error: "Admin trying to access another admin's client", 
+                admin_id: adminWithToken.id,
+                admin_name: adminWithToken.account_name,
+                target_admin_id: adminId
+              }
+            });
+            
+            return new Response(
+              JSON.stringify({ 
+                error: 'Acesso não autorizado', 
+                details: 'Administradores não podem acessar clientes de outros administradores' 
+              }),
+              { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+        }
+        
+        // Verificar se o admin tem acesso a este cliente
         const { data: clientAuth, error: clientAuthError } = await supabase
           .from("clients")
           .select("id")
@@ -128,7 +165,7 @@ Deno.serve(async (req) => {
           .eq("created_by", adminWithToken.id)
           .maybeSingle();
         
-        if (!clientAuth) {
+        if (!clientAuth && adminWithToken.role !== 'super_admin') {
           console.error(`[SEGURANÇA] Token de admin válido, mas este admin não tem acesso ao cliente com accountId=${accountId}`);
           
           // Registrar tentativa não autorizada
@@ -158,11 +195,20 @@ Deno.serve(async (req) => {
       tokenOwner = adminWithToken;
     } else {
       // Se não for token global, verificar se é token específico de cliente
-      const { data: clientAuth, error: clientAuthError } = await supabase
-        .from("clients")
-        .select("id, auth_token")
-        .eq("account_id", accountId)
-        .maybeSingle();
+      let clientQuery = supabase.from("clients").select("id, auth_token");
+      
+      // Se o adminId foi fornecido, inclui-lo na busca
+      if (adminId) {
+        console.log(`[SEGURANÇA] Usando adminId=${adminId} para busca de cliente`);
+        clientQuery = clientQuery
+          .eq("account_id", accountId)
+          .eq("created_by", adminId);
+      } else {
+        console.log(`[SEGURANÇA] adminId não fornecido, buscando apenas por account_id=${accountId}`);
+        clientQuery = clientQuery.eq("account_id", accountId);
+      }
+      
+      const { data: clientAuth, error: clientAuthError } = await clientQuery.maybeSingle();
       
       if (clientAuthError) {
         console.error(`[SEGURANÇA] Erro ao verificar autenticação do cliente: ${clientAuthError.message}`);
@@ -186,7 +232,8 @@ Deno.serve(async (req) => {
           user_agent: req.headers.get("user-agent") || "unknown",
           details: { 
             error: clientAuth ? "Invalid token" : "Client not found", 
-            account_name: accountName 
+            account_name: accountName,
+            admin_id: adminId
           }
         });
         
@@ -207,8 +254,17 @@ Deno.serve(async (req) => {
       console.log(`[SEGURANÇA] Token de autenticação válido para o cliente com accountId=${accountId}`);
     }
     
-    // Buscar cliente com account_id
-    const clientResult = await handleClient(supabase, accountId, accountName, isGlobalToken ? tokenOwner.id : "system");
+    // Use the appropriate creator ID
+    const creatorId = isGlobalToken ? tokenOwner.id : (adminId || "system");
+    
+    // Buscar cliente com account_id e adminId quando apropriado
+    const clientResult = await handleClient(
+      supabase, 
+      accountId, 
+      accountName, 
+      adminId, 
+      creatorId
+    );
     
     if (!clientResult.success) {
       return new Response(
