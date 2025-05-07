@@ -53,7 +53,7 @@ interface AppContextType {
   refreshData: () => Promise<void>;
   isDataInitialized: boolean;
   
-  // Funções de manipulação de contatos
+  // Contact manipulation functions
   deleteContact: (contactId: string) => Promise<{ success: boolean; error?: string }>;
   updateContact: (contactId: string, data: Partial<Contact>) => Promise<{ success: boolean; error?: string }>;
   removeFromSequence: (contactSequenceId: string) => Promise<{ success: boolean; error?: string }>;
@@ -153,7 +153,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     return contactSequences.filter(cs => cs.contactId === contactId);
   };
 
-  // Criar funções de manipulação de contatos
+  // Create contact manipulation functions
   const contactFunctions = createContactFunctions();
   
   // Fetch data when auth user changes
@@ -1177,6 +1177,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         .insert({
           account_id: client.accountId,
           account_name: client.accountName,
+          creator_account_name: currentUser.accountName || 'Unknown', // Add creator_account_name field
           created_by: currentUser.id
         })
         .select()
@@ -1246,15 +1247,25 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const addUser = async (user: { email: string; password: string; accountName: string, isAdmin?: boolean }) => {
     try {
-      // Create user via RPC function
-      const { error } = await supabase.rpc('create_user_with_profile', {
-        email: user.email,
-        password: user.password,
-        account_name: user.accountName,
-        role: user.isAdmin ? 'admin' : 'user'
+      // Use edge function instead of RPC
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+        },
+        body: JSON.stringify({
+          email: user.email,
+          password: user.password,
+          account_name: user.accountName,
+          role: user.isAdmin ? 'admin' : 'user'
+        })
       });
       
-      if (error) throw error;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Error creating user');
+      }
       
       // Refresh users list
       await refreshData();
@@ -1375,56 +1386,191 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Create a copy of the default value to include all functions
-  const contextValue: AppContextType = {
-    // Basic data
-    clients,
-    instances,
-    currentInstance,
-    sequences,
-    contacts,
-    scheduledMessages,
-    contactSequences,
-    tags,
-    timeRestrictions,
-    users,
-    stats,
-    
-    // Core functions
-    setCurrentInstance,
-    refreshData,
-    isDataInitialized,
-    
-    // CRUD functions for each entity type
-    addInstance,
-    updateInstance,
-    deleteInstance,
-    addSequence,
-    updateSequence,
-    deleteSequence,
-    addTimeRestriction,
-    updateTimeRestriction,
-    deleteTimeRestriction,
-    addContact,
-    getContactSequences,
-    addClient,
-    updateClient,
-    deleteClient,
-    addUser,
-    updateUser,
-    deleteUser,
-    addTag,
-    deleteTag,
-    
-    // Contact manipulation functions
-    deleteContact: contactFunctions.deleteContact(supabase, setContacts),
-    updateContact: contactFunctions.updateContact(supabase, setContacts),
-    removeFromSequence: contactFunctions.removeFromSequence(supabase, setContactSequences),
-    updateContactSequence: contactFunctions.updateContactSequence(supabase, setContactSequences)
+  // Implement contact manipulation functions correctly
+  const deleteContact = async (contactId: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      // Check if contact exists
+      const contact = contacts.find(c => c.id === contactId);
+      if (!contact) {
+        return { success: false, error: "Contato não encontrado" };
+      }
+
+      const { error } = await supabase
+        .from('contacts')
+        .delete()
+        .eq('id', contactId);
+
+      if (error) throw error;
+
+      // Update local state
+      setContacts(prev => prev.filter(c => c.id !== contactId));
+      
+      return { success: true };
+    } catch (error: any) {
+      console.error("Error deleting contact:", error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  const updateContact = async (contactId: string, data: Partial<Contact>): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const { error } = await supabase
+        .from('contacts')
+        .update({
+          name: data.name,
+          phone_number: data.phoneNumber,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', contactId);
+
+      if (error) throw error;
+
+      // Handle tags update if provided
+      if (data.tags) {
+        // First delete all existing tags
+        const { error: deleteError } = await supabase
+          .from('contact_tags')
+          .delete()
+          .eq('contact_id', contactId);
+
+        if (deleteError) throw deleteError;
+
+        // Then add new tags
+        if (data.tags.length > 0) {
+          const tagInserts = data.tags.map(tag => ({
+            contact_id: contactId,
+            tag_name: tag
+          }));
+
+          const { error: insertError } = await supabase
+            .from('contact_tags')
+            .insert(tagInserts);
+
+          if (insertError) throw insertError;
+        }
+      }
+
+      // Update local state
+      setContacts(prev => 
+        prev.map(contact => 
+          contact.id === contactId ? { ...contact, ...data } : contact
+        )
+      );
+
+      return { success: true };
+    } catch (error: any) {
+      console.error("Error updating contact:", error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  const removeFromSequence = async (contactSequenceId: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const { error } = await supabase
+        .from('contact_sequences')
+        .update({
+          removed_at: new Date().toISOString(),
+          status: 'removed'
+        })
+        .eq('id', contactSequenceId);
+
+      if (error) throw error;
+
+      // Update local state
+      setContactSequences(prev => 
+        prev.map(cs => 
+          cs.id === contactSequenceId 
+            ? { ...cs, removedAt: new Date().toISOString(), status: 'removed' } 
+            : cs
+        )
+      );
+
+      return { success: true };
+    } catch (error: any) {
+      console.error("Error removing contact from sequence:", error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  const updateContactSequence = async (
+    contactSequenceId: string,
+    data: {
+      sequenceId?: string;
+      currentStageId?: string;
+    }
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const updates: any = {};
+      if (data.sequenceId) updates.sequence_id = data.sequenceId;
+      if (data.currentStageId) updates.current_stage_id = data.currentStageId;
+
+      const { error } = await supabase
+        .from('contact_sequences')
+        .update(updates)
+        .eq('id', contactSequenceId);
+
+      if (error) throw error;
+
+      // Update local state
+      setContactSequences(prev => 
+        prev.map(cs => 
+          cs.id === contactSequenceId 
+            ? { 
+                ...cs, 
+                sequenceId: data.sequenceId || cs.sequenceId,
+                currentStageId: data.currentStageId || cs.currentStageId
+              } 
+            : cs
+        )
+      );
+
+      return { success: true };
+    } catch (error: any) {
+      console.error("Error updating contact sequence:", error);
+      return { success: false, error: error.message };
+    }
   };
 
   return (
-    <AppContext.Provider value={contextValue}>
+    <AppContext.Provider value={{
+      clients,
+      instances,
+      currentInstance,
+      sequences,
+      contacts,
+      scheduledMessages,
+      contactSequences,
+      tags,
+      timeRestrictions,
+      users,
+      stats,
+      setCurrentInstance,
+      addInstance,
+      updateInstance,
+      deleteInstance,
+      addSequence,
+      updateSequence,
+      deleteSequence,
+      addTimeRestriction,
+      updateTimeRestriction,
+      deleteTimeRestriction,
+      addContact,
+      getContactSequences,
+      addClient,
+      updateClient,
+      deleteClient,
+      addUser,
+      updateUser,
+      deleteUser,
+      addTag,
+      deleteTag,
+      refreshData,
+      isDataInitialized,
+      deleteContact,
+      updateContact,
+      removeFromSequence,
+      updateContactSequence
+    }}>
       {children}
     </AppContext.Provider>
   );
