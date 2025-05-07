@@ -1,3 +1,6 @@
+// Import the AdvancedCondition type
+import { AdvancedCondition, TagGroup } from './conditionTypes';
+
 // User related types
 export interface User {
   id: string;
