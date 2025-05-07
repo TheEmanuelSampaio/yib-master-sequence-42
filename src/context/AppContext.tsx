@@ -466,7 +466,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         sentAt: msg.sent_at,
         attempts: msg.attempts,
         scheduledAt: msg.scheduled_at,
-        createdAt: msg.created_at
+        createdAt: msg.created_at,
+        variables: msg.variables,           // Added variables field
+        processedContent: msg.processed_content  // Added processedContent field
       }));
       
       setScheduledMessages(typedScheduledMsgs);
