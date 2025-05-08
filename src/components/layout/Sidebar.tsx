@@ -56,7 +56,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   return (
     <div 
       className={cn(
-        "h-screen bg-sidebar border-r border-sidebar-border transition-width duration-300 ease-in-out relative",
+        "fixed top-0 left-0 h-screen bg-sidebar border-r border-sidebar-border transition-width duration-300 ease-in-out z-10",
         collapsed ? "w-16" : "w-64"
       )}
     >
