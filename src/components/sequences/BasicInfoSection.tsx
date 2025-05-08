@@ -79,7 +79,7 @@ export function BasicInfoSection({
     }
   }, [name]);
 
-  // Validate webhook ID uniqueness - Improved to use the correct function when in edit mode
+  // Validate webhook ID uniqueness - Fixed to correctly interpret the response
   const validateWebhookId = async (id: string) => {
     if (!id || !instanceId) return;
     
@@ -109,8 +109,9 @@ export function BasicInfoSection({
         console.error('Error validating webhook ID:', error);
         setIsWebhookIdUnique(true); // Assume unique in case of error
       } else {
+        // FIXED: The RPC function returns TRUE when the ID is unique
         console.log("Webhook ID validation result:", data);
-        setIsWebhookIdUnique(!!data);
+        setIsWebhookIdUnique(data === true);
       }
     } catch (error) {
       console.error('Error validating webhook ID:', error);
@@ -129,7 +130,7 @@ export function BasicInfoSection({
       
       return () => clearTimeout(timeoutId);
     }
-  }, [webhookId, webhookEnabled, instanceId, isEditMode, sequenceId]); // Added isEditMode and sequenceId as dependencies
+  }, [webhookId, webhookEnabled, instanceId, isEditMode, sequenceId]);
 
   const handleTypeChange = (newType: "message" | "pattern" | "typebot") => {
     if (newType !== type) {

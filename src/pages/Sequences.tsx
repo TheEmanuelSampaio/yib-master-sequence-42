@@ -69,15 +69,13 @@ export default function Sequences() {
   const inactiveSequences = instanceSequences.filter(seq => seq.status === 'inactive');
   
   const handleSaveSequence = async (sequence: Omit<Sequence, "id" | "createdAt" | "updatedAt">) => {
-    // Add debug logging to see what's being sent for update
+    // Debug logging for the save operation
     if (isEditMode && currentSequence) {
       console.log("Updating sequence:", {
-        sequenceId: currentSequence.id,
-        webhook: {
-          enabled: sequence.webhookEnabled,
-          id: sequence.webhookId
-        },
-        currentInstance
+        id: currentSequence.id,
+        webhookEnabled: sequence.webhookEnabled,
+        webhookId: sequence.webhookId,
+        sequenceId: currentSequence.id
       });
       
       const result = await updateSequence(currentSequence.id, sequence);
@@ -94,11 +92,9 @@ export default function Sequences() {
       }
     } else {
       console.log("Creating new sequence:", {
-        webhook: {
-          enabled: sequence.webhookEnabled,
-          id: sequence.webhookId
-        },
-        currentInstance
+        webhookEnabled: sequence.webhookEnabled,
+        webhookId: sequence.webhookId,
+        instanceId: currentInstance?.id
       });
       
       await addSequence(sequence);
