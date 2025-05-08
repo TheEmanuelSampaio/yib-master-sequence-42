@@ -174,6 +174,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       setUsers([]);
       setStats([]);
       setIsDataInitialized(false);
+      
+      // Clear localStorage data on logout
+      localStorage.removeItem('selectedInstanceId');
     }
   }, [user, isDataInitialized]);
 
@@ -239,10 +242,28 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       
       setInstances(typedInstances);
       
-      // Set current instance if not already set
-      if (typedInstances.length > 0 && !currentInstance) {
-        const activeInstance = typedInstances.find(i => i.active) || typedInstances[0];
-        setCurrentInstance(activeInstance);
+      // Get saved instance ID from localStorage
+      const savedInstanceId = localStorage.getItem('selectedInstanceId');
+      
+      // Set current instance based on saved ID or default to first active instance
+      if (typedInstances.length > 0) {
+        if (savedInstanceId) {
+          // Try to find the saved instance
+          const savedInstance = typedInstances.find(i => i.id === savedInstanceId);
+          if (savedInstance) {
+            setCurrentInstance(savedInstance);
+            console.log("Restored saved instance:", savedInstance.name);
+          } else {
+            // Fallback to first active instance if saved instance not found
+            const activeInstance = typedInstances.find(i => i.active) || typedInstances[0];
+            setCurrentInstance(activeInstance);
+            console.log("Saved instance not found, using default");
+          }
+        } else {
+          // No saved instance, use first active instance
+          const activeInstance = typedInstances.find(i => i.active) || typedInstances[0];
+          setCurrentInstance(activeInstance);
+        }
       }
       
       // Fetch tags

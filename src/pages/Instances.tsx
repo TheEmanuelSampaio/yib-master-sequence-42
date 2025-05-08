@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useApp } from '@/context/AppContext';
 import { Pencil, Search, MoreVertical, Power, PowerOff, Trash2, Plus, Laptop } from "lucide-react";
@@ -127,6 +126,8 @@ export default function Instances() {
 
   const handleSelectInstance = (instance: Instance) => {
     setCurrentInstance(instance);
+    // Save the selected instance ID to localStorage
+    localStorage.setItem('selectedInstanceId', instance.id);
     toast.success(`Instância "${instance.name}" selecionada`);
   };
 

@@ -41,6 +41,8 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
     const instance = instances?.find(inst => inst.id === instanceId);
     if (instance) {
       setCurrentInstance(instance);
+      // Save selected instance ID to localStorage
+      localStorage.setItem('selectedInstanceId', instance.id);
     }
   };
 
