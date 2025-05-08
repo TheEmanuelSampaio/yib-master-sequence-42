@@ -1,4 +1,5 @@
 
+
 // Follow this setup guide to integrate the Deno runtime into your project:
 // https://deno.com/manual/getting_started/setup_your_environment
 
@@ -21,6 +22,7 @@ type WebhookPayload = {
   webhookId: string;
   accountData: {
     accountId: number;
+    accountName?: string;
     adminId?: string;
   };
   contactData: {
@@ -75,44 +77,170 @@ serve(async (req) => {
       );
     }
 
-    // Create Supabase client
-    console.log("[CLIENT] Criando cliente Supabase...");
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    console.log("[CLIENT] Cliente Supabase criado com sucesso");
+    // Create Supabase client with service role for bypassing RLS
+    console.log("[CLIENT] Criando cliente Supabase com service role...");
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE);
+    console.log("[CLIENT] Cliente Supabase criado com sucesso (bypasses RLS)");
 
-    // Authenticate with token
+    // Validar token de autenticação - verificação ampliada similar ao tag-change
     console.log("[SEGURANÇA] Verificando token de autenticação...");
-    const { data: profileData, error: profileError } = await supabase
+    
+    // Verificar primeiro se é um token global de admin ou super_admin
+    const { data: adminWithToken, error: adminAuthError } = await supabase
       .from("profiles")
-      .select("id, account_name, role")
+      .select("id, account_name, role, auth_token")
       .eq("auth_token", authToken)
       .maybeSingle();
       
-    if (profileError || !profileData) {
-      console.error("[SEGURANÇA] Falha na autenticação: " + (profileError?.message || "Token inválido"));
+    let isGlobalToken = false;
+    let tokenOwner = null;
+    let creatorId = "system";
+    
+    if (adminWithToken) {
+      console.log(`[SEGURANÇA] Token global válido pertencente a: ${adminWithToken.account_name} (${adminWithToken.role})`);
       
-      // Check if token is a client token
-      const { data: clientData, error: clientError } = await supabase
-        .from("clients")
-        .select("id, account_name")
-        .eq("auth_token", authToken)
-        .maybeSingle();
+      // Para admins normais, verificar se eles têm acesso a este cliente específico
+      if (adminWithToken.role !== 'super_admin' && accountData.adminId && accountData.adminId !== adminWithToken.id) {
+        console.log(`[SEGURANÇA] adminId fornecido (${accountData.adminId}) é diferente do token owner (${adminWithToken.id}), verificando permissões`);
         
-      if (clientError || !clientData) {
-        console.error("[SEGURANÇA] Falha na autenticação de cliente: " + (clientError?.message || "Token inválido"));
+        // Admin está tentando acessar cliente de outro admin, verificar se é super_admin
+        if (adminWithToken.role !== 'super_admin') {
+          console.error(`[SEGURANÇA] Admin não super_admin tentando acessar cliente de outro admin`);
+          
+          // Registrar tentativa não autorizada
+          await supabase.from("security_logs").insert({
+            client_account_id: String(accountData.accountId),
+            action: "webhook_trigger_admin_unauthorized_cross_access",
+            ip_address: req.headers.get("x-forwarded-for") || "unknown",
+            user_agent: req.headers.get("user-agent") || "unknown",
+            details: { 
+              error: "Admin trying to access another admin's client", 
+              admin_id: adminWithToken.id,
+              admin_name: adminWithToken.account_name,
+              target_admin_id: accountData.adminId,
+              webhook_id: webhookId
+            }
+          });
+          
+          return new Response(
+            JSON.stringify({ 
+              error: 'Acesso não autorizado', 
+              details: 'Administradores não podem acessar clientes de outros administradores' 
+            }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+      
+      // Verificar se o admin tem acesso a este cliente (se não for super_admin)
+      if (adminWithToken.role !== 'super_admin') {
+        const { data: clientAuth, error: clientAuthError } = await supabase
+          .from("clients")
+          .select("id")
+          .eq("account_id", accountData.accountId)
+          .eq("created_by", adminWithToken.id)
+          .maybeSingle();
+        
+        if (!clientAuth) {
+          console.error(`[SEGURANÇA] Token de admin válido, mas este admin não tem acesso ao cliente com accountId=${accountData.accountId}`);
+          
+          // Registrar tentativa não autorizada
+          await supabase.from("security_logs").insert({
+            client_account_id: String(accountData.accountId),
+            action: "webhook_trigger_admin_unauthorized_access",
+            ip_address: req.headers.get("x-forwarded-for") || "unknown",
+            user_agent: req.headers.get("user-agent") || "unknown",
+            details: { 
+              error: "Admin not authorized for this client", 
+              account_id: accountData.accountId,
+              admin_name: adminWithToken.account_name,
+              webhook_id: webhookId
+            }
+          });
+          
+          return new Response(
+            JSON.stringify({ 
+              error: 'Acesso não autorizado', 
+              details: 'O administrador não tem acesso a este cliente' 
+            }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+      
+      isGlobalToken = true;
+      tokenOwner = adminWithToken;
+      creatorId = adminWithToken.id;
+    } else {
+      // Se não for token global, verificar se é token específico de cliente
+      console.log(`[SEGURANÇA] Token não é global, verificando se é token de cliente específico...`);
+      
+      let clientQuery = supabase.from("clients").select("id, auth_token");
+      
+      // Se o adminId foi fornecido, inclui-lo na busca para maior precisão
+      if (accountData.adminId) {
+        console.log(`[SEGURANÇA] Usando adminId=${accountData.adminId} para busca de cliente`);
+        clientQuery = clientQuery
+          .eq("account_id", accountData.accountId)
+          .eq("created_by", accountData.adminId);
+      } else {
+        console.log(`[SEGURANÇA] adminId não fornecido, buscando apenas por account_id=${accountData.accountId}`);
+        clientQuery = clientQuery.eq("account_id", accountData.accountId);
+      }
+      
+      const { data: clientAuth, error: clientAuthError } = await clientQuery.maybeSingle();
+      
+      if (clientAuthError) {
+        console.error(`[SEGURANÇA] Erro ao verificar autenticação do cliente: ${clientAuthError.message}`);
         return new Response(
-          JSON.stringify({ error: "Autenticação falhou. Token inválido." }),
-          {
-            status: 401, 
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
+          JSON.stringify({ 
+            error: 'Erro ao verificar autenticação', 
+            details: clientAuthError.message 
+          }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
       
-      console.log("[SEGURANÇA] Autenticação realizada para cliente: " + clientData.account_name);
-    } else {
-      console.log("[SEGURANÇA] Autenticação realizada para " + profileData.account_name + " (" + profileData.role + ")");
+      if (!clientAuth || clientAuth.auth_token !== authToken) {
+        console.error(`[SEGURANÇA] Token inválido fornecido para o cliente com accountId=${accountData.accountId}`);
+        
+        // Registrar tentativa não autorizada
+        await supabase.from("security_logs").insert({
+          client_account_id: String(accountData.accountId),
+          action: "webhook_trigger_invalid_token",
+          ip_address: req.headers.get("x-forwarded-for") || "unknown",
+          user_agent: req.headers.get("user-agent") || "unknown",
+          details: { 
+            error: clientAuth ? "Invalid token" : "Client not found", 
+            account_id: accountData.accountId,
+            admin_id: accountData.adminId,
+            webhook_id: webhookId
+          }
+        });
+        
+        return new Response(
+          JSON.stringify({ 
+            error: 'Token de autenticação inválido', 
+            details: 'O token fornecido não corresponde ao cliente especificado' 
+          }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      console.log(`[SEGURANÇA] Token de autenticação válido para o cliente com accountId=${accountData.accountId}`);
     }
+    
+    // Token válido, registrar acesso bem-sucedido
+    await supabase.from("security_logs").insert({
+      client_account_id: String(accountData.accountId),
+      action: "webhook_trigger_authenticated_access",
+      ip_address: req.headers.get("x-forwarded-for") || "unknown",
+      user_agent: req.headers.get("user-agent") || "unknown",
+      details: { 
+        webhook_id: webhookId,
+        auth_method: isGlobalToken ? `global_token:${tokenOwner?.role || 'unknown'}` : 'client_token'
+      }
+    });
     
     console.log("[WEBHOOK] Buscando sequência com webhookId: " + webhookId);
     
@@ -176,7 +304,6 @@ serve(async (req) => {
     const instanceIds = filteredInstances.map(i => i.id);
     
     // Find sequence with this webhook ID
-    // MODIFICADO: Removido campo 'type' da consulta que não existe mais
     const { data: sequences, error: sequencesError } = await supabase
       .from("sequences")
       .select(`
@@ -482,7 +609,8 @@ serve(async (req) => {
         message: "Contato adicionado à sequência com sucesso",
         contactId,
         sequenceId: sequence.id,
-        scheduledTime: scheduledTimeStr
+        scheduledTime: scheduledTimeStr,
+        authMethod: isGlobalToken ? `global_token:${tokenOwner?.role || 'unknown'}` : 'client_token'
       }),
       {
         status: 200, 
