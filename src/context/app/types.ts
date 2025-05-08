@@ -11,6 +11,27 @@ import {
   DailyStats
 } from "@/types";
 
+// Define extended database sequence type for internal use
+export interface ExtendedSequence {
+  id: string;
+  name: string;
+  instance_id: string;
+  type?: "message" | "pattern" | "typebot";
+  start_condition_type: string;
+  start_condition_tags: string[];
+  stop_condition_type: string;
+  stop_condition_tags: string[];
+  status: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  webhook_enabled: boolean;
+  webhook_id: string | null;
+  sequence_stages?: any[];
+  sequence_time_restrictions?: any[];
+  localTimeRestrictions?: any[];
+}
+
 // Define the combined application context type
 export interface AppContextType {
   // Core app data
