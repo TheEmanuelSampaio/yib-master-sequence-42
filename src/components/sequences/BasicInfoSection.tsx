@@ -222,8 +222,8 @@ export function BasicInfoSection({
     notifyChanges();
   };
 
-  // Determine if we should show the non-unique error message
-  // FIXED: Only show error when webhook is enabled, not validating, and ID is actually not unique
+  // FIXED: Determine if we should show the non-unique error message
+  // Only show error when webhook is enabled, not validating, and ID is actually not unique
   const showNonUniqueError = webhookEnabled && !isValidatingWebhookId && !isWebhookIdUnique && !!webhookId;
 
   return (

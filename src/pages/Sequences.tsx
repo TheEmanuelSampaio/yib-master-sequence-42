@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useApp } from '@/context/AppContext';
 import {
@@ -111,7 +110,7 @@ export default function Sequences() {
       id: sequence.id,
       webhookEnabled: sequence.webhookEnabled,
       webhookId: sequence.webhookId,
-      sequenceId: sequence.id, // Make sure this is explicitly logged
+      sequenceId: sequence.id, // Explicitly logged for verification 
       instanceId: currentInstance?.id
     });
     

@@ -469,18 +469,55 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
     if (!id || !currentInstance?.id) return;
     
     setIsValidatingWebhookId(true);
+    // Reset validation state when starting a new validation
+    setIsWebhookIdUnique(true);
+    
+    console.log("SequenceBuilder - Validating webhook ID:", {
+      id,
+      instanceId: currentInstance.id,
+      isEditMode: !!sequence,
+      sequenceId: sequence?.id,
+      functionToCall: sequence?.id ? 'is_webhook_id_unique_for_client_except_self' : 'is_webhook_id_unique_for_client'
+    });
     
     try {
-      const { data, error } = await supabase.rpc('is_webhook_id_unique_for_client', {
-        p_webhook_id: id,
-        p_instance_id: currentInstance.id
-      });
+      let data, error;
+      
+      // FIXED: Use the except_self RPC function when in edit mode
+      if (sequence?.id) {
+        console.log("Using is_webhook_id_unique_for_client_except_self with params:", {
+          p_webhook_id: id,
+          p_instance_id: currentInstance.id,
+          p_sequence_id: sequence.id
+        });
+        
+        ({ data, error } = await supabase.rpc('is_webhook_id_unique_for_client_except_self', {
+          p_webhook_id: id,
+          p_instance_id: currentInstance.id,
+          p_sequence_id: sequence.id
+        }));
+      } else {
+        console.log("Using is_webhook_id_unique_for_client with params:", {
+          p_webhook_id: id,
+          p_instance_id: currentInstance.id
+        });
+        
+        ({ data, error } = await supabase.rpc('is_webhook_id_unique_for_client', {
+          p_webhook_id: id,
+          p_instance_id: currentInstance.id
+        }));
+      }
 
       if (error) {
         console.error('Error validating webhook ID:', error);
         setIsWebhookIdUnique(true); // Assume unique in case of error
       } else {
-        setIsWebhookIdUnique(!!data);
+        // IMPORTANT: Both RPC functions return TRUE when the ID is unique
+        console.log("SequenceBuilder - Webhook ID validation result:", data);
+        setIsWebhookIdUnique(data === true);
+        
+        // Additional log to help debug validation result interpretation
+        console.log("SequenceBuilder - Is webhook ID unique after validation:", data === true ? "Yes" : "No");
       }
     } catch (error) {
       console.error('Error validating webhook ID:', error);
@@ -526,7 +563,8 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         return;
       }
       
-      if (webhookEnabled && !isWebhookIdUnique) {
+      // FIXED: Only block submission if ID is NOT unique (when false)
+      if (webhookEnabled && !isWebhookIdUnique && webhookId) {
         toast.error("O ID do webhook já está em uso. Por favor, escolha outro ID.");
         return;
       }
