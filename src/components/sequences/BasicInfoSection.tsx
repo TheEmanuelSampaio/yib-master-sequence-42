@@ -91,14 +91,23 @@ export function BasicInfoSection({
       let data, error;
       
       if (isEditMode && sequenceId) {
-        console.log("Using is_webhook_id_unique_for_client_except_self");
+        console.log("Using is_webhook_id_unique_for_client_except_self with params:", {
+          p_webhook_id: id,
+          p_instance_id: instanceId,
+          p_sequence_id: sequenceId
+        });
+        
         ({ data, error } = await supabase.rpc('is_webhook_id_unique_for_client_except_self', {
           p_webhook_id: id,
           p_instance_id: instanceId,
           p_sequence_id: sequenceId
         }));
       } else {
-        console.log("Using is_webhook_id_unique_for_client");
+        console.log("Using is_webhook_id_unique_for_client with params:", {
+          p_webhook_id: id,
+          p_instance_id: instanceId
+        });
+        
         ({ data, error } = await supabase.rpc('is_webhook_id_unique_for_client', {
           p_webhook_id: id,
           p_instance_id: instanceId
@@ -120,16 +129,16 @@ export function BasicInfoSection({
     }
   };
 
-  // Debounce webhook ID validation - but only validate while typing, not on initial load
+  // Debounce webhook ID validation - but only validate if webhookEnabled is true
   useEffect(() => {
-    if (webhookEnabled && webhookId && !isValidatingWebhookId) {
+    if (webhookEnabled && webhookId) {
       const timeoutId = setTimeout(() => {
         validateWebhookId(webhookId);
       }, 500);
       
       return () => clearTimeout(timeoutId);
     }
-  }, [webhookId, webhookEnabled, instanceId, sequenceId]);
+  }, [webhookId, webhookEnabled, instanceId, sequenceId, isEditMode]);
 
   const handleTypeChange = (newType: "message" | "pattern" | "typebot") => {
     if (newType !== type) {
