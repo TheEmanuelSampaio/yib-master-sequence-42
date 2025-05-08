@@ -1,3 +1,4 @@
+
 // User related types
 export interface User {
   id: string;
@@ -86,6 +87,9 @@ export interface Contact {
   name: string;
   phoneNumber: string;
   clientId: string;
+  clientName?: string; // Added for display in UI
+  adminId?: string;    // Added for filtering by admin
+  adminName?: string;  // Added for display in UI
   inboxId: number;
   conversationId: number;
   displayId: number;

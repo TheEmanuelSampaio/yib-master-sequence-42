@@ -15,6 +15,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Badge } from "@/components/ui/badge";
 
 // Componentes refatorados
 import { ContactTable } from "@/components/contacts/ContactTable";
