@@ -110,10 +110,7 @@ export function BasicInfoSection({
         setIsWebhookIdUnique(true); // Assume unique in case of error
       } else {
         console.log("Webhook ID validation result:", data);
-        
-        // CORREÇÃO: Não converter para boolean, usar o valor direto
-        // O valor retornado já é um boolean
-        setIsWebhookIdUnique(data);
+        setIsWebhookIdUnique(!!data);
       }
     } catch (error) {
       console.error('Error validating webhook ID:', error);

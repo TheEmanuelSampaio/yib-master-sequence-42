@@ -7,7 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/context/AuthContext";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { MainLayout } from "@/components/layout/MainLayout";
-import { AppContextProvider } from "@/context/app";
+import { AppProvider } from "@/context/AppContext";
 
 // Pages
 import Dashboard from "./pages/Dashboard";
@@ -39,7 +39,7 @@ const App = () => (
     <ThemeProvider defaultTheme="system">
       <BrowserRouter>
         <AuthProvider>
-          <AppContextProvider>
+          <AppProvider>
             <TooltipProvider>
               <Routes>
                 {/* Auth Routes */}
@@ -63,7 +63,7 @@ const App = () => (
               <Toaster />
               <Sonner />
             </TooltipProvider>
-          </AppContextProvider>
+          </AppProvider>
         </AuthProvider>
       </BrowserRouter>
     </ThemeProvider>
