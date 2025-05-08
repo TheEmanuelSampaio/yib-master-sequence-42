@@ -7,6 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface BasicInfoSectionProps {
   name: string;
@@ -71,34 +72,49 @@ export function BasicInfoSection({
       setWebhookId(newWebhookId);
       notifyChanges(); // Notify changes when webhook ID is automatically set
     }
-  }, [webhookEnabled, name, webhookId]);
+  }, [webhookEnabled, name, webhookId, setWebhookId, notifyChanges]);
 
   useEffect(() => {
     if (generatedWebhookId !== webhookId) {
       setGeneratedWebhookId(generateWebhookId(name));
     }
-  }, [name]);
+  }, [name, webhookId]);
 
   // Validate webhook ID uniqueness - Improved to use the correct function when in edit mode
   const validateWebhookId = async (id: string) => {
     if (!id || !instanceId) return;
     
     setIsValidatingWebhookId(true);
-    console.log("Validating webhook ID:", { id, instanceId, isEditMode, sequenceId });
+    console.log("Validating webhook ID:", { 
+      id, 
+      instanceId, 
+      isEditMode, 
+      sequenceId,
+      currentTime: new Date().toISOString() 
+    });
     
     try {
       // Use different RPC function based on whether we're in edit mode
       let data, error;
       
       if (isEditMode && sequenceId) {
-        console.log("Using is_webhook_id_unique_for_client_except_self");
+        console.log("Using is_webhook_id_unique_for_client_except_self with params:", {
+          p_webhook_id: id,
+          p_instance_id: instanceId,
+          p_sequence_id: sequenceId
+        });
+        
         ({ data, error } = await supabase.rpc('is_webhook_id_unique_for_client_except_self', {
           p_webhook_id: id,
           p_instance_id: instanceId,
           p_sequence_id: sequenceId
         }));
       } else {
-        console.log("Using is_webhook_id_unique_for_client");
+        console.log("Using is_webhook_id_unique_for_client with params:", {
+          p_webhook_id: id,
+          p_instance_id: instanceId
+        });
+        
         ({ data, error } = await supabase.rpc('is_webhook_id_unique_for_client', {
           p_webhook_id: id,
           p_instance_id: instanceId
