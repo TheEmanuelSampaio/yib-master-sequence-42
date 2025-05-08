@@ -7,6 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
+import { Loader2 } from "lucide-react";
 
 interface BasicInfoSectionProps {
   name: string;
@@ -79,26 +80,44 @@ export function BasicInfoSection({
     }
   }, [name]);
 
-  // Validate webhook ID uniqueness - Fixed to correctly interpret the response
+  // Validate webhook ID uniqueness - Fixed logic with improved logging
   const validateWebhookId = async (id: string) => {
     if (!id || !instanceId) return;
     
     setIsValidatingWebhookId(true);
-    console.log("Validating webhook ID:", { id, instanceId, isEditMode, sequenceId });
+    // Reset validation state when starting a new validation
+    setIsWebhookIdUnique(true);
+    
+    console.log("Validating webhook ID:", { 
+      id, 
+      instanceId, 
+      isEditMode, 
+      sequenceId,
+      functionToCall: isEditMode && sequenceId ? 'is_webhook_id_unique_for_client_except_self' : 'is_webhook_id_unique_for_client'
+    });
     
     try {
       // Use different RPC function based on whether we're in edit mode
       let data, error;
       
       if (isEditMode && sequenceId) {
-        console.log("Using is_webhook_id_unique_for_client_except_self");
+        console.log("Using is_webhook_id_unique_for_client_except_self with params:", {
+          p_webhook_id: id,
+          p_instance_id: instanceId,
+          p_sequence_id: sequenceId
+        });
+        
         ({ data, error } = await supabase.rpc('is_webhook_id_unique_for_client_except_self', {
           p_webhook_id: id,
           p_instance_id: instanceId,
           p_sequence_id: sequenceId
         }));
       } else {
-        console.log("Using is_webhook_id_unique_for_client");
+        console.log("Using is_webhook_id_unique_for_client with params:", {
+          p_webhook_id: id,
+          p_instance_id: instanceId
+        });
+        
         ({ data, error } = await supabase.rpc('is_webhook_id_unique_for_client', {
           p_webhook_id: id,
           p_instance_id: instanceId
@@ -109,9 +128,12 @@ export function BasicInfoSection({
         console.error('Error validating webhook ID:', error);
         setIsWebhookIdUnique(true); // Assume unique in case of error
       } else {
-        // FIXED: The RPC function returns TRUE when the ID is unique
+        // IMPORTANT: Both RPC functions return TRUE when the ID is unique
         console.log("Webhook ID validation result:", data);
         setIsWebhookIdUnique(data === true);
+        
+        // Additional log to help debug the validation result interpretation
+        console.log("Is webhook ID unique after validation:", data === true ? "Yes" : "No");
       }
     } catch (error) {
       console.error('Error validating webhook ID:', error);
@@ -267,9 +289,14 @@ export function BasicInfoSection({
                     value={webhookId || ''} 
                     onChange={(e) => handleWebhookIdChange(e.target.value)}
                     placeholder="id-do-webhook"
-                    className={!isWebhookIdUnique ? "border-red-500" : ""}
+                    className={!isWebhookIdUnique ? "border-red-500 pr-10" : ""}
                     disabled={isValidatingWebhookId}
                   />
+                  {isValidatingWebhookId && (
+                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    </div>
+                  )}
                   {!isWebhookIdUnique && webhookId && (
                     <p className="text-red-500 text-xs mt-1">
                       Este ID já está em uso por outra sequência neste cliente

@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useApp } from '@/context/AppContext';
 import {
@@ -69,13 +70,14 @@ export default function Sequences() {
   const inactiveSequences = instanceSequences.filter(seq => seq.status === 'inactive');
   
   const handleSaveSequence = async (sequence: Omit<Sequence, "id" | "createdAt" | "updatedAt">) => {
-    // Debug logging for the save operation
+    // Enhanced logging for better debugging
     if (isEditMode && currentSequence) {
       console.log("Updating sequence:", {
         id: currentSequence.id,
         webhookEnabled: sequence.webhookEnabled,
         webhookId: sequence.webhookId,
-        sequenceId: currentSequence.id
+        sequenceId: currentSequence.id,
+        instanceId: sequence.instanceId
       });
       
       const result = await updateSequence(currentSequence.id, sequence);
@@ -105,11 +107,12 @@ export default function Sequences() {
   };
   
   const handleEditSequence = (sequence: Sequence) => {
-    console.log("Editing sequence:", {
+    console.log("Editing sequence - passing sequence to editor:", {
       id: sequence.id,
       webhookEnabled: sequence.webhookEnabled,
       webhookId: sequence.webhookId,
-      sequenceId: sequence.id // Make sure this is explicitly logged
+      sequenceId: sequence.id, // Make sure this is explicitly logged
+      instanceId: currentInstance?.id
     });
     
     setCurrentSequence(sequence);
@@ -187,11 +190,12 @@ export default function Sequences() {
   }
   
   if (isEditMode && currentSequence) {
-    console.log("Rendering edit mode for sequence:", {
+    console.log("Rendering edit mode for sequence - verification:", {
       id: currentSequence.id,
       webhookEnabled: currentSequence.webhookEnabled,
       webhookId: currentSequence.webhookId,
-      sequenceId: currentSequence.id // Make sure this is explicitly logged
+      sequenceId: currentSequence.id, // Make sure this is explicitly logged
+      instanceId: currentSequence.instanceId
     });
     
     return (
