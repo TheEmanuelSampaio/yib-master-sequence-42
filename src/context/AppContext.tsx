@@ -415,6 +415,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       
       if (contactsError) throw contactsError;
       
+      // Create maps for quick lookups
+      const clientMap = new Map(typedClients.map(client => [client.id, client]));
+      const userMap = new Map(usersList.map(user => [user.id, user]));
+      
       // Iniciar a busca de dados de contato_tag
       const contactPromises = contactsData.map(async (contact) => {
         // Buscar tags deste contato
@@ -430,11 +434,23 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         
         const contactTags = contactTagsData.map(ct => ct.tag_name);
         
+        // Look up client information
+        const client = clientMap.get(contact.client_id);
+        const clientName = client ? client.accountName : '';
+        
+        // Look up admin information based on client's createdBy
+        const adminId = client ? client.createdBy : undefined;
+        const admin = adminId ? userMap.get(adminId) : undefined;
+        const adminName = admin ? admin.accountName : '';
+        
         return {
           id: contact.id,
           name: contact.name,
           phoneNumber: contact.phone_number,
           clientId: contact.client_id,
+          clientName: clientName,
+          adminId: adminId,
+          adminName: adminName,
           inboxId: contact.inbox_id,
           conversationId: contact.conversation_id,
           displayId: contact.display_id,
@@ -521,52 +537,50 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       const typedContactSeqs = (await Promise.all(contactSeqPromises)).filter(Boolean) as ContactSequence[];
       setContactSequences(typedContactSeqs);
       
-      // Fetch users (only for super_admin)
-      if (user.role === 'super_admin') {
-        // Get profiles data
-        const { data: profilesData, error: profilesError } = await supabase
-          .from('profiles')
-          .select('*');
+      // Fetch users (for both admin and super_admin)
+      let usersList: User[] = [];
+      
+      // Get profiles data
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('*');
+      
+      if (profilesError) throw profilesError;
+      
+      // Get user emails from auth.users through Supabase function or RPC
+      const { data: authUsersData, error: authUsersError } = await supabase
+        .rpc('get_users_with_emails');
         
-        if (profilesError) throw profilesError;
-        
-        // Get user emails from auth.users through Supabase function or RPC
-        // This is necessary because we cannot query auth.users directly from the client
-        const { data: authUsersData, error: authUsersError } = await supabase
-          .rpc('get_users_with_emails');
-          
-        if (authUsersError) {
-          console.error("Error fetching user emails:", authUsersError);
-          // Continue with what we have, but log the error
-        }
-        
-        // Create a map of user IDs to emails for quick lookup
-        const emailMap = new Map();
-        if (authUsersData && Array.isArray(authUsersData)) {
-          authUsersData.forEach(userData => {
-            if (userData.id && userData.email) {
-              emailMap.set(userData.id, userData.email);
-            }
-          });
-        }
-        
-        // Now map profiles to users with emails from the emailMap
-        const usersWithEmails = profilesData.map(profile => {
-          // Try to get email from the map, fall back to current user email or a placeholder
-          const email = emailMap.get(profile.id) || 
-                        (profile.id === user.id ? user.email : `user-${profile.id.substring(0, 4)}@example.com`);
-          
-          return {
-            id: profile.id,
-            accountName: profile.account_name,
-            email,
-            role: profile.role,
-            avatar: ""
-          };
-        });
-        
-        setUsers(usersWithEmails);
+      if (authUsersError) {
+        console.error("Error fetching user emails:", authUsersError);
       }
+      
+      // Create a map of user IDs to emails for quick lookup
+      const emailMap = new Map();
+      if (authUsersData && Array.isArray(authUsersData)) {
+        authUsersData.forEach(userData => {
+          if (userData.id && userData.email) {
+            emailMap.set(userData.id, userData.email);
+          }
+        });
+      }
+      
+      // Now map profiles to users with emails from the emailMap
+      usersList = profilesData.map(profile => {
+        // Try to get email from the map, fall back to current user email or a placeholder
+        const email = emailMap.get(profile.id) || 
+                      (profile.id === user.id ? user.email : `user-${profile.id.substring(0, 4)}@example.com`);
+        
+        return {
+          id: profile.id,
+          accountName: profile.account_name,
+          email,
+          role: profile.role,
+          avatar: ""
+        };
+      });
+      
+      setUsers(usersList);
       
       // Fetch daily stats
       const { data: statsData, error: statsError } = await supabase
