@@ -194,7 +194,7 @@ export default function Sequences() {
       id: currentSequence.id,
       webhookEnabled: currentSequence.webhookEnabled,
       webhookId: currentSequence.webhookId,
-      sequenceId: currentSequence.id, // Make sure this is explicitly logged
+      sequenceId: currentSequence.id, // Explicitly logging for verification
       instanceId: currentSequence.instanceId
     });
     

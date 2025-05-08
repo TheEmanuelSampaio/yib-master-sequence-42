@@ -64,6 +64,18 @@ export function BasicInfoSection({
       .trim();
   };
 
+  // Log component props when they change for debugging
+  useEffect(() => {
+    console.log("BasicInfoSection props:", { 
+      isEditMode, 
+      webhookEnabled,
+      webhookId, 
+      instanceId, 
+      sequenceId,
+      isWebhookIdUnique
+    });
+  }, [isEditMode, webhookEnabled, webhookId, instanceId, sequenceId, isWebhookIdUnique]);
+
   // Set initial webhook ID when name changes or webhook is enabled
   useEffect(() => {
     if (webhookEnabled && !webhookId && name) {
@@ -210,6 +222,10 @@ export function BasicInfoSection({
     notifyChanges();
   };
 
+  // Determine if we should show the non-unique error message
+  // FIXED: Only show error when webhook is enabled, not validating, and ID is actually not unique
+  const showNonUniqueError = webhookEnabled && !isValidatingWebhookId && !isWebhookIdUnique && !!webhookId;
+
   return (
     <>
       <Card>
@@ -289,7 +305,7 @@ export function BasicInfoSection({
                     value={webhookId || ''} 
                     onChange={(e) => handleWebhookIdChange(e.target.value)}
                     placeholder="id-do-webhook"
-                    className={!isWebhookIdUnique ? "border-red-500 pr-10" : ""}
+                    className={showNonUniqueError ? "border-red-500 pr-10" : ""}
                     disabled={isValidatingWebhookId}
                   />
                   {isValidatingWebhookId && (
@@ -297,7 +313,7 @@ export function BasicInfoSection({
                       <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                     </div>
                   )}
-                  {!isWebhookIdUnique && webhookId && (
+                  {showNonUniqueError && (
                     <p className="text-red-500 text-xs mt-1">
                       Este ID já está em uso por outra sequência neste cliente
                     </p>
