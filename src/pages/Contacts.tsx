@@ -233,7 +233,7 @@ export default function Contacts() {
                       <SelectValue placeholder="Todos os clientes" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Todos os clientes</SelectItem>
+                      <SelectItem value="all">Todos os clientes</SelectItem>
                       {clients.map(client => (
                         <SelectItem key={client.id} value={client.id}>{client.accountName}</SelectItem>
                       ))}
@@ -249,7 +249,7 @@ export default function Contacts() {
                         <SelectValue placeholder="Todos os admins" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Todos os admins</SelectItem>
+                        <SelectItem value="all">Todos os admins</SelectItem>
                         {users.filter(user => user.role === 'admin').map(user => (
                           <SelectItem key={user.id} value={user.id}>{user.accountName}</SelectItem>
                         ))}
