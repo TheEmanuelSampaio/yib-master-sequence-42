@@ -70,6 +70,14 @@ export default function Sequences() {
   
   const handleSaveSequence = async (sequence: Omit<Sequence, "id" | "createdAt" | "updatedAt">) => {
     if (isEditMode && currentSequence) {
+      console.log("Saving edited sequence:", {
+        id: currentSequence.id,
+        name: sequence.name,
+        webhookEnabled: sequence.webhookEnabled,
+        webhookId: sequence.webhookId,
+        instanceId: sequence.instanceId
+      });
+      
       const result = await updateSequence(currentSequence.id, sequence);
       
       if (result.success) {
@@ -79,14 +87,28 @@ export default function Sequences() {
         setHasUnsavedChanges(false);
       } else {
         // Exibir mensagem de erro específica
+        console.error("Error updating sequence:", result.error);
         toast.error(result.error || "Erro ao atualizar sequência");
         // Não fechamos o modo de edição aqui, permitindo que o usuário corrija o problema
       }
     } else {
-      await addSequence(sequence);
-      setIsCreateMode(false);
-      toast.success("Sequência criada com sucesso");
-      setHasUnsavedChanges(false);
+      console.log("Creating new sequence:", {
+        name: sequence.name,
+        webhookEnabled: sequence.webhookEnabled,
+        webhookId: sequence.webhookId,
+        instanceId: sequence.instanceId
+      });
+      
+      const result = await addSequence(sequence);
+      
+      if (result.success) {
+        setIsCreateMode(false);
+        toast.success("Sequência criada com sucesso");
+        setHasUnsavedChanges(false);
+      } else {
+        console.error("Error creating sequence:", result.error);
+        toast.error(result.error || "Erro ao criar sequência");
+      }
     }
   };
   
