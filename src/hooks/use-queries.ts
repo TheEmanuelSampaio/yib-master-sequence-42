@@ -130,6 +130,7 @@ export function useSequences(instanceId?: string) {
           id: sequence.id,
           name: sequence.name,
           instanceId: sequence.instance_id,
+          // Add default type if not present in the database
           type: sequence.type || "message",
           startCondition: {
             type: sequence.start_condition_type,
