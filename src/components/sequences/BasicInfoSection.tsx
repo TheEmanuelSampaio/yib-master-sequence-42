@@ -79,41 +79,26 @@ export function BasicInfoSection({
     }
   }, [name]);
 
-  // Validate webhook ID uniqueness with improved logging
+  // Validate webhook ID uniqueness - Improved to use the correct function when in edit mode
   const validateWebhookId = async (id: string) => {
     if (!id || !instanceId) return;
     
     setIsValidatingWebhookId(true);
-    console.log("Validating webhook ID:", { 
-      id, 
-      instanceId, 
-      isEditMode, 
-      sequenceId,
-      currentTime: new Date().toISOString()
-    });
+    console.log("Validating webhook ID:", { id, instanceId, isEditMode, sequenceId });
     
     try {
       // Use different RPC function based on whether we're in edit mode
       let data, error;
       
       if (isEditMode && sequenceId) {
-        console.log("Using is_webhook_id_unique_for_client_except_self with params:", {
-          p_webhook_id: id,
-          p_instance_id: instanceId,
-          p_sequence_id: sequenceId
-        });
-        
+        console.log("Using is_webhook_id_unique_for_client_except_self");
         ({ data, error } = await supabase.rpc('is_webhook_id_unique_for_client_except_self', {
           p_webhook_id: id,
           p_instance_id: instanceId,
           p_sequence_id: sequenceId
         }));
       } else {
-        console.log("Using is_webhook_id_unique_for_client with params:", {
-          p_webhook_id: id,
-          p_instance_id: instanceId
-        });
-        
+        console.log("Using is_webhook_id_unique_for_client");
         ({ data, error } = await supabase.rpc('is_webhook_id_unique_for_client', {
           p_webhook_id: id,
           p_instance_id: instanceId
@@ -124,12 +109,7 @@ export function BasicInfoSection({
         console.error('Error validating webhook ID:', error);
         setIsWebhookIdUnique(true); // Assume unique in case of error
       } else {
-        console.log("Webhook ID validation result:", { 
-          data, 
-          isUnique: !!data,
-          id,
-          sequenceId
-        });
+        console.log("Webhook ID validation result:", data);
         setIsWebhookIdUnique(!!data);
       }
     } catch (error) {
@@ -144,7 +124,6 @@ export function BasicInfoSection({
   useEffect(() => {
     if (webhookEnabled && webhookId && !isValidatingWebhookId) {
       const timeoutId = setTimeout(() => {
-        console.log("Starting webhook validation after debounce:", { webhookId, isEditMode, sequenceId });
         validateWebhookId(webhookId);
       }, 500);
       
