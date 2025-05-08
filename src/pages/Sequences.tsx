@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useApp } from '@/context/AppContext';
 import {
@@ -112,11 +111,9 @@ export default function Sequences() {
   const handleEditSequence = (sequence: Sequence) => {
     console.log("Editing sequence:", {
       id: sequence.id,
-      webhook: {
-        enabled: sequence.webhookEnabled,
-        id: sequence.webhookId
-      },
-      instanceId: sequence.instanceId
+      webhookEnabled: sequence.webhookEnabled,
+      webhookId: sequence.webhookId,
+      sequenceId: sequence.id // Make sure this is explicitly logged
     });
     
     setCurrentSequence(sequence);
@@ -197,7 +194,8 @@ export default function Sequences() {
     console.log("Rendering edit mode for sequence:", {
       id: currentSequence.id,
       webhookEnabled: currentSequence.webhookEnabled,
-      webhookId: currentSequence.webhookId
+      webhookId: currentSequence.webhookId,
+      sequenceId: currentSequence.id // Make sure this is explicitly logged
     });
     
     return (
