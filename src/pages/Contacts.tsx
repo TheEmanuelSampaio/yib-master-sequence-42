@@ -1,12 +1,20 @@
-import { useState } from "react";
+
+import { useState, useEffect } from "react";
 import { useApp } from '@/context/AppContext';
-import { Search, User } from "lucide-react";
+import { useAuth } from '@/context/AuthContext';
+import { Search, User, Filter } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Contact, ContactSequence } from '@/types';
 import { toast } from "sonner";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { 
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 // Componentes refatorados
 import { ContactTable } from "@/components/contacts/ContactTable";
@@ -15,7 +23,8 @@ import { ContactStageChangeDialog } from "@/components/contacts/ContactStageChan
 import { ContactSequencesDialog } from "@/components/contacts/ContactSequencesDialog";
 
 export default function Contacts() {
-  const { contacts, sequences, contactSequences, deleteContact, updateContact, removeFromSequence, updateContactSequence, refreshData } = useApp();
+  const { contacts, sequences, contactSequences, clients, users, deleteContact, updateContact, removeFromSequence, updateContactSequence, refreshData } = useApp();
+  const { isSuper } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [showSequences, setShowSequences] = useState(false);
@@ -27,18 +36,38 @@ export default function Contacts() {
   const [selectedStageId, setSelectedStageId] = useState<string>('');
   const [showStageChangeDialog, setShowStageChangeDialog] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [clientFilter, setClientFilter] = useState<string>("");
+  const [adminFilter, setAdminFilter] = useState<string>("");
   
   // Helper function to get contact sequences
   const getContactSequences = (contactId: string) => {
     return contactSequences.filter(seq => seq.contactId === contactId);
   };
   
-  // Filter contacts based on search
-  const filteredContacts = contacts.filter(contact =>
-    contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    contact.phoneNumber.includes(searchQuery) ||
-    contact.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  // Apply all filters to contacts
+  const applyFilters = (contacts: Contact[]) => {
+    // First apply text search
+    let filtered = contacts.filter(contact =>
+      contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      contact.phoneNumber.includes(searchQuery) ||
+      contact.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()))
+    );
+    
+    // Then apply client filter if set
+    if (clientFilter) {
+      filtered = filtered.filter(contact => contact.clientId === clientFilter);
+    }
+    
+    // Then apply admin filter if set (super admin only)
+    if (isSuper && adminFilter) {
+      filtered = filtered.filter(contact => contact.adminId === adminFilter);
+    }
+    
+    return filtered;
+  };
+  
+  // Apply filters to get filtered contacts
+  const filteredContacts = applyFilters(contacts);
   
   // Active contacts have at least one active sequence
   const activeContacts = filteredContacts.filter(contact => {
@@ -55,6 +84,12 @@ export default function Contacts() {
       removed: sequences.filter(seq => seq.status === 'removed').length,
       total: sequences.length
     };
+  };
+  
+  // Reset filters
+  const resetFilters = () => {
+    setClientFilter("");
+    setAdminFilter("");
   };
   
   // View contact sequences
@@ -163,7 +198,7 @@ export default function Contacts() {
         </p>
       </div>
       
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center w-full max-w-sm space-x-2">
           <Input
             placeholder="Buscar contatos ou tags..."
@@ -175,6 +210,66 @@ export default function Contacts() {
             <Search className="h-4 w-4" />
           </Button>
         </div>
+        
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="h-9">
+              <Filter className="h-4 w-4 mr-2" />
+              Filtros
+              {(clientFilter || adminFilter) && (
+                <Badge className="ml-2 bg-primary">{(clientFilter ? 1 : 0) + (adminFilter ? 1 : 0)}</Badge>
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-80 p-4">
+            <div className="space-y-4">
+              <h4 className="font-medium leading-none">Filtrar Contatos</h4>
+              <div className="space-y-2">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium leading-none">Cliente</label>
+                  <Select value={clientFilter} onValueChange={setClientFilter}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Todos os clientes" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Todos os clientes</SelectItem>
+                      {clients.map(client => (
+                        <SelectItem key={client.id} value={client.id}>{client.accountName}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {isSuper && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium leading-none">Admin</label>
+                    <Select value={adminFilter} onValueChange={setAdminFilter}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Todos os admins" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">Todos os admins</SelectItem>
+                        {users.filter(user => user.role === 'admin').map(user => (
+                          <SelectItem key={user.id} value={user.id}>{user.accountName}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+              
+              <div className="flex justify-between">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={resetFilters}
+                >
+                  Limpar filtros
+                </Button>
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
       </div>
       
       <Tabs defaultValue="all">
@@ -199,6 +294,8 @@ export default function Contacts() {
                 onPrepareEdit={handlePrepareEdit}
                 onDeleteContact={handleDeleteContact}
                 isProcessing={isProcessing}
+                showClientColumn={true}
+                showAdminColumn={isSuper}
               />
             </CardContent>
           </Card>
@@ -220,6 +317,8 @@ export default function Contacts() {
                 onPrepareEdit={handlePrepareEdit}
                 onDeleteContact={handleDeleteContact}
                 isProcessing={isProcessing}
+                showClientColumn={true}
+                showAdminColumn={isSuper}
               />
             </CardContent>
           </Card>
