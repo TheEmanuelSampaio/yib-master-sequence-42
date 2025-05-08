@@ -190,8 +190,8 @@ Deno.serve(async (req) => {
       pendingMessagesQuery = pendingMessagesQuery.in('contacts.client_id', adminClientIds);
     }
       
-    // Limitar a 10 mensagens por vez para evitar sobrecarga
-    pendingMessagesQuery = pendingMessagesQuery.limit(10);
+    // Limitar a 200 mensagens por vez para evitar sobrecarga
+    pendingMessagesQuery = pendingMessagesQuery.limit(200);
     
     const { data: pendingMessages, error: messagesError } = await pendingMessagesQuery;
 
