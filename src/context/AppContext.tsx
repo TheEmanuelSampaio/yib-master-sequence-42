@@ -179,6 +179,22 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       localStorage.removeItem('selectedInstanceId');
     }
   }, [user, isDataInitialized]);
+  
+  // Set current instance when instances are loaded and initialized
+  useEffect(() => {
+    if (instances.length > 0 && isDataInitialized) {
+      const savedInstanceId = localStorage.getItem('selectedInstanceId');
+      
+      if (savedInstanceId) {
+        // Try to find the saved instance
+        const savedInstance = instances.find(i => i.id === savedInstanceId);
+        if (savedInstance) {
+          console.log("Effect: Setting saved instance after data initialization:", savedInstance.name);
+          setCurrentInstance(savedInstance);
+        }
+      }
+    }
+  }, [instances, isDataInitialized]);
 
   const refreshData = async () => {
     if (!user || isRefreshing) return;
@@ -244,6 +260,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       
       // Get saved instance ID from localStorage
       const savedInstanceId = localStorage.getItem('selectedInstanceId');
+      console.log("Checking for saved instance ID:", savedInstanceId);
       
       // Set current instance based on saved ID or default to first active instance
       if (typedInstances.length > 0) {
@@ -263,6 +280,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           // No saved instance, use first active instance
           const activeInstance = typedInstances.find(i => i.active) || typedInstances[0];
           setCurrentInstance(activeInstance);
+          console.log("No saved instance, using default:", activeInstance?.name);
         }
       }
       

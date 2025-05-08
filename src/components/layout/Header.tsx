@@ -19,7 +19,7 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 interface HeaderProps {
   sidebarCollapsed: boolean;
@@ -28,6 +28,7 @@ interface HeaderProps {
 export function Header({ sidebarCollapsed }: HeaderProps) {
   const { user, logout } = useAuth();
   const { instances, currentInstance, setCurrentInstance, refreshData, isDataInitialized } = useApp();
+  const [selectedInstanceId, setSelectedInstanceId] = useState<string>("");
 
   // Carregar dados apenas se ainda não foram inicializados e temos um usuário
   useEffect(() => {
@@ -37,10 +38,20 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
     }
   }, [user, refreshData, isDataInitialized]);
 
+  // Update local state when currentInstance changes
+  useEffect(() => {
+    if (currentInstance?.id) {
+      console.log("Header - currentInstance changed:", currentInstance.name);
+      setSelectedInstanceId(currentInstance.id);
+    }
+  }, [currentInstance]);
+
   const handleInstanceChange = (instanceId: string) => {
+    console.log("Header - Instance selected manually:", instanceId);
     const instance = instances?.find(inst => inst.id === instanceId);
     if (instance) {
       setCurrentInstance(instance);
+      setSelectedInstanceId(instanceId);
       // Save selected instance ID to localStorage
       localStorage.setItem('selectedInstanceId', instance.id);
     }
@@ -96,7 +107,10 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
     )}>
       <div className="flex items-center gap-4">
         {hasInstances && (
-          <Select onValueChange={handleInstanceChange} value={currentInstance?.id || ""}>
+          <Select 
+            onValueChange={handleInstanceChange} 
+            value={selectedInstanceId}
+          >
             <SelectTrigger className="w-[180px] md:w-[220px]">
               <SelectValue placeholder="Selecionar instância" />
             </SelectTrigger>

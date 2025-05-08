@@ -1,14 +1,22 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { Toaster } from "@/components/ui/toaster";
 import { Outlet } from "react-router-dom";
 import { ContextDebugger } from "../debug/ContextDebugger";
 import { cn } from "@/lib/utils";
+import { useApp } from "@/context/AppContext";
 
 export const MainLayout = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const { currentInstance } = useApp();
+  
+  // Add debugging log to track when MainLayout renders and what the current instance is
+  useEffect(() => {
+    console.log("MainLayout rendering with currentInstance:", 
+      currentInstance ? currentInstance.name : "none");
+  }, [currentInstance]);
   
   const toggleSidebar = () => {
     setSidebarCollapsed(!sidebarCollapsed);
