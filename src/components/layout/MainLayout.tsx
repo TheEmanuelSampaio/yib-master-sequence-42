@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
@@ -10,13 +9,16 @@ import { useApp } from "@/context/AppContext";
 
 export const MainLayout = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const { currentInstance } = useApp();
+  const { currentInstance, refreshData } = useApp();
   
-  // Add debugging log to track when MainLayout renders and what the current instance is
+  // Initial data load
   useEffect(() => {
-    console.log("MainLayout rendering with currentInstance:", 
-      currentInstance ? currentInstance.name : "none");
-  }, [currentInstance]);
+    console.log("MainLayout - Initial load");
+    refreshData();
+    // We're keeping the refreshData call because AppContext 
+    // still uses it, but we'll replace this with React Query hooks
+    // in the next phase of refactoring
+  }, []);
   
   const toggleSidebar = () => {
     setSidebarCollapsed(!sidebarCollapsed);

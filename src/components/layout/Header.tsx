@@ -1,5 +1,4 @@
 
-import { useApp } from '@/context/AppContext';
 import { useAuth } from '@/context/AuthContext';
 import { ThemeToggle } from '@/components/theme/ThemeToggle';
 import { 
@@ -19,45 +18,35 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useInstances } from '@/hooks/use-queries';
+import { useApp } from '@/context/AppContext';
+import { memo } from 'react';
+import { toast } from '@/components/ui/use-toast';
 
 interface HeaderProps {
   sidebarCollapsed: boolean;
 }
 
-export function Header({ sidebarCollapsed }: HeaderProps) {
+export const Header = memo(function Header({ sidebarCollapsed }: HeaderProps) {
   const { user, logout } = useAuth();
-  const { instances, currentInstance, setCurrentInstance, refreshData, isDataInitialized } = useApp();
-  const [selectedInstanceId, setSelectedInstanceId] = useState<string>("");
-
-  // Carregar dados apenas se ainda não foram inicializados e temos um usuário
-  useEffect(() => {
-    if (user && !isDataInitialized) {
-      console.log("Header - Initial data load");
-      refreshData();
-    }
-  }, [user, refreshData, isDataInitialized]);
-
-  // Update local state when currentInstance changes
-  useEffect(() => {
-    if (currentInstance?.id) {
-      console.log("Header - currentInstance changed:", currentInstance.name);
-      setSelectedInstanceId(currentInstance.id);
-    }
-  }, [currentInstance]);
+  const { currentInstance, setCurrentInstance } = useApp();
+  const { data: instances, isLoading: instancesLoading } = useInstances();
 
   const handleInstanceChange = (instanceId: string) => {
     console.log("Header - Instance selected manually:", instanceId);
     const instance = instances?.find(inst => inst.id === instanceId);
     if (instance) {
       setCurrentInstance(instance);
-      setSelectedInstanceId(instanceId);
       // Save selected instance ID to localStorage
       localStorage.setItem('selectedInstanceId', instance.id);
+      toast({
+        title: 'Instância alterada',
+        description: `Agora usando: ${instance.name}`,
+      });
     }
   };
 
-  // Caso não tenha user ou instâncias carregadas, mostrar versão simplificada
+  // Case no user or no instances loaded, show simplified version
   const hasInstances = Array.isArray(instances) && instances.length > 0;
   
   if (!user || !hasInstances || !currentInstance) {
@@ -109,7 +98,8 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
         {hasInstances && (
           <Select 
             onValueChange={handleInstanceChange} 
-            value={selectedInstanceId}
+            value={currentInstance?.id || ""}
+            disabled={instancesLoading}
           >
             <SelectTrigger className="w-[180px] md:w-[220px]">
               <SelectValue placeholder="Selecionar instância" />
@@ -155,4 +145,5 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
       </div>
     </header>
   );
-}
+});
+
