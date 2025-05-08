@@ -1,5 +1,4 @@
 
-
 // Follow this setup guide to integrate the Deno runtime into your project:
 // https://deno.com/manual/getting_started/setup_your_environment
 
@@ -32,6 +31,25 @@ type WebhookPayload = {
   variables?: Record<string, string | number>;
   authToken: string;
 };
+
+// Função para processar variáveis no conteúdo
+function processVariables(content: string, variables: Record<string, string | number>): string {
+  let processedContent = content;
+  
+  console.log("[VARIÁVEIS] Processando conteúdo com variáveis:", JSON.stringify(variables));
+  
+  // Substituir cada variável no conteúdo
+  Object.entries(variables).forEach(([key, value]) => {
+    const placeholder = `{${key}}`;
+    console.log(`[VARIÁVEIS] Substituindo ${placeholder} por ${String(value)}`);
+    processedContent = processedContent.split(placeholder).join(String(value));
+  });
+  
+  console.log("[VARIÁVEIS] Conteúdo original:", content);
+  console.log("[VARIÁVEIS] Conteúdo processado:", processedContent);
+  
+  return processedContent;
+}
 
 serve(async (req) => {
   console.log("[REQUEST] Método: " + req.method + ", URL: " + req.url);
@@ -563,6 +581,13 @@ serve(async (req) => {
     
     const scheduledTimeStr = scheduledTime.toISOString();
     
+    // Processar variáveis no conteúdo se houver
+    let processedContent = null;
+    if (variables && Object.keys(variables).length > 0 && firstStage.type === "message") {
+      console.log("[WEBHOOK] Processando variáveis para a mensagem:", JSON.stringify(variables));
+      processedContent = processVariables(firstStage.content, variables);
+    }
+    
     const { error: scheduleError } = await supabase
       .from("scheduled_messages")
       .insert({
@@ -573,7 +598,8 @@ serve(async (req) => {
         raw_scheduled_time: scheduledTimeStr,
         scheduled_time: scheduledTimeStr,
         status: "pending",
-        variables: variables || {}
+        variables: variables || {},
+        processed_content: processedContent
       });
       
     if (scheduleError) {
@@ -610,7 +636,8 @@ serve(async (req) => {
         contactId,
         sequenceId: sequence.id,
         scheduledTime: scheduledTimeStr,
-        authMethod: isGlobalToken ? `global_token:${tokenOwner?.role || 'unknown'}` : 'client_token'
+        authMethod: isGlobalToken ? `global_token:${tokenOwner?.role || 'unknown'}` : 'client_token',
+        processedContent: processedContent
       }),
       {
         status: 200, 
