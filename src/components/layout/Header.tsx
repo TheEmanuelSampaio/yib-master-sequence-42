@@ -1,4 +1,3 @@
-
 import { useAuth } from '@/context/AuthContext';
 import { ThemeToggle } from '@/components/theme/ThemeToggle';
 import { 
@@ -21,7 +20,7 @@ import { Link } from 'react-router-dom';
 import { useInstances } from '@/hooks/use-queries';
 import { useApp } from '@/context/AppContext';
 import { memo } from 'react';
-import { toast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 
 interface HeaderProps {
   sidebarCollapsed: boolean;
@@ -31,6 +30,7 @@ export const Header = memo(function Header({ sidebarCollapsed }: HeaderProps) {
   const { user, logout } = useAuth();
   const { currentInstance, setCurrentInstance } = useApp();
   const { data: instances, isLoading: instancesLoading } = useInstances();
+  const { toast } = useToast();
 
   const handleInstanceChange = (instanceId: string) => {
     console.log("Header - Instance selected manually:", instanceId);
@@ -146,4 +146,3 @@ export const Header = memo(function Header({ sidebarCollapsed }: HeaderProps) {
     </header>
   );
 });
-

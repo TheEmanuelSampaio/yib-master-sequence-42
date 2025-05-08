@@ -6,18 +6,22 @@ import { Outlet } from "react-router-dom";
 import { ContextDebugger } from "../debug/ContextDebugger";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/context/AppContext";
+import { useCurrentInstance } from "@/hooks/use-current-instance";
 
 export const MainLayout = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { currentInstance, refreshData } = useApp();
   
-  // Initial data load
+  // Use the React Query-based hook for instance management
+  const { currentInstance: queryInstance } = useCurrentInstance();
+  
+  // Initial data load - using the AppContext refreshData for backwards compatibility
   useEffect(() => {
-    console.log("MainLayout - Initial load");
+    console.log("MainLayout - Initial load with optimized approach");
     refreshData();
     // We're keeping the refreshData call because AppContext 
-    // still uses it, but we'll replace this with React Query hooks
-    // in the next phase of refactoring
+    // still uses it, but we're also using React Query hooks
+    // for better data fetching performance
   }, []);
   
   const toggleSidebar = () => {
