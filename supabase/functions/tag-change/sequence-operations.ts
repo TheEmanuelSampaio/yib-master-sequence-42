@@ -1,3 +1,4 @@
+
 export async function processSequences(supabase, clientId, contactId, tags, variables = {}) {
   console.log(`[5.1 SEQUÊNCIAS] Iniciando processamento de sequências para o contato ${contactId} com tags: ${JSON.stringify(tags)}`);
   console.log(`[5.1 SEQUÊNCIAS] Filtrando sequências para o client_id: ${clientId}`);
@@ -25,7 +26,8 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
         success: true,
         sequencesProcessed: 0,
         sequencesAdded: 0,
-        sequencesSkipped: 0
+        sequencesSkipped: 0,
+        sequencesRemoved: 0 // Adicionado contador de sequências removidas
       };
     }
     
@@ -75,11 +77,105 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
         success: true,
         sequencesProcessed: 0,
         sequencesAdded: 0,
-        sequencesSkipped: 0
+        sequencesSkipped: 0,
+        sequencesRemoved: 0
       };
     }
 
     console.log(`[5.2 SEQUÊNCIAS] Encontradas ${sequences.length} sequências ativas para o cliente ${clientId}.`);
+
+    // NOVA ETAPA: Verificar se o contato está em alguma sequência ativa e se atende às condições de parada
+    console.log(`[5.2.1 SEQUÊNCIAS] Verificando sequências ativas do contato para possível remoção`);
+    const { data: activeContactSequences, error: activeSeqError } = await supabase
+      .from("contact_sequences")
+      .select(`
+        id,
+        sequence_id,
+        status,
+        current_stage_id
+      `)
+      .eq("contact_id", contactId)
+      .eq("status", "active");
+      
+    if (activeSeqError) {
+      console.error(`[5.2.1 SEQUÊNCIAS] Erro ao buscar sequências ativas do contato: ${activeSeqError.message}`);
+    } else if (activeContactSequences && activeContactSequences.length > 0) {
+      console.log(`[5.2.1 SEQUÊNCIAS] Encontradas ${activeContactSequences.length} sequências ativas para o contato ${contactId}`);
+      
+      let sequencesRemoved = 0;
+      
+      // Para cada sequência ativa do contato, verificar se ele atende às condições de parada
+      for (const contactSequence of activeContactSequences) {
+        // Encontrar os detalhes da sequência
+        const sequence = sequences.find(seq => seq.id === contactSequence.sequence_id);
+        if (!sequence) continue;
+        
+        // Verificar se a sequência tem condições de parada e se o contato as atende
+        const hasStopConditions = sequence.stop_condition_tags && sequence.stop_condition_tags.length > 0;
+        if (hasStopConditions) {
+          // Normalizando as tags do contato para comparação consistente
+          const normalizedContactTags = tags.map(tag => tag.toLowerCase().trim());
+          
+          console.log(`[5.2.2 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Verificando condições de parada para possível remoção`);
+          console.log(`[5.2.2 SEQUÊNCIA ${sequence.id}] Condição de parada: tipo=${sequence.stop_condition_type}, tags=${JSON.stringify(sequence.stop_condition_tags)}`);
+          
+          const matchesStop = evaluateCondition(sequence.stop_condition_type, sequence.stop_condition_tags, normalizedContactTags);
+          
+          if (matchesStop) {
+            console.log(`[5.2.3 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Contato atende às condições de parada, removendo da sequência...`);
+            
+            // Processo de remoção similar ao usado na função removeFromSequence() do arquivo AppContact.tsx
+            
+            // 1. Deletar mensagens agendadas para este contato nesta sequência
+            const { error: msgError } = await supabase
+              .from('scheduled_messages')
+              .delete()
+              .eq('contact_id', contactId)
+              .eq('sequence_id', sequence.id);
+              
+            if (msgError) {
+              console.error(`[5.2.3 SEQUÊNCIA ${sequence.id}] Erro ao remover mensagens agendadas: ${msgError.message}`);
+              continue;
+            }
+            
+            // 2. Atualizar o status na tabela stage_progress para "removed" onde o status for "pending"
+            const { error: progError } = await supabase
+              .from('stage_progress')
+              .update({ status: 'removed' })
+              .eq('contact_sequence_id', contactSequence.id)
+              .eq('status', 'pending');
+              
+            if (progError) {
+              console.error(`[5.2.3 SEQUÊNCIA ${sequence.id}] Erro ao atualizar progresso do estágio: ${progError.message}`);
+              continue;
+            }
+            
+            // 3. Atualizar o status para "removed" e definir removed_at
+            const { error } = await supabase
+              .from('contact_sequences')
+              .update({
+                status: 'removed',
+                removed_at: new Date().toISOString()
+              })
+              .eq('id', contactSequence.id);
+
+            if (error) {
+              console.error(`[5.2.3 SEQUÊNCIA ${sequence.id}] Erro ao remover contato da sequência: ${error.message}`);
+              continue;
+            }
+            
+            console.log(`[5.2.3 SEQUÊNCIA ${sequence.id}] Contato removido com sucesso da sequência`);
+            sequencesRemoved++;
+          } else {
+            console.log(`[5.2.3 SEQUÊNCIA ${sequence.id}] Contato não atende às condições de parada, mantendo na sequência`);
+          }
+        }
+      }
+      
+      console.log(`[5.2.4 SEQUÊNCIAS] ${sequencesRemoved} sequências removidas por condições de parada`);
+    } else {
+      console.log(`[5.2.1 SEQUÊNCIAS] Contato ${contactId} não está em nenhuma sequência ativa`);
+    }
 
     // Passo 2: Filtrar aquelas onde o contato atende as condições de start e não atende as de stop
     const eligibleSequences = sequences.filter(sequence => {
@@ -264,13 +360,22 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
       sequencesAdded++;
     }
 
-    console.log(`[5.9 SEQUÊNCIAS] Processamento concluído: ${sequencesAdded} sequências adicionadas, ${sequencesSkipped} sequências puladas`);
+    // Buscar quantas sequências foram removidas para incluir no retorno
+    const { count: sequencesRemoved, error: countError } = await supabase
+      .from('contact_sequences')
+      .select('id', { count: 'exact', head: true })
+      .eq('contact_id', contactId)
+      .eq('status', 'removed')
+      .gte('removed_at', new Date(Date.now() - 5000).toISOString()); // Sequências removidas nos últimos 5 segundos
+      
+    console.log(`[5.9 SEQUÊNCIAS] Processamento concluído: ${sequencesAdded} sequências adicionadas, ${sequencesSkipped} sequências puladas, aproximadamente ${sequencesRemoved || 0} sequências removidas recentemente`);
     
     return {
       success: true,
       sequencesProcessed: eligibleSequences.length,
       sequencesAdded,
-      sequencesSkipped
+      sequencesSkipped,
+      sequencesRemoved: sequencesRemoved || 0
     };
     
   } catch (error) {

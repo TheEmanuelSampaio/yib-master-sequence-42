@@ -1,4 +1,3 @@
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 import { createSupabaseClient } from './client-utils.ts';
@@ -343,7 +342,8 @@ Deno.serve(async (req) => {
           sequences: sequencesResult.success ? {
             processed: sequencesResult.sequencesProcessed,
             added: sequencesResult.sequencesAdded,
-            skipped: sequencesResult.sequencesSkipped
+            skipped: sequencesResult.sequencesSkipped,
+            removed: sequencesResult.sequencesRemoved || 0 // Adicionado contador de sequências removidas
           } : { error: sequencesResult.error }
         },
         authMethod: isGlobalToken ? `global_token:${tokenOwner.role}` : 'client_token'
