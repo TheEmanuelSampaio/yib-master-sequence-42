@@ -1,4 +1,3 @@
-
 import { createContext, useContext } from 'react';
 import { Contact, ContactSequence } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
