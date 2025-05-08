@@ -275,6 +275,51 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       
       setTimeRestrictions(typedRestrictions);
       
+      // Fetch users (for both admin and super_admin) - MOVED THIS UP before contacts
+      let usersList: User[] = [];
+      
+      // Get profiles data
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('*');
+      
+      if (profilesError) throw profilesError;
+      
+      // Get user emails from auth.users through Supabase function or RPC
+      const { data: authUsersData, error: authUsersError } = await supabase
+        .rpc('get_users_with_emails');
+        
+      if (authUsersError) {
+        console.error("Error fetching user emails:", authUsersError);
+      }
+      
+      // Create a map of user IDs to emails for quick lookup
+      const emailMap = new Map();
+      if (authUsersData && Array.isArray(authUsersData)) {
+        authUsersData.forEach(userData => {
+          if (userData.id && userData.email) {
+            emailMap.set(userData.id, userData.email);
+          }
+        });
+      }
+      
+      // Now map profiles to users with emails from the emailMap
+      usersList = profilesData.map(profile => {
+        // Try to get email from the map, fall back to current user email or a placeholder
+        const email = emailMap.get(profile.id) || 
+                      (profile.id === user.id ? user.email : `user-${profile.id.substring(0, 4)}@example.com`);
+        
+        return {
+          id: profile.id,
+          accountName: profile.account_name,
+          email,
+          role: profile.role,
+          avatar: ""
+        };
+      });
+      
+      setUsers(usersList);
+      
       // Buscar sequências e seus estágios
       const { data: sequencesData, error: sequencesError } = await supabase
         .from('sequences')
@@ -415,7 +460,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       
       if (contactsError) throw contactsError;
       
-      // Create maps for quick lookups
+      // Create maps for quick lookups - now usersList is defined before it's used
       const clientMap = new Map(typedClients.map(client => [client.id, client]));
       const userMap = new Map(usersList.map(user => [user.id, user]));
       
@@ -536,72 +581,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       // Resolver todas as promessas de sequências de contato
       const typedContactSeqs = (await Promise.all(contactSeqPromises)).filter(Boolean) as ContactSequence[];
       setContactSequences(typedContactSeqs);
-      
-      // Fetch users (for both admin and super_admin)
-      let usersList: User[] = [];
-      
-      // Get profiles data
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('*');
-      
-      if (profilesError) throw profilesError;
-      
-      // Get user emails from auth.users through Supabase function or RPC
-      const { data: authUsersData, error: authUsersError } = await supabase
-        .rpc('get_users_with_emails');
-        
-      if (authUsersError) {
-        console.error("Error fetching user emails:", authUsersError);
-      }
-      
-      // Create a map of user IDs to emails for quick lookup
-      const emailMap = new Map();
-      if (authUsersData && Array.isArray(authUsersData)) {
-        authUsersData.forEach(userData => {
-          if (userData.id && userData.email) {
-            emailMap.set(userData.id, userData.email);
-          }
-        });
-      }
-      
-      // Now map profiles to users with emails from the emailMap
-      usersList = profilesData.map(profile => {
-        // Try to get email from the map, fall back to current user email or a placeholder
-        const email = emailMap.get(profile.id) || 
-                      (profile.id === user.id ? user.email : `user-${profile.id.substring(0, 4)}@example.com`);
-        
-        return {
-          id: profile.id,
-          accountName: profile.account_name,
-          email,
-          role: profile.role,
-          avatar: ""
-        };
-      });
-      
-      setUsers(usersList);
-      
-      // Fetch daily stats
-      const { data: statsData, error: statsError } = await supabase
-        .from('daily_stats')
-        .select('*')
-        .order('date', { ascending: false });
-        
-      if (statsError) throw statsError;
-      
-      const typedStats = statsData.map(stat => ({
-        id: stat.id,
-        instanceId: stat.instance_id,
-        date: stat.date,
-        messagesSent: stat.messages_sent,
-        messagesScheduled: stat.messages_scheduled,
-        messagesFailed: stat.messages_failed,
-        newContacts: stat.new_contacts,
-        completedSequences: stat.completed_sequences
-      }));
-      
-      setStats(typedStats);
       
       // Set initialized state to true after successful data load
       setIsDataInitialized(true);
