@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useApp } from '@/context/AppContext';
 import {
@@ -69,7 +70,17 @@ export default function Sequences() {
   const inactiveSequences = instanceSequences.filter(seq => seq.status === 'inactive');
   
   const handleSaveSequence = async (sequence: Omit<Sequence, "id" | "createdAt" | "updatedAt">) => {
+    // Add debug logging to see what's being sent for update
     if (isEditMode && currentSequence) {
+      console.log("Updating sequence:", {
+        sequenceId: currentSequence.id,
+        webhook: {
+          enabled: sequence.webhookEnabled,
+          id: sequence.webhookId
+        },
+        currentInstance
+      });
+      
       const result = await updateSequence(currentSequence.id, sequence);
       
       if (result.success) {
@@ -83,6 +94,14 @@ export default function Sequences() {
         // Não fechamos o modo de edição aqui, permitindo que o usuário corrija o problema
       }
     } else {
+      console.log("Creating new sequence:", {
+        webhook: {
+          enabled: sequence.webhookEnabled,
+          id: sequence.webhookId
+        },
+        currentInstance
+      });
+      
       await addSequence(sequence);
       setIsCreateMode(false);
       toast.success("Sequência criada com sucesso");
@@ -91,6 +110,15 @@ export default function Sequences() {
   };
   
   const handleEditSequence = (sequence: Sequence) => {
+    console.log("Editing sequence:", {
+      id: sequence.id,
+      webhook: {
+        enabled: sequence.webhookEnabled,
+        id: sequence.webhookId
+      },
+      instanceId: sequence.instanceId
+    });
+    
     setCurrentSequence(sequence);
     setIsEditMode(true);
     setHasUnsavedChanges(false);
@@ -166,6 +194,12 @@ export default function Sequences() {
   }
   
   if (isEditMode && currentSequence) {
+    console.log("Rendering edit mode for sequence:", {
+      id: currentSequence.id,
+      webhookEnabled: currentSequence.webhookEnabled,
+      webhookId: currentSequence.webhookId
+    });
+    
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">

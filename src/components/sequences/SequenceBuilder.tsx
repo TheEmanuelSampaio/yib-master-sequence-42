@@ -25,6 +25,18 @@ interface SequenceBuilderProps {
 export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: SequenceBuilderProps) {
   const { tags, currentInstance, timeRestrictions: globalTimeRestrictions, addTag } = useApp();
   
+  // Log when in edit mode to verify sequence id
+  useEffect(() => {
+    if (sequence) {
+      console.log("SequenceBuilder - Edit Mode:", {
+        sequenceId: sequence.id,
+        webhookEnabled: sequence.webhookEnabled,
+        webhookId: sequence.webhookId,
+        instanceId: currentInstance?.id
+      });
+    }
+  }, [sequence, currentInstance]);
+
   const [name, setName] = useState(sequence?.name || "");
   const [type, setType] = useState<"message" | "pattern" | "typebot">(
     sequence?.type || "message"
@@ -657,7 +669,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         
         <TabsContent value="basic" className="pt-6">
           <div className="grid gap-6 grid-cols-1">
-            {/* Basic Info with webhook configuration */}
+            {/* Add explicit sequenceId prop if we're in edit mode */}
             <BasicInfoSection
               name={name}
               setName={setName}

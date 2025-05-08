@@ -120,16 +120,16 @@ export function BasicInfoSection({
     }
   };
 
-  // Debounce webhook ID validation - but only validate while typing, not on initial load
+  // Debounce webhook ID validation - but only validate if webhookEnabled is true
   useEffect(() => {
-    if (webhookEnabled && webhookId && !isValidatingWebhookId) {
+    if (webhookEnabled && webhookId && instanceId) {
       const timeoutId = setTimeout(() => {
         validateWebhookId(webhookId);
       }, 500);
       
       return () => clearTimeout(timeoutId);
     }
-  }, [webhookId, webhookEnabled, instanceId, sequenceId]);
+  }, [webhookId, webhookEnabled, instanceId, isEditMode, sequenceId]); // Added isEditMode and sequenceId as dependencies
 
   const handleTypeChange = (newType: "message" | "pattern" | "typebot") => {
     if (newType !== type) {
