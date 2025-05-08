@@ -362,7 +362,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           ...globalTimeRestrictions,
           ...(sequence.localTimeRestrictions || [])
         ];
-        
+
         // Ensure startCondition.type and stopCondition.type are "AND" or "OR"
         const startType = sequence.start_condition_type === "AND" ? "AND" : "OR";
         const stopType = sequence.stop_condition_type === "AND" ? "AND" : "OR";
@@ -1521,11 +1521,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           type: (seq as any).type || sequenceType,
           status: seq.status as "active" | "inactive",
           startCondition: {
-            type: seq.start_condition_type,
+            type: seq.start_condition_type as "AND" | "OR",
             tags: seq.start_condition_tags || []
           },
           stopCondition: {
-            type: seq.stop_condition_type,
+            type: seq.stop_condition_type as "AND" | "OR",
             tags: seq.stop_condition_tags || []
           },
           stages,
@@ -1546,11 +1546,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const transformSequence = (seq) => {
-    // Ensure types are properly cast
-    const startType = seq.start_condition_type === "AND" ? "AND" : "OR";
-    const stopType = seq.stop_condition_type === "AND" ? "AND" : "OR";
-    
+  const transformSequence = (seq) => {    
     return {
       id: seq.id,
       name: seq.name,
@@ -1559,11 +1555,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       status: seq.status,
       createdBy: seq.created_by,
       startCondition: {
-        type: startType,
+        type: seq.start_condition_type as "AND" | "OR",
         tags: seq.start_condition_tags || []
       },
       stopCondition: {
-        type: stopType,
+        type: seq.stop_condition_type as "AND" | "OR",
         tags: seq.stop_condition_tags || []
       },
       stages: transformSequenceStages(seq),
