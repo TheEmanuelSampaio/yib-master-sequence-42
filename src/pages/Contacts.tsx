@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useApp } from '@/context/AppContext';
 import { useAuth } from '@/context/AuthContext';
@@ -55,12 +54,12 @@ export default function Contacts() {
     );
     
     // Then apply client filter if set
-    if (clientFilter) {
+    if (clientFilter && clientFilter !== "all") {
       filtered = filtered.filter(contact => contact.clientId === clientFilter);
     }
     
     // Then apply admin filter if set (super admin only)
-    if (isSuper && adminFilter) {
+    if (isSuper && adminFilter && adminFilter !== "all") {
       filtered = filtered.filter(contact => contact.adminId === adminFilter);
     }
     
