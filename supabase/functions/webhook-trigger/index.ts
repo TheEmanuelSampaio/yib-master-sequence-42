@@ -1,4 +1,3 @@
-
 // Follow this setup guide to integrate the Deno runtime into your project:
 // https://deno.com/manual/getting_started/setup_your_environment
 
@@ -405,11 +404,13 @@ serve(async (req) => {
       contactId = existingContact.id;
       console.log("[WEBHOOK] Contato existente encontrado: " + existingContact.name + " (ID: " + existingContact.id + ")");
     } else {
-      // Create new contact
+      // Create new contact - MODIFICAÇÃO AQUI para usar o formato id:phoneNumber
       console.log("[WEBHOOK] Contato não encontrado, criando novo contato...");
       
-      // Generate a unique ID for the contact
-      const newContactId = crypto.randomUUID();
+      // Generate a unique ID for the contact using the same format as tag-change
+      // Usar o mesmo formato de ID que é usado no tag-change: client_id:phoneNumber
+      const newContactId = `${instance.client_id}:${phoneNumber}`;
+      console.log(`[WEBHOOK] Gerando ID no formato padrão: ${newContactId}`);
       
       // Insert new contact
       const { error: insertError } = await supabase
