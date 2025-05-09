@@ -1,3 +1,4 @@
+
 export async function processSequences(supabase, clientId, contactId, tags, variables = {}) {
   console.log(`[5.1 SEQUÊNCIAS] Iniciando processamento de sequências para o contato ${contactId} com tags: ${JSON.stringify(tags)}`);
   console.log(`[5.1 SEQUÊNCIAS] Filtrando sequências para o client_id: ${clientId}`);
@@ -265,20 +266,21 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
 
       console.log(`[5.5 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Contato adicionado com sucesso à sequência: ${newContactSequence.id}`);
 
-      // MODIFICAÇÃO: Adicionar registro de stage_progress APENAS para o primeiro estágio,
-      // em vez de criar para todos os estágios de uma vez
+      // Adicionar registros de stage_progress para todos os estágios
+      const stageProgressRecords = sortedStages.map((stage, index) => ({
+        contact_sequence_id: newContactSequence.id,
+        stage_id: stage.id,
+        status: index === 0 ? "pending" : "pending"
+      }));
+
       const { error: stageProgressError } = await supabase
         .from("stage_progress")
-        .insert({
-          contact_sequence_id: newContactSequence.id,
-          stage_id: firstStage.id,
-          status: "pending"
-        });
+        .insert(stageProgressRecords);
 
       if (stageProgressError) {
-        console.error(`[5.6 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Erro ao criar registro de progresso para primeiro estágio: ${stageProgressError.message}`);
+        console.error(`[5.6 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Erro ao criar registros de progresso de estágio: ${stageProgressError.message}`);
       } else {
-        console.log(`[5.6 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Criado registro de progresso para o primeiro estágio`);
+        console.log(`[5.6 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Criados ${stageProgressRecords.length} registros de progresso de estágio`);
       }
 
       // Calcular tempo de delay para a primeira mensagem
