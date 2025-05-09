@@ -3,15 +3,14 @@ import { useState, useEffect } from "react";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { Toaster } from "@/components/ui/toaster";
-import { Outlet, useLocation } from "react-router-dom";
+import { Outlet } from "react-router-dom";
 import { ContextDebugger } from "../debug/ContextDebugger";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/context/AppContext";
 
 export const MainLayout = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const { currentInstance, isDataInitialized, isLoading } = useApp();
-  const location = useLocation();
+  const { currentInstance } = useApp();
   
   // Add debugging log to track when MainLayout renders and what the current instance is
   useEffect(() => {
@@ -20,7 +19,7 @@ export const MainLayout = () => {
     
     // Log application version to help with debugging
     console.log("Application info:", {
-      version: "1.0.3", // Updated version number
+      version: "1.0.2", // Updated version number
       mode: process.env.NODE_ENV,
       lastBuildTime: new Date().toISOString()
     });
@@ -28,22 +27,6 @@ export const MainLayout = () => {
   
   const toggleSidebar = () => {
     setSidebarCollapsed(!sidebarCollapsed);
-  };
-
-  // Determine if any loading is happening based on the current route
-  const isLoadingContent = () => {
-    const path = location.pathname;
-    
-    if (path === '/contacts') return isLoading.contacts;
-    if (path === '/sequences') return isLoading.sequences;
-    if (path === '/messages') return isLoading.messages;
-    if (path === '/instances') return isLoading.clients;
-    if (path === '/settings') {
-      // For settings, any of these could be loading depending on the tab
-      return Object.values(isLoading).some(loading => loading);
-    }
-    
-    return false;
   };
 
   return (
@@ -55,7 +38,7 @@ export const MainLayout = () => {
           sidebarCollapsed ? "ml-16" : "ml-64"
         )}
       >
-        <Header sidebarCollapsed={sidebarCollapsed} isLoading={isLoadingContent()} />
+        <Header sidebarCollapsed={sidebarCollapsed} />
         <main className="flex-1 p-4 md:p-8 pt-0 md:pt-0 overflow-y-auto">
           <Outlet />
         </main>

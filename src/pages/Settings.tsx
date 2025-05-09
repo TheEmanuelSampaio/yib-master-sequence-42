@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/context/AuthContext";
 import { UsersTab } from "@/components/settings/UsersTab";
@@ -8,30 +8,9 @@ import { TimeRestrictionsTab } from "@/components/settings/TimeRestrictionsTab";
 import { TagsTab } from "@/components/settings/TagsTab";
 import { GeneralTab } from "@/components/settings/GeneralTab";
 import { TokensTab } from "@/components/settings/TokensTab";
-import { useApp } from "@/context/AppContext";
 
 export default function Settings() {
   const { isSuper } = useAuth();
-  const [activeTab, setActiveTab] = useState(isSuper ? "users" : "clients");
-  const { loadUsers, loadClients, loadTimeRestrictions, loadTags } = useApp();
-
-  // Load data when tab changes
-  useEffect(() => {
-    // Load data based on which tab is active
-    if (activeTab === "users") {
-      loadUsers();
-    } else if (activeTab === "clients") {
-      loadClients();
-    } else if (activeTab === "time-restrictions") {
-      loadTimeRestrictions();
-    } else if (activeTab === "tags") {
-      loadTags();
-    }
-  }, [activeTab]);
-
-  const handleTabChange = (value: string) => {
-    setActiveTab(value);
-  };
 
   return (
     <div className="container mx-auto py-6 space-y-8">
@@ -42,7 +21,7 @@ export default function Settings() {
         </p>
       </div>
       
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
+      <Tabs defaultValue={isSuper ? "users" : "clients"}>
         <TabsList>
           {/* Mostrar a aba Usuários apenas para super admins */}
           {isSuper && <TabsTrigger value="users">Usuários</TabsTrigger>}
