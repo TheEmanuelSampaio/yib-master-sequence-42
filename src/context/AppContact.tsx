@@ -1,3 +1,4 @@
+
 import { createContext, useContext } from 'react';
 import { Contact, ContactSequence } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
@@ -90,14 +91,18 @@ export const createContactFunctions = (): AppContactFunctions => {
       
       if (seqError) throw new Error(`Erro ao obter dados da sequência: ${seqError.message}`);
       
-      // Deletar mensagens agendadas para este contato nesta sequência
+      // Atualizar mensagens agendadas em vez de deletá-las
       const { error: msgError } = await supabase
         .from('scheduled_messages')
-        .delete()
+        .update({
+          status: 'removed',
+          removed_at: new Date().toISOString()
+        })
         .eq('contact_id', seqData.contact_id)
-        .eq('sequence_id', seqData.sequence_id);
+        .eq('sequence_id', seqData.sequence_id)
+        .in('status', ['waiting', 'pending', 'processing']);
         
-      if (msgError) throw new Error(`Erro ao remover mensagens agendadas: ${msgError.message}`);
+      if (msgError) throw new Error(`Erro ao atualizar mensagens agendadas: ${msgError.message}`);
       
       // Atualizar o status na tabela stage_progress para "removed" onde o status for "pending"
       const { error: progError } = await supabase

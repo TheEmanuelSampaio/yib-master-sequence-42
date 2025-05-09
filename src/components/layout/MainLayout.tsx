@@ -19,7 +19,7 @@ export const MainLayout = () => {
     
     // Log application version to help with debugging
     console.log("Application info:", {
-      version: "1.0.1", 
+      version: "1.0.2", // Updated version number
       mode: process.env.NODE_ENV,
       lastBuildTime: new Date().toISOString()
     });

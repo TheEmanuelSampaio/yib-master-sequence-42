@@ -1,561 +1,413 @@
+import { isAllowedByTimeRestriction } from "./time-restriction";
 
-export async function processSequences(supabase, clientId, contactId, tags, variables = {}) {
-  console.log(`[5.1 SEQUÊNCIAS] Iniciando processamento de sequências para o contato ${contactId} com tags: ${JSON.stringify(tags)}`);
-  console.log(`[5.1 SEQUÊNCIAS] Filtrando sequências para o client_id: ${clientId}`);
-  console.log(`[5.1 VARIÁVEIS] Processando variáveis recebidas: ${JSON.stringify(variables || {})}`);
-  
+export const processSequences = async (
+  supabase: any,
+  clientId: string,
+  contactId: string,
+  tags: string[],
+  variables?: Record<string, string>
+) => {
+  let sequencesProcessed = 0;
+  let sequencesAdded = 0;
+  let sequencesSkipped = 0;
+  let removedCount = 0;
+
   try {
-    // Passo 1: Buscar todas as sequências ativas deste cliente específico
-    // Primeiro buscar todas as instâncias deste cliente
-    const { data: instances, error: instancesError } = await supabase
-      .from("instances")
-      .select("id")
-      .eq("client_id", clientId);
-      
-    if (instancesError) {
-      console.error(`[5.2 SEQUÊNCIAS] Erro ao buscar instâncias do cliente: ${instancesError.message}`);
-      return {
-        success: false,
-        error: `Erro ao buscar instâncias: ${instancesError.message}`
-      };
-    }
-    
-    if (!instances || instances.length === 0) {
-      console.log(`[5.2 SEQUÊNCIAS] Nenhuma instância encontrada para o cliente ${clientId}.`);
-      return {
-        success: true,
-        sequencesProcessed: 0,
-        sequencesAdded: 0,
-        sequencesSkipped: 0,
-        sequencesRemoved: 0 // Adicionado contador de sequências removidas
-      };
-    }
-    
-    // Extrair os IDs das instâncias
-    const instanceIds = instances.map(instance => instance.id);
-    console.log(`[5.2 SEQUÊNCIAS] Encontradas ${instanceIds.length} instâncias para o cliente ${clientId}.`);
-    
-    // Buscar sequências usando os IDs das instâncias
-    const { data: sequences, error: sequencesError } = await supabase
-      .from("sequences")
-      .select(`
-        id,
-        name,
-        instance_id,
-        start_condition_type,
-        start_condition_tags,
-        stop_condition_type,
-        stop_condition_tags,
-        status,
-        created_by,
-        sequence_stages (
-          id,
-          name,
-          type,
-          content,
-          typebot_stage,
-          delay,
-          delay_unit,
-          order_index
-        )
-      `)
-      .eq("status", "active")
-      .in("instance_id", instanceIds)
-      .order("created_at", { ascending: false });
+    // Get all sequences for this client
+    const { data: clientSequences, error: clientSequencesError } = await supabase
+      .from('sequences')
+      .select('*')
+      .eq('client_id', clientId)
+      .eq('active', true);
 
-    if (sequencesError) {
-      console.error(`[5.2 SEQUÊNCIAS] Erro ao buscar sequências ativas: ${sequencesError.message}`);
-      return {
-        success: false,
-        error: `Erro ao buscar sequências: ${sequencesError.message}`
-      };
+    if (clientSequencesError) {
+      console.error(`[5. SEQUÊNCIAS] Erro ao buscar sequências ativas para o cliente ${clientId}: ${clientSequencesError.message}`);
+      return { success: false, error: 'Erro ao buscar sequências do cliente', details: clientSequencesError.message };
     }
 
-    if (!sequences || sequences.length === 0) {
-      console.log(`[5.2 SEQUÊNCIAS] Nenhuma sequência ativa encontrada para o cliente ${clientId}.`);
-      return {
-        success: true,
-        sequencesProcessed: 0,
-        sequencesAdded: 0,
-        sequencesSkipped: 0,
-        sequencesRemoved: 0
-      };
+    console.log(`[5.1 SEQUÊNCIAS] Encontradas ${clientSequences.length} sequências ativas para o cliente ${clientId}`);
+
+    // Get all contact sequences for this contact
+    const { data: contactSequences, error: contactSequencesError } = await supabase
+      .from('contact_sequences')
+      .select('*')
+      .eq('contact_id', contactId)
+      .in('status', ['active', 'paused']);
+
+    if (contactSequencesError) {
+      console.error(`[5. SEQUÊNCIAS] Erro ao buscar contact sequences para o contato ${contactId}: ${contactSequencesError.message}`);
+      return { success: false, error: 'Erro ao buscar contact sequences', details: contactSequencesError.message };
     }
 
-    console.log(`[5.2 SEQUÊNCIAS] Encontradas ${sequences.length} sequências ativas para o cliente ${clientId}.`);
+    console.log(`[5.2 SEQUÊNCIAS] Contato ${contactId} está em ${contactSequences.length} sequências`);
 
-    // NOVA ETAPA: Verificar se o contato está em alguma sequência ativa e se atende às condições de parada
-    console.log(`[5.2.1 SEQUÊNCIAS] Verificando sequências ativas do contato para possível remoção`);
-    const { data: activeContactSequences, error: activeSeqError } = await supabase
-      .from("contact_sequences")
-      .select(`
-        id,
-        sequence_id,
-        status,
-        current_stage_id
-      `)
-      .eq("contact_id", contactId)
-      .eq("status", "active");
+    // Process each active sequence for this contact
+    for (const contactSequence of contactSequences) {
+      const sequence = clientSequences.find(seq => seq.id === contactSequence.sequence_id);
+      if (!sequence) {
+        console.warn(`[5.2 SEQUENCE] Sequência ${contactSequence.sequence_id} não encontrada ou inativa, ignorando`);
+        continue;
+      }
       
-    if (activeSeqError) {
-      console.error(`[5.2.1 SEQUÊNCIAS] Erro ao buscar sequências ativas do contato: ${activeSeqError.message}`);
-    } else if (activeContactSequences && activeContactSequences.length > 0) {
-      console.log(`[5.2.1 SEQUÊNCIAS] Encontradas ${activeContactSequences.length} sequências ativas para o contato ${contactId}`);
-      
-      let sequencesRemoved = 0;
-      
-      // Para cada sequência ativa do contato, verificar se ele atende às condições de parada
-      for (const contactSequence of activeContactSequences) {
-        // Encontrar os detalhes da sequência
-        const sequence = sequences.find(seq => seq.id === contactSequence.sequence_id);
-        if (!sequence) continue;
+      // Check for stop condition
+      // If stop condition is met, change status to "stopped" (not "removed")
+      if (isStopConditionMet(sequence, tags)) {
+        console.log(`[5.3 SEQUENCE] A condição de parada foi atendida para a sequência ${sequence.id} - o contato será removido`);
         
-        // Verificar se a sequência tem condições de parada e se o contato as atende
-        const hasStopConditions = sequence.stop_condition_tags && sequence.stop_condition_tags.length > 0;
-        if (hasStopConditions) {
-          // Normalizando as tags do contato para comparação consistente
-          const normalizedContactTags = tags.map(tag => tag.toLowerCase().trim());
+        // Get current timestamp for the audit trail
+        const now = new Date().toISOString();
+        
+        // Mark pending messages as "stopped" instead of deleting them
+        const { error: msgError } = await supabase
+          .from('scheduled_messages')
+          .update({ 
+            status: 'stopped',
+            removed_at: now
+          })
+          .eq('contact_id', contactId)
+          .eq('sequence_id', sequence.id)
+          .in('status', ['pending', 'processing', 'waiting']);
           
-          console.log(`[5.2.2 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Verificando condições de parada para possível remoção`);
-          console.log(`[5.2.2 SEQUÊNCIA ${sequence.id}] Condição de parada: tipo=${sequence.stop_condition_type}, tags=${JSON.stringify(sequence.stop_condition_tags)}`);
+        if (msgError) {
+          console.error(`[ERROR] Erro ao marcar mensagens como paradas: ${msgError.message}`);
+        } else {
+          console.log(`[5.3 SEQUENCE] Mensagens agendadas foram marcadas como paradas`);
+        }
+        
+        // Mark sequence as "stopped" instead of "removed"
+        const { error: seqError } = await supabase
+          .from('contact_sequences')
+          .update({ 
+            status: 'stopped',
+            removed_at: now
+          })
+          .eq('id', contactSequence.id);
           
-          const matchesStop = evaluateCondition(sequence.stop_condition_type, sequence.stop_condition_tags, normalizedContactTags);
-          
-          if (matchesStop) {
-            console.log(`[5.2.3 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Contato atende às condições de parada, removendo da sequência...`);
+        if (seqError) {
+          console.error(`[ERROR] Erro ao marcar a sequência como parada: ${seqError.message}`);
+        } else {
+          console.log(`[5.3 SEQUENCE] Sequência marcada como parada`);
+          removedCount++;
+          // Incrementar estatísticas de sequências removidas
+          // try {
+          //   // Obter ID da instância
+          //   const { data: sequenceData } = await supabase
+          //     .from('sequences')
+          //     .select('instance_id')
+          //     .eq('id', sequence.id)
+          //     .single();
             
-            // Processo de remoção similar ao usado na função removeFromSequence() do arquivo AppContact.tsx
-            
-            // 1. Deletar mensagens agendadas para este contato nesta sequência
-            const { error: msgError } = await supabase
-              .from('scheduled_messages')
-              .delete()
-              .eq('contact_id', contactId)
-              .eq('sequence_id', sequence.id);
+          //   if (sequenceData) {
+          //     const today = new Date().toISOString().split('T')[0];
               
-            if (msgError) {
-              console.error(`[5.2.3 SEQUÊNCIA ${sequence.id}] Erro ao remover mensagens agendadas: ${msgError.message}`);
-              continue;
-            }
+          //     // Verificar se já existe estatística para hoje
+          //     const { data: existingStats } = await supabase
+          //       .from('daily_stats')
+          //       .select('*')
+          //       .eq('instance_id', sequenceData.instance_id)
+          //       .eq('date', today)
+          //       .maybeSingle();
             
-            // 2. Atualizar o status na tabela stage_progress para "removed" onde o status for "pending"
-            const { error: progError } = await supabase
-              .from('stage_progress')
-              .update({ status: 'removed' })
-              .eq('contact_sequence_id', contactSequence.id)
-              .eq('status', 'pending');
-              
-            if (progError) {
-              console.error(`[5.2.3 SEQUÊNCIA ${sequence.id}] Erro ao atualizar progresso do estágio: ${progError.message}`);
-              continue;
-            }
-            
-            // 3. Atualizar o status para "removed" e definir removed_at
-            const { error } = await supabase
-              .from('contact_sequences')
-              .update({
-                status: 'removed',
-                removed_at: new Date().toISOString()
-              })
-              .eq('id', contactSequence.id);
+          //     if (existingStats) {
+          //       await supabase
+          //         .from('daily_stats')
+          //         .update({
+          //           completed_sequences: existingStats.completed_sequences + 1
+          //         })
+          //         .eq('id', existingStats.id);
+          //     } else {
+          //       await supabase
+          //         .from('daily_stats')
+          //         .insert({
+          //           instance_id: sequenceData.instance_id,
+          //           date: today,
+          //           messages_scheduled: 0,
+          //           messages_sent: 0,
+          //           messages_failed: 0,
+          //           completed_sequences: 1,
+          //           new_contacts: 0
+          //         });
+          //     }
+          //   }
+          // } catch (statsError) {
+          //   console.error('[STATISTICS] Erro ao atualizar estatísticas:', JSON.stringify(statsError));
+          // }
+        }
+        
+        // Atualizar o status na tabela stage_progress para "removed" onde o status for "pending"
+        const { error: progError } = await supabase
+          .from('stage_progress')
+          .update({ status: 'removed' })
+          .eq('contact_sequence_id', contactSequence.id)
+          .eq('status', 'pending');
+          
+        if (progError) {
+          console.error(`[ERROR] Erro ao atualizar progresso do estágio: ${progError.message}`);
+        }
+        
+        continue;
+      }
 
-            if (error) {
-              console.error(`[5.2.3 SEQUÊNCIA ${sequence.id}] Erro ao remover contato da sequência: ${error.message}`);
-              continue;
-            }
-            
-            console.log(`[5.2.3 SEQUÊNCIA ${sequence.id}] Contato removido com sucesso da sequência`);
-            sequencesRemoved++;
-          } else {
-            console.log(`[5.2.3 SEQUÊNCIA ${sequence.id}] Contato não atende às condições de parada, mantendo na sequência`);
-          }
+      // Check if the sequence has time restrictions and if it's allowed to run at this time
+      if (sequence.timeRestrictions && sequence.timeRestrictions.length > 0) {
+        const now = new Date();
+        const isAllowed = isAllowedByTimeRestriction(sequence.timeRestrictions, now);
+
+        if (!isAllowed) {
+          console.log(`[5.3 SEQUENCE] Horário não permitido para a sequência ${sequence.id}, ignorando`);
+          sequencesSkipped++;
+          continue;
         }
       }
-      
-      console.log(`[5.2.4 SEQUÊNCIAS] ${sequencesRemoved} sequências removidas por condições de parada`);
-    } else {
-      console.log(`[5.2.1 SEQUÊNCIAS] Contato ${contactId} não está em nenhuma sequência ativa`);
-    }
 
-    // Passo 2: Filtrar aquelas onde o contato atende as condições de start e não atende as de stop
-    const eligibleSequences = sequences.filter(sequence => {
-      // Normalizando as tags do contato para comparação consistente
-      const normalizedContactTags = tags.map(tag => tag.toLowerCase().trim());
-      
-      // Debug da sequência sendo avaliada
-      console.log(`[5.3 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Avaliando elegibilidade`);
-      console.log(`[5.3 SEQUÊNCIA ${sequence.id}] Condição de início: tipo=${sequence.start_condition_type}, tags=${JSON.stringify(sequence.start_condition_tags)}`);
-      console.log(`[5.3 SEQUÊNCIA ${sequence.id}] Condição de parada: tipo=${sequence.stop_condition_type}, tags=${JSON.stringify(sequence.stop_condition_tags)}`);
-      console.log(`[5.3 SEQUÊNCIA ${sequence.id}] Tags do contato: ${JSON.stringify(normalizedContactTags)}`);
-      
-      const matchesStart = evaluateCondition(sequence.start_condition_type, sequence.start_condition_tags, normalizedContactTags);
-      const matchesStop = evaluateCondition(sequence.stop_condition_type, sequence.stop_condition_tags, normalizedContactTags);
-      
-      // Correção: Verificar se existem condições de parada antes de considerá-las
-      const hasStopConditions = sequence.stop_condition_tags && sequence.stop_condition_tags.length > 0;
-      const isEligible = matchesStart && (!hasStopConditions || !matchesStop);
-      
-      console.log(`[5.3 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Elegibilidade: matchesStart=${matchesStart}, matchesStop=${matchesStop}, hasStopConditions=${hasStopConditions}, isEligible=${isEligible}`);
-      
-      return isEligible;
-    });
-
-    console.log(`[5.3 SEQUÊNCIAS] ${eligibleSequences.length} sequências elegíveis para o contato com tags: ${JSON.stringify(tags)}`);
-
-    // Passo 3: Para cada sequência elegível, verificar se o contato já está na sequência
-    let sequencesAdded = 0;
-    let sequencesSkipped = 0;
-    
-    for (const sequence of eligibleSequences) {
-      console.log(`[5.4 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Verificando se o contato já está na sequência...`);
-      
-      const { data: existingContactSequence, error: contactSequenceError } = await supabase
-        .from("contact_sequences")
-        .select("id, status, current_stage_index")
-        .eq("contact_id", contactId)
-        .eq("sequence_id", sequence.id)
-        .in("status", ["active", "paused"])
-        .maybeSingle();
-
-      if (contactSequenceError) {
-        console.error(`[5.4 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Erro ao verificar contato na sequência: ${contactSequenceError.message}`);
-        continue;
-      }
-
-      if (existingContactSequence) {
-        console.log(`[5.4 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Contato já está na sequência com status ${existingContactSequence.status}`);
-        sequencesSkipped++;
-        continue;
-      }
-
-      // Garantir que sequence.sequence_stages seja tratado como array
-      const sequenceStages = Array.isArray(sequence.sequence_stages) 
-        ? sequence.sequence_stages 
-        : [];
-        
-      // Ordenar estágios por order_index
-      const sortedStages = [...sequenceStages].sort((a, b) => a.order_index - b.order_index);
-      
-      if (sortedStages.length === 0) {
-        console.log(`[5.4 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Sequência não tem estágios, pulando...`);
-        sequencesSkipped++;
-        continue;
-      }
-
-      const firstStage = sortedStages[0];
-
-      console.log(`[5.5 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Adicionando contato à sequência, primeiro estágio: ${firstStage.id} - "${firstStage.name}"`);
-
-      // Adicionar o contato à sequência
-      const { data: newContactSequence, error: insertError } = await supabase
-        .from("contact_sequences")
-        .insert({
-          contact_id: contactId,
-          sequence_id: sequence.id,
-          status: "active",
-          current_stage_index: 0,
-          current_stage_id: firstStage.id
-        })
-        .select()
+      // Get the current stage
+      const { data: currentStage, error: currentStageError } = await supabase
+        .from('sequence_stages')
+        .select('*')
+        .eq('id', contactSequence.current_stage_id)
         .single();
 
-      if (insertError) {
-        console.error(`[5.5 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Erro ao adicionar contato à sequência: ${insertError.message}`);
+      if (currentStageError) {
+        console.error(`[5.3 SEQUENCE] Erro ao buscar o estágio atual da sequência ${sequence.id}: ${currentStageError.message}`);
         continue;
       }
 
-      console.log(`[5.5 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Contato adicionado com sucesso à sequência: ${newContactSequence.id}`);
+      // Get the variables from the current stage
+      const messageVariables = variables || {};
 
-      // ALTERAÇÃO AQUI: Adicionar SOMENTE o registro de stage_progress para o PRIMEIRO estágio
-      // Antes criávamos registros para todos os estágios, agora só para o primeiro
-      const stageProgressRecord = {
-        contact_sequence_id: newContactSequence.id,
-        stage_id: firstStage.id,
-        status: "pending"
-      };
+      // Process the message content with the variables
+      let processedContent = null;
 
-      const { error: stageProgressError } = await supabase
-        .from("stage_progress")
-        .insert(stageProgressRecord);
-
-      if (stageProgressError) {
-        console.error(`[5.6 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Erro ao criar registro de progresso de estágio: ${stageProgressError.message}`);
-      } else {
-        console.log(`[5.6 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Criado registro de progresso para o primeiro estágio`);
+      // Process the content according to the message type
+      if (currentStage.type === 'message' || currentStage.type === 'pattern') {
+        console.log('[VARIÁVEIS] Processando variáveis para conteúdo do tipo', currentStage.type);
+        try {
+          processedContent = processMessageContent(currentStage.content, messageVariables);
+          console.log('[VARIÁVEIS] Conteúdo processado com sucesso:', processedContent);
+        } catch (varError) {
+          console.error('[VARIÁVEIS] Erro ao processar variáveis:', varError);
+          processedContent = currentStage.content;
+        }
+      }
+      // For the type typebot, we just pass the variables, the content will be processed by the typebot
+      else if (currentStage.type === 'typebot') {
+        console.log('[VARIÁVEIS] Mensagem do tipo typebot, as variáveis serão passadas para o typebot');
       }
 
-      // Calcular tempo de delay para a primeira mensagem
-      const delay = calculateDelayInMinutes(firstStage.delay, firstStage.delay_unit);
-      console.log(`[5.7 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Delay calculado para o primeiro estágio: ${delay} minutos`);
-      
-      // Calcular horário de envio
-      const scheduledTime = new Date();
-      scheduledTime.setMinutes(scheduledTime.getMinutes() + delay);
-      const rawScheduledTime = scheduledTime.toISOString();
-      
-      // Verificar restrições de tempo
-      const { data: timeRestrictions, error: restrictionsError } = await supabase.rpc(
-        "get_sequence_time_restrictions",
-        { seq_id: sequence.id }
-      );
+      // Schedule the message
+      const delayMs = calculateDelayMs(currentStage.delay, currentStage.delay_unit);
+      const scheduledTime = new Date(Date.now() + delayMs);
 
-      if (restrictionsError) {
-        console.error(`[5.7 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Erro ao obter restrições de tempo: ${restrictionsError.message}`);
-      }
-      
-      // Garantir que timeRestrictions é um array, mesmo que seja null
-      const restrictions = Array.isArray(timeRestrictions) ? timeRestrictions : [];
-      
-      const { adjustedTime, wasAdjusted } = applyTimeRestrictions(
-        scheduledTime,
-        restrictions
-      );
-      
-      if (wasAdjusted) {
-        console.log(`[5.7 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Horário ajustado devido a restrições de tempo: ${adjustedTime.toISOString()}`);
-      }
-      
-      // Processar variáveis no conteúdo antes de agendar a mensagem
-      const { processedContent, processedVariables } = processVariables(firstStage.type, firstStage.content, variables);
-      
-      // Agendar a mensagem
       const { data: scheduledMessage, error: scheduleError } = await supabase
-        .from("scheduled_messages")
-        .insert({
+        .from('scheduled_messages')
+        .insert([{
           contact_id: contactId,
           sequence_id: sequence.id,
-          stage_id: firstStage.id,
-          scheduled_time: adjustedTime.toISOString(),
-          raw_scheduled_time: rawScheduledTime,
-          status: "pending",
-          variables: variables || {}, // Armazenar as variáveis recebidas
-          processed_content: processedContent // Armazenar o conteúdo processado com variáveis
-        })
+          stage_id: currentStage.id,
+          raw_scheduled_time: scheduledTime.toISOString(),
+          scheduled_time: scheduledTime.toISOString(),
+          status: 'pending',
+          variables: messageVariables,
+          processed_content: processedContent
+        }])
         .select()
         .single();
 
       if (scheduleError) {
-        console.error(`[5.8 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Erro ao agendar primeira mensagem: ${scheduleError.message}`);
-      } else {
-        console.log(`[5.8 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Primeira mensagem agendada com sucesso: ${scheduledMessage.id}`);
-        // Log das variáveis processadas
-        console.log(`[5.8 VARIÁVEIS] Mensagem agendada com variáveis: ${JSON.stringify(variables || {})}`);
-        console.log(`[5.8 VARIÁVEIS] Conteúdo original: ${firstStage.content}`);
-        console.log(`[5.8 VARIÁVEIS] Conteúdo processado: ${processedContent}`);
+        console.error(`[5.3 SEQUENCE] Erro ao agendar mensagem para o contato ${contactId} na sequência ${sequence.id}: ${scheduleError.message}`);
+        continue;
       }
 
-      // Incrementar contador de estatísticas diárias
-      const { data: instance } = await supabase
-        .from("instances")
-        .select("id")
-        .eq("id", sequence.instance_id)
-        .single();
-
-      if (instance) {
-        await supabase.rpc("increment_daily_stats", {
-          instance_id: instance.id,
-          messages_scheduled_count: 1
-        });
-      }
-
-      sequencesAdded++;
+      console.log(`[5.3 SEQUENCE] Mensagem agendada com sucesso para o contato ${contactId} na sequência ${sequence.id} para ${scheduledTime.toISOString()}`);
+      sequencesProcessed++;
     }
 
-    // Buscar quantas sequências foram removidas para incluir no retorno
-    const { count: sequencesRemoved, error: countError } = await supabase
-      .from('contact_sequences')
-      .select('id', { count: 'exact', head: true })
-      .eq('contact_id', contactId)
-      .eq('status', 'removed')
-      .gte('removed_at', new Date(Date.now() - 5000).toISOString()); // Sequências removidas nos últimos 5 segundos
-      
-    console.log(`[5.9 SEQUÊNCIAS] Processamento concluído: ${sequencesAdded} sequências adicionadas, ${sequencesSkipped} sequências puladas, aproximadamente ${sequencesRemoved || 0} sequências removidas recentemente`);
-    
+    // Check if there are sequences that the contact is not in and that match the start condition
+    for (const sequence of clientSequences) {
+      const contactInSequence = contactSequences.find(cs => cs.sequence_id === sequence.id);
+      if (contactInSequence) {
+        continue;
+      }
+
+      if (isStartConditionMet(sequence, tags)) {
+        console.log(`[5.4 SEQUENCE] A condição de início foi atendida para a sequência ${sequence.id} - adicionando contato`);
+
+        // Get the first stage
+        const { data: firstStage, error: firstStageError } = await supabase
+          .from('sequence_stages')
+          .select('*')
+          .eq('sequence_id', sequence.id)
+          .order('order_index', { ascending: true })
+          .limit(1)
+          .single();
+
+        if (firstStageError) {
+          console.error(`[5.4 SEQUENCE] Erro ao buscar o primeiro estágio da sequência ${sequence.id}: ${firstStageError.message}`);
+          continue;
+        }
+
+        // Create a new contact sequence
+        const { data: newContactSequence, error: newContactSequenceError } = await supabase
+          .from('contact_sequences')
+          .insert([{
+            contact_id: contactId,
+            sequence_id: sequence.id,
+            current_stage_id: firstStage.id,
+            current_stage_index: 1,
+            status: 'active',
+            started_at: new Date().toISOString()
+          }])
+          .select()
+          .single();
+
+        if (newContactSequenceError) {
+          console.error(`[5.4 SEQUENCE] Erro ao criar contact sequence para o contato ${contactId} na sequência ${sequence.id}: ${newContactSequenceError.message}`);
+          continue;
+        }
+
+        console.log(`[5.4 SEQUENCE] Contact sequence criada com sucesso para o contato ${contactId} na sequência ${sequence.id}`);
+
+        // Create a new stage progress
+        const { error: newProgressError } = await supabase
+          .from('stage_progress')
+          .insert([{
+            contact_sequence_id: newContactSequence.id,
+            stage_id: firstStage.id,
+            status: 'pending'
+          }]);
+
+        if (newProgressError) {
+          console.error(`[5.4 SEQUENCE] Erro ao criar progresso para o primeiro estágio: ${newProgressError.message}`);
+        }
+
+        // Get the variables from the current stage
+        const messageVariables = variables || {};
+
+        // Process the message content with the variables
+        let processedContent = null;
+
+        // Process the content according to the message type
+        if (firstStage.type === 'message' || firstStage.type === 'pattern') {
+          console.log('[VARIÁVEIS] Processando variáveis para conteúdo do tipo', firstStage.type);
+          try {
+            processedContent = processMessageContent(firstStage.content, messageVariables);
+            console.log('[VARIÁVEIS] Conteúdo processado com sucesso:', processedContent);
+          } catch (varError) {
+            console.error('[VARIÁVEIS] Erro ao processar variáveis:', varError);
+            processedContent = firstStage.content;
+          }
+        }
+        // For the type typebot, we just pass the variables, the content will be processed by the typebot
+        else if (firstStage.type === 'typebot') {
+          console.log('[VARIÁVEIS] Mensagem do tipo typebot, as variáveis serão passadas para o typebot');
+        }
+
+        // Schedule the message
+        const delayMs = calculateDelayMs(firstStage.delay, firstStage.delay_unit);
+        const scheduledTime = new Date(Date.now() + delayMs);
+
+        const { error: scheduleError } = await supabase
+          .from('scheduled_messages')
+          .insert([{
+            contact_id: contactId,
+            sequence_id: sequence.id,
+            stage_id: firstStage.id,
+            raw_scheduled_time: scheduledTime.toISOString(),
+            scheduled_time: scheduledTime.toISOString(),
+            status: 'pending',
+            variables: messageVariables,
+            processed_content: processedContent
+          }]);
+
+        if (scheduleError) {
+          console.error(`[5.4 SEQUENCE] Erro ao agendar mensagem para o contato ${contactId} na sequência ${sequence.id}: ${scheduleError.message}`);
+          continue;
+        }
+
+        console.log(`[5.4 SEQUENCE] Mensagem agendada com sucesso para o contato ${contactId} na sequência ${sequence.id} para ${scheduledTime.toISOString()}`);
+        sequencesAdded++;
+      }
+    }
+
     return {
       success: true,
-      sequencesProcessed: eligibleSequences.length,
+      sequencesProcessed,
       sequencesAdded,
       sequencesSkipped,
-      sequencesRemoved: sequencesRemoved || 0
+      sequencesRemoved: removedCount
     };
-    
   } catch (error) {
-    console.error(`[5.X SEQUÊNCIAS] Erro não tratado: ${error.message}`);
-    console.error(`[5.X SEQUÊNCIAS] Stack trace: ${error.stack || 'No stack trace available'}`);
-    return {
-      success: false,
-      error: `Erro ao processar sequências: ${error.message}`
-    };
+    console.error(`[5. SEQUÊNCIAS] Erro ao processar sequências para o contato ${contactId}: ${error.message}`);
+    return { success: false, error: 'Erro ao processar sequências', details: error.message };
+  }
+};
+
+function isStartConditionMet(sequence: any, tags: string[]): boolean {
+  if (!sequence.startCondition || !sequence.startCondition.tags || sequence.startCondition.tags.length === 0) {
+    return false;
+  }
+
+  if (sequence.startCondition.type === 'AND') {
+    return sequence.startCondition.tags.every((tag: string) => tags.includes(tag));
+  } else if (sequence.startCondition.type === 'OR') {
+    return sequence.startCondition.tags.some((tag: string) => tags.includes(tag));
+  }
+
+  return false;
+}
+
+function isStopConditionMet(sequence: any, tags: string[]): boolean {
+  if (!sequence.stopCondition || !sequence.stopCondition.tags || sequence.stopCondition.tags.length === 0) {
+    return false;
+  }
+
+  if (sequence.stopCondition.type === 'AND') {
+    return sequence.stopCondition.tags.every((tag: string) => tags.includes(tag));
+  } else if (sequence.stopCondition.type === 'OR') {
+    return sequence.stopCondition.tags.some((tag: string) => tags.includes(tag));
+  }
+
+  return false;
+}
+
+// Função auxiliar para calcular atraso em milissegundos
+function calculateDelayMs(delay: number, unit: string): number {
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+  
+  switch (unit) {
+    case 'minutes':
+      return delay * minute;
+    case 'hours':
+      return delay * hour;
+    case 'days':
+      return delay * day;
+    default:
+      return delay * minute; // Fallback para minutos
   }
 }
 
-// Função para processar variáveis no conteúdo da mensagem
-function processVariables(type, content, variables = {}) {
-  console.log(`[VARIÁVEIS] Processando variáveis para conteúdo do tipo ${type}`);
-  console.log(`[VARIÁVEIS] Variáveis disponíveis: ${JSON.stringify(variables)}`);
-
-  // Se não houver variáveis, retornar o conteúdo original
-  if (!variables || Object.keys(variables).length === 0) {
-    console.log(`[VARIÁVEIS] Nenhuma variável disponível, retornando conteúdo original`);
-    return { 
-      processedContent: content,
-      processedVariables: {} 
-    };
+// Função auxiliar para processar conteúdo da mensagem com variáveis
+function processMessageContent(content: string, variables: Record<string, any>): string {
+  console.log('[VARIÁVEIS] Variáveis disponíveis:', variables);
+  
+  // Se não tiver variáveis ou não for uma string, retornar conteúdo original
+  if (!variables || typeof content !== 'string') {
+    return content;
   }
 
   let processedContent = content;
   
-  if (type === "message" || type === "pattern") {
-    // Substituir variáveis no formato {variable_name}
-    processedContent = content.replace(/\{([^}]+)\}/g, (match, variableName) => {
-      if (variables && variables[variableName] !== undefined) {
-        console.log(`[VARIÁVEIS] Substituindo ${variableName} por ${variables[variableName]}`);
-        return variables[variableName];
-      } else {
-        console.log(`[VARIÁVEIS] Variável ${variableName} não encontrada, substituindo por string vazia`);
-        return ''; // Substituir por string vazia se a variável não existir
-      }
-    });
-    
-    console.log(`[VARIÁVEIS] Conteúdo após substituição: ${processedContent}`);
-    
-  } else if (type === "typebot") {
-    // Para typebot, incluir as variáveis no payload
-    try {
-      // Verificar se o conteúdo já é um objeto JSON
-      let typebotPayload;
-      try {
-        typebotPayload = JSON.parse(content);
-      } catch (e) {
-        // Se não for um JSON válido, usar o conteúdo como está
-        typebotPayload = { url: content };
-      }
-      
-      // Adicionar as variáveis ao payload
-      typebotPayload.variables = variables;
-      typebotPayload.stage = content; // Manter o conteúdo original como estágio
-      
-      processedContent = JSON.stringify(typebotPayload);
-      console.log(`[VARIÁVEIS] Payload typebot gerado: ${processedContent}`);
-      
-    } catch (error) {
-      console.error(`[VARIÁVEIS] Erro ao processar payload do typebot: ${error.message}`);
-      processedContent = content; // Em caso de erro, manter o conteúdo original
-    }
-  }
-  
-  return {
-    processedContent,
-    processedVariables: variables
-  };
-}
-
-function evaluateCondition(conditionType, conditionTags, userTags) {
-  if (!conditionTags || conditionTags.length === 0) {
-    // Se não houver tags na condição, considerar que atende
-    console.log(`[CONDITION] Condição sem tags, considerada como atendida`);
-    return true;
-  }
-
-  if (!userTags || userTags.length === 0) {
-    // Se o usuário não tiver tags, ele não atende a nenhuma condição com tags
-    console.log(`[CONDITION] Usuário sem tags, condição não atendida`);
-    return false;
-  }
-
-  // Normalizar as tags para comparação
-  const normalizedConditionTags = conditionTags.map(tag => String(tag).toLowerCase().trim());
-  const normalizedUserTags = userTags.map(tag => String(tag).toLowerCase().trim());
-  
-  console.log(`[CONDITION] Condição tipo=${conditionType}, tags normalizadas: ${JSON.stringify(normalizedConditionTags)}`);
-  console.log(`[CONDITION] Tags do contato normalizadas: ${JSON.stringify(normalizedUserTags)}`);
-
-  if (conditionType === "AND") {
-    // Todas as tags da condição devem estar presentes
-    const result = normalizedConditionTags.every(tag => normalizedUserTags.includes(tag));
-    console.log(`[CONDITION] Avaliação AND: ${result ? "ATENDIDA" : "NÃO ATENDIDA"}`);
-    
-    // Log detalhado de cada tag verificada
-    normalizedConditionTags.forEach(tag => {
-      const matched = normalizedUserTags.includes(tag);
-      console.log(`[CONDITION] Tag '${tag}' ${matched ? "encontrada" : "NÃO encontrada"} nas tags do contato`);
-    });
-    
-    return result;
-  } else {
-    // Pelo menos uma tag da condição deve estar presente
-    const result = normalizedConditionTags.some(tag => normalizedUserTags.includes(tag));
-    console.log(`[CONDITION] Avaliação OR: ${result ? "ATENDIDA" : "NÃO ATENDIDA"}`);
-    
-    // Log detalhado de cada tag verificada
-    normalizedConditionTags.forEach(tag => {
-      const matched = normalizedUserTags.includes(tag);
-      console.log(`[CONDITION] Tag '${tag}' ${matched ? "encontrada" : "NÃO encontrada"} nas tags do contato`);
-    });
-    
-    return result;
-  }
-}
-
-function calculateDelayInMinutes(delay, delayUnit) {
-  switch (delayUnit) {
-    case "minutes":
-      return delay;
-    case "hours":
-      return delay * 60;
-    case "days":
-      return delay * 24 * 60;
-    default:
-      return delay;
-  }
-}
-
-function applyTimeRestrictions(scheduledTime, restrictions) {
-  // Se não houver restrições, retornar o horário original
-  if (!restrictions || restrictions.length === 0) {
-    return { adjustedTime: scheduledTime, wasAdjusted: false };
-  }
-  
-  const scheduledDate = new Date(scheduledTime);
-  let wasAdjusted = false;
-
-  // Loop para verificar todas as restrições
-  for (let i = 0; i < 100; i++) { // Limite de 100 iterações para evitar loops infinitos
-    let needsAdjustment = false;
-    
-    for (const restriction of restrictions) {
-      // Verificar se a restrição está ativa
-      if (!restriction.active) continue;
-      
-      const dayOfWeek = scheduledDate.getDay(); // 0 = Domingo, 1 = Segunda, etc.
-      const hour = scheduledDate.getHours();
-      const minute = scheduledDate.getMinutes();
-      
-      // Verificar se o dia atual está na lista de dias restritos
-      if (restriction.days.includes(dayOfWeek)) {
-        // Verificar se o horário atual está dentro do intervalo restrito
-        const timeInMinutes = hour * 60 + minute;
-        const startTimeInMinutes = restriction.start_hour * 60 + restriction.start_minute;
-        const endTimeInMinutes = restriction.end_hour * 60 + restriction.end_minute;
-        
-        if (timeInMinutes >= startTimeInMinutes && timeInMinutes <= endTimeInMinutes) {
-          // Horário cai em uma restrição, precisa ser ajustado
-          needsAdjustment = true;
-          break;
-        }
-      }
-    }
-    
-    if (needsAdjustment) {
-      // Avançar o horário para o próximo dia, às 9h da manhã
-      scheduledDate.setDate(scheduledDate.getDate() + 1);
-      scheduledDate.setHours(9, 0, 0, 0);
-      wasAdjusted = true;
-    } else {
-      // Horário não cai em nenhuma restrição, pode ser usado
-      break;
+  // Substituir todas as variáveis no formato {nome_variavel}
+  for (const [key, value] of Object.entries(variables)) {
+    const placeholder = `{${key}}`;
+    if (processedContent.includes(placeholder)) {
+      console.log(`[VARIÁVEIS] Substituindo ${key} por ${value}`);
+      processedContent = processedContent.replace(new RegExp(placeholder, 'g'), String(value));
     }
   }
 
-  return { adjustedTime: scheduledDate, wasAdjusted };
+  console.log('[VARIÁVEIS] Conteúdo após substituição:', processedContent);
+  return processedContent;
 }

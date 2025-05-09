@@ -314,6 +314,7 @@ export type Database = {
           id: string
           processed_content: string | null
           raw_scheduled_time: string
+          removed_at: string | null
           scheduled_at: string | null
           scheduled_time: string
           sent_at: string | null
@@ -329,6 +330,7 @@ export type Database = {
           id?: string
           processed_content?: string | null
           raw_scheduled_time: string
+          removed_at?: string | null
           scheduled_at?: string | null
           scheduled_time: string
           sent_at?: string | null
@@ -344,6 +346,7 @@ export type Database = {
           id?: string
           processed_content?: string | null
           raw_scheduled_time?: string
+          removed_at?: string | null
           scheduled_at?: string | null
           scheduled_time?: string
           sent_at?: string | null

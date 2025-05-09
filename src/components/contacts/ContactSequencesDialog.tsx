@@ -83,8 +83,15 @@ export const ContactSequencesDialog = ({
       case 'removed':
         return (
           <Badge variant="outline" className="bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30">
-            <AlertCircle className="h-3 w-3 mr-1" />
+            <X className="h-3 w-3 mr-1" />
             Removida
+          </Badge>
+        );
+      case 'stopped':
+        return (
+          <Badge variant="outline" className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30">
+            <AlertCircle className="h-3 w-3 mr-1" />
+            Parou
           </Badge>
         );
       default:
@@ -239,25 +246,32 @@ export const ContactSequencesDialog = ({
                                   const progress = contactSequence.stageProgress ? 
                                     contactSequence.stageProgress.find(p => p.stageId === stage.id) : undefined;
                                   
+                                  // Determine class based on priority status (completed > current > other)
+                                  const isCompleted = progress?.status === "completed";
+                                  const isCurrent = contactSequence.currentStageId === stage.id;
+                                  const isRemoved = progress?.status === "removed";
+                                  const isSkipped = progress?.status === "skipped";
+                                  
                                   return (
                                     <div 
                                       key={stage.id} 
                                       className={cn(
                                         "flex items-start space-x-3 p-2 rounded-md",
-                                        progress?.status === "completed" && "bg-green-500/10",
-                                        progress?.status === "skipped" && "bg-gray-500/10",
-                                        progress?.status === "removed" && "bg-red-500/10",
-                                        contactSequence.currentStageId === stage.id && "bg-blue-500/10 border border-blue-500/30"
+                                        // Priority order: completed > current > other
+                                        isCompleted && "bg-green-500/10",
+                                        !isCompleted && isCurrent && contactSequence.status === 'active' && "bg-blue-500/10 border border-blue-500/30",
+                                        isSkipped && !isCompleted && "bg-gray-500/10",
+                                        isRemoved && !isCompleted && "bg-red-500/10"
                                       )}
                                     >
                                       <div className="mt-0.5">
-                                        {progress?.status === "completed" ? (
+                                        {isCompleted ? (
                                           <CheckCircle2 className="h-5 w-5 text-green-500" />
-                                        ) : progress?.status === "skipped" ? (
+                                        ) : isSkipped ? (
                                           <AlertCircle className="h-5 w-5 text-gray-500" />
-                                        ) : progress?.status === "removed" ? (
+                                        ) : isRemoved ? (
                                           <X className="h-5 w-5 text-red-500" />
-                                        ) : contactSequence.currentStageId === stage.id ? (
+                                        ) : isCurrent && contactSequence.status === 'active' ? (
                                           <Clock className="h-5 w-5 text-blue-500" />
                                         ) : (
                                           <div className="h-5 w-5 rounded-full border border-muted flex items-center justify-center">
@@ -268,20 +282,20 @@ export const ContactSequencesDialog = ({
                                       <div className="flex-1">
                                         <div className="flex items-center">
                                           <h6 className="font-medium text-sm">{stage.name}</h6>
-                                          {contactSequence.currentStageId === stage.id && contactSequence.status === 'active' && (
+                                          {isCurrent && contactSequence.status === 'active' && !isCompleted && (
                                             <Badge variant="outline" className="ml-2 bg-blue-500/10 text-blue-700 dark:text-blue-400 text-xs">
                                               Atual
                                             </Badge>
                                           )}
                                         </div>
                                         <p className="text-xs text-muted-foreground mt-0.5">
-                                          {progress?.status === "completed" && progress.completedAt ? (
+                                          {isCompleted && progress.completedAt ? (
                                             `Enviado em ${new Date(progress.completedAt).toLocaleString('pt-BR')}`
-                                          ) : progress?.status === "skipped" ? (
+                                          ) : isSkipped ? (
                                             "Pulado"
-                                          ) : progress?.status === "removed" ? (
+                                          ) : isRemoved ? (
                                             "Removido"
-                                          ) : contactSequence.currentStageId === stage.id && contactSequence.status === 'active' ? (
+                                          ) : isCurrent && contactSequence.status === 'active' ? (
                                             "Aguardando envio"
                                           ) : (
                                             "Pendente"

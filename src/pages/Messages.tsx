@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useApp } from '@/context/AppContext';
 import { Search, Filter, Calendar, CheckCircle, XCircle, AlertCircle, MessageCircle, FileCode, Bot, Clock, Hourglass, XOctagon } from "lucide-react";
@@ -44,7 +43,7 @@ import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
-type MessageStatus = 'waiting' | 'pending' | 'processing' | 'sent' | 'failed' | 'persistent_error';
+type MessageStatus = 'waiting' | 'pending' | 'processing' | 'sent' | 'failed' | 'persistent_error' | 'removed' | 'stopped';
 
 export default function Messages() {
   const { scheduledMessages, contacts, sequences } = useApp();
@@ -153,6 +152,20 @@ export default function Messages() {
           <Badge variant="outline" className="bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30">
             <XOctagon className="h-3 w-3 mr-1" />
             Erro Persistente
+          </Badge>
+        );
+      case 'removed':
+        return (
+          <Badge variant="outline" className="bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30">
+            <XCircle className="h-3 w-3 mr-1" />
+            Removida
+          </Badge>
+        );
+      case 'stopped':
+        return (
+          <Badge variant="outline" className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30">
+            <AlertCircle className="h-3 w-3 mr-1" />
+            Parou
           </Badge>
         );
       default:
@@ -313,6 +326,32 @@ export default function Messages() {
                       <Badge variant="outline" className="bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30">
                         <XOctagon className="h-3 w-3 mr-1" />
                         Erro Persistente
+                      </Badge>
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="removed" 
+                      checked={statusFilters.includes('removed')} 
+                      onCheckedChange={() => handleToggleStatusFilter('removed')}
+                    />
+                    <label htmlFor="removed" className="text-sm">
+                      <Badge variant="outline" className="bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30">
+                        <XCircle className="h-3 w-3 mr-1" />
+                        Removida
+                      </Badge>
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="stopped" 
+                      checked={statusFilters.includes('stopped')} 
+                      onCheckedChange={() => handleToggleStatusFilter('stopped')}
+                    />
+                    <label htmlFor="stopped" className="text-sm">
+                      <Badge variant="outline" className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30">
+                        <AlertCircle className="h-3 w-3 mr-1" />
+                        Parou
                       </Badge>
                     </label>
                   </div>

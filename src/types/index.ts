@@ -1,4 +1,3 @@
-
 // User related types
 export interface User {
   id: string;
@@ -106,10 +105,11 @@ export interface ScheduledMessage {
   scheduledTime: string;
   scheduledAt: string;
   sentAt?: string;
-  status: "waiting" | "pending" | "processing" | "sent" | "failed" | "persistent_error";
+  status: "waiting" | "pending" | "processing" | "sent" | "failed" | "persistent_error" | "removed" | "stopped";
   attempts?: number;
-  variables?: Record<string, string>; // Add variables field
+  variables?: Record<string, string>; 
   processedContent?: string; // Add processed content field with variables replaced
+  removedAt?: string; // Added removed timestamp
 }
 
 export interface ContactSequence {
@@ -118,7 +118,7 @@ export interface ContactSequence {
   sequenceId: string;
   currentStageIndex: number;
   currentStageId?: string;
-  status: "active" | "completed" | "paused" | "removed";
+  status: "active" | "completed" | "paused" | "removed" | "stopped"; // Added 'stopped' status
   startedAt: string;
   lastMessageAt?: string;
   completedAt?: string;
