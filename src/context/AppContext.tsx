@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import { supabase, UserWithEmail, isValidUUID, checkStagesInUse } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -16,6 +16,7 @@ import {
 } from "@/types";
 import { toast } from "@/components/ui/use-toast";
 import AppContactContext, { createContactFunctions, AppContactFunctions } from './AppContact';
+import { useLocation } from 'react-router-dom';
 
 interface AppContextType {
   clients: Client[];
@@ -50,7 +51,23 @@ interface AppContextType {
   addTag: (tagName: string) => Promise<void>;
   deleteTag: (tagName: string) => Promise<void>;
   refreshData: () => Promise<void>;
+  loadContacts: () => Promise<void>;
+  loadSequences: () => Promise<void>;
+  loadMessages: () => Promise<void>;
+  loadClients: () => Promise<void>;
+  loadTimeRestrictions: () => Promise<void>;
+  loadTags: () => Promise<void>;
+  loadUsers: () => Promise<void>;
   isDataInitialized: boolean;
+  isLoading: {
+    contacts: boolean;
+    sequences: boolean;
+    messages: boolean;
+    clients: boolean;
+    timeRestrictions: boolean;
+    tags: boolean;
+    users: boolean;
+  };
   
   // Funções de manipulação de contatos
   deleteContact: (contactId: string) => Promise<{ success: boolean; error?: string }>;
@@ -124,12 +141,29 @@ const defaultContextValue: AppContextType = {
   updateContact: async () => ({ success: false, error: 'Não implementado' }),
   removeFromSequence: async () => ({ success: false, error: 'Não implementado' }),
   updateContactSequence: async () => ({ success: false, error: 'Não implementado' }),
+  loadContacts: async () => {},
+  loadSequences: async () => {},
+  loadMessages: async () => {},
+  loadClients: async () => {},
+  loadTimeRestrictions: async () => {},
+  loadTags: async () => {},
+  loadUsers: async () => {},
+  isLoading: {
+    contacts: false,
+    sequences: false,
+    messages: false,
+    clients: false,
+    timeRestrictions: false,
+    tags: false,
+    users: false
+  }
 };
 
 export const AppContext = createContext<AppContextType>(defaultContextValue);
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth();
+  const location = useLocation();
   
   const [clients, setClients] = useState<Client[]>([]);
   const [instances, setInstances] = useState<Instance[]>([]);
@@ -145,7 +179,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isDataInitialized, setIsDataInitialized] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState({
+    contacts: false,
+    sequences: false,
+    messages: false,
+    clients: false,
+    timeRestrictions: false,
+    tags: false,
+    users: false
+  });
 
   // Get contact sequences helper function
   const getContactSequences = (contactId: string): ContactSequence[] => {
@@ -155,11 +197,23 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   // Criar funções de manipulação de contatos
   const contactFunctions = createContactFunctions();
   
-  // Fetch data when auth user changes
+  // Load essential data on initial load
   useEffect(() => {
     if (user && !isDataInitialized) {
-      console.log("Initial data load after authentication");
-      refreshData();
+      console.log("Initial data load - loading essential data first");
+      // Load only essential data on startup
+      const initializeApp = async () => {
+        try {
+          await loadInstances();
+          // Only mark as initialized after essential data is loaded
+          setIsDataInitialized(true);
+        } catch (error) {
+          console.error("Error loading essential data:", error);
+          toast.error("Erro ao carregar dados essenciais");
+        }
+      };
+      
+      initializeApp();
     } else if (!user) {
       // Clear data when user logs out
       setClients([]);
@@ -178,7 +232,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       // Clear localStorage data on logout
       localStorage.removeItem('selectedInstanceId');
     }
-  }, [user, isDataInitialized]);
+  }, [user]);
   
   // Set current instance when instances are loaded and initialized
   useEffect(() => {
@@ -196,22 +250,58 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [instances, isDataInitialized]);
 
-  const refreshData = async () => {
-    if (!user || isRefreshing) return;
-    
-    // Prevent rapid consecutive refreshes (throttle to once every 3 seconds)
-    const now = Date.now();
-    if (now - lastRefresh < 3000 && isDataInitialized) {
-      console.log("Refresh throttled - too soon since last refresh");
-      return;
-    }
-    
-    try {
-      setIsRefreshing(true);
-      setLastRefresh(now);
-      console.log("Refreshing data...");
+  // Load data based on route
+  useEffect(() => {
+    if (isDataInitialized && user) {
+      const path = location.pathname;
+      console.log(`Route changed to: ${path}, loading relevant data`);
       
-      // Fetch clients
+      // Prefetch data based on route
+      if (path === '/contacts') {
+        loadContacts();
+        loadTags();
+      } else if (path === '/sequences') {
+        loadSequences();
+        loadTimeRestrictions();
+        loadTags();
+      } else if (path === '/instances') {
+        loadClients();
+      } else if (path === '/messages') {
+        loadMessages();
+      } else if (path === '/settings') {
+        // Settings data will be loaded when tabs are clicked
+      } else if (path === '/') {
+        // Load dashboard data
+        loadBasicStats();
+      }
+    }
+  }, [location.pathname, isDataInitialized, user]);
+
+  const loadBasicStats = async () => {
+    try {
+      // Load minimal data needed for dashboard
+      if (currentInstance) {
+        const { data: statsData, error: statsError } = await supabase
+          .from('daily_stats')
+          .select('*')
+          .eq('instance_id', currentInstance.id)
+          .order('date', { ascending: false })
+          .limit(7);
+          
+        if (statsError) throw statsError;
+        
+        setStats(statsData as DailyStats[]);
+      }
+    } catch (error) {
+      console.error("Error loading dashboard stats:", error);
+    }
+  };
+
+  const loadInstances = async () => {
+    try {
+      setIsLoading(prev => ({ ...prev, clients: true }));
+      
+      // Fetch clients (required for instances)
       const { data: clientsData, error: clientsError } = await supabase
         .from('clients')
         .select('*');
@@ -283,81 +373,141 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           console.log("No saved instance, using default:", activeInstance?.name);
         }
       }
+    } catch (error) {
+      console.error("Error loading instances:", error);
+      toast.error("Erro ao carregar instâncias");
+    } finally {
+      setIsLoading(prev => ({ ...prev, clients: false }));
+    }
+  };
+
+  // Separate function to load contacts data
+  const loadContacts = async () => {
+    if (!user || isLoading.contacts) return;
+    
+    try {
+      console.log("Loading contacts data...");
+      setIsLoading(prev => ({ ...prev, contacts: true }));
       
-      // Fetch tags
-      const { data: tagsData, error: tagsError } = await supabase
-        .from('tags')
-        .select('name');
-      
-      if (tagsError) throw tagsError;
-      
-      setTags(tagsData.map(tag => tag.name));
-      
-      // Fetch time restrictions
-      const { data: restrictionsData, error: restrictionsError } = await supabase
-        .from('time_restrictions')
+      // Fetch contacts and their tags
+      const { data: contactsData, error: contactsError } = await supabase
+        .from('contacts')
         .select('*');
       
-      if (restrictionsError) throw restrictionsError;
+      if (contactsError) throw contactsError;
       
-      const typedRestrictions = restrictionsData.map(restriction => ({
-        id: restriction.id,
-        name: restriction.name,
-        active: restriction.active,
-        days: restriction.days,
-        startHour: restriction.start_hour,
-        startMinute: restriction.start_minute,
-        endHour: restriction.end_hour,
-        endMinute: restriction.end_minute,
-        isGlobal: true // Todas as restrições desta tabela são globais
-      }));
+      // Create maps for quick lookups
+      const clientMap = new Map(clients.map(client => [client.id, client]));
+      const userMap = new Map(users.map(user => [user.id, user]));
       
-      setTimeRestrictions(typedRestrictions);
-      
-      // Fetch users (for both admin and super_admin) - MOVED THIS UP before contacts
-      let usersList: User[] = [];
-      
-      // Get profiles data
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('*');
-      
-      if (profilesError) throw profilesError;
-      
-      // Get user emails from auth.users through Supabase function or RPC
-      const { data: authUsersData, error: authUsersError } = await supabase
-        .rpc('get_users_with_emails');
+      // Iniciar a busca de dados de contato_tag
+      const contactPromises = contactsData.map(async (contact) => {
+        // Buscar tags deste contato
+        const { data: contactTagsData, error: contactTagsError } = await supabase
+          .from('contact_tags')
+          .select('tag_name')
+          .eq('contact_id', contact.id);
+          
+        if (contactTagsError) {
+          console.error(`Erro ao buscar tags do contato ${contact.id}:`, contactTagsError);
+          return null;
+        }
         
-      if (authUsersError) {
-        console.error("Error fetching user emails:", authUsersError);
-      }
-      
-      // Create a map of user IDs to emails for quick lookup
-      const emailMap = new Map();
-      if (authUsersData && Array.isArray(authUsersData)) {
-        authUsersData.forEach(userData => {
-          if (userData.id && userData.email) {
-            emailMap.set(userData.id, userData.email);
-          }
-        });
-      }
-      
-      // Now map profiles to users with emails from the emailMap
-      usersList = profilesData.map(profile => {
-        // Try to get email from the map, fall back to current user email or a placeholder
-        const email = emailMap.get(profile.id) || 
-                      (profile.id === user.id ? user.email : `user-${profile.id.substring(0, 4)}@example.com`);
+        const contactTags = contactTagsData.map(ct => ct.tag_name);
+        
+        // Look up client information
+        const client = clientMap.get(contact.client_id);
+        const clientName = client ? client.accountName : '';
+        
+        // Look up admin information based on client's createdBy
+        const adminId = client ? client.createdBy : undefined;
+        const admin = adminId ? userMap.get(adminId) : undefined;
+        const adminName = admin ? admin.accountName : '';
         
         return {
-          id: profile.id,
-          accountName: profile.account_name,
-          email,
-          role: profile.role,
-          avatar: ""
+          id: contact.id,
+          name: contact.name,
+          phoneNumber: contact.phone_number,
+          clientId: contact.client_id,
+          clientName: clientName,
+          adminId: adminId,
+          adminName: adminName,
+          inboxId: contact.inbox_id,
+          conversationId: contact.conversation_id,
+          displayId: contact.display_id,
+          createdAt: contact.created_at,
+          updatedAt: contact.updated_at,
+          tags: contactTags
         };
       });
       
-      setUsers(usersList);
+      // Resolver todas as promessas
+      const typedContacts = (await Promise.all(contactPromises)).filter(Boolean) as Contact[];
+      setContacts(typedContacts);
+      
+      console.log(`Contacts fetched: ${typedContacts.length}`);
+      
+      // Fetch contact sequences and their progress
+      const { data: contactSeqsData, error: contactSeqsError } = await supabase
+        .from('contact_sequences')
+        .select('*');
+      
+      if (contactSeqsError) throw contactSeqsError;
+      
+      // Iniciar a busca de progresso de estágios para cada sequência de contato
+      const contactSeqPromises = contactSeqsData.map(async (contactSeq) => {
+        // Buscar progresso de estágio para esta sequência de contato
+        const { data: progressData, error: progressError } = await supabase
+          .from('stage_progress')
+          .select('*')
+          .eq('contact_sequence_id', contactSeq.id);
+          
+        if (progressError) {
+          console.error(`Erro ao buscar progresso de estágios para sequência ${contactSeq.id}:`, progressError);
+          return null;
+        }
+        
+        const stageProgress = progressData.map(progress => ({
+          id: progress.id,
+          stageId: progress.stage_id,
+          status: progress.status,
+          completedAt: progress.completed_at
+        }));
+        
+        return {
+          id: contactSeq.id,
+          contactId: contactSeq.contact_id,
+          sequenceId: contactSeq.sequence_id,
+          currentStageId: contactSeq.current_stage_id,
+          currentStageIndex: contactSeq.current_stage_index,
+          status: contactSeq.status,
+          startedAt: contactSeq.started_at,
+          completedAt: contactSeq.completed_at,
+          lastMessageAt: contactSeq.last_message_at,
+          removedAt: contactSeq.removed_at,
+          stageProgress
+        };
+      });
+      
+      // Resolver todas as promessas de sequências de contato
+      const typedContactSeqs = (await Promise.all(contactSeqPromises)).filter(Boolean) as ContactSequence[];
+      setContactSequences(typedContactSeqs);
+      
+    } catch (error) {
+      console.error("Error loading contacts data:", error);
+      toast.error("Erro ao carregar dados de contatos");
+    } finally {
+      setIsLoading(prev => ({ ...prev, contacts: false }));
+    }
+  };
+
+  // Separate function to load sequences data
+  const loadSequences = async () => {
+    if (!user || isLoading.sequences) return;
+    
+    try {
+      console.log("Loading sequences data...");
+      setIsLoading(prev => ({ ...prev, sequences: true }));
       
       // Buscar sequências e seus estágios
       const { data: sequencesData, error: sequencesError } = await supabase
@@ -491,64 +641,22 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       });
       
       setSequences(typedSequences);
-      
-      // Fetch contacts and their tags
-      const { data: contactsData, error: contactsError } = await supabase
-        .from('contacts')
-        .select('*');
-      
-      if (contactsError) throw contactsError;
-      
-      // Create maps for quick lookups - now usersList is defined before it's used
-      const clientMap = new Map(typedClients.map(client => [client.id, client]));
-      const userMap = new Map(usersList.map(user => [user.id, user]));
-      
-      // Iniciar a busca de dados de contato_tag
-      const contactPromises = contactsData.map(async (contact) => {
-        // Buscar tags deste contato
-        const { data: contactTagsData, error: contactTagsError } = await supabase
-          .from('contact_tags')
-          .select('tag_name')
-          .eq('contact_id', contact.id);
-          
-        if (contactTagsError) {
-          console.error(`Erro ao buscar tags do contato ${contact.id}:`, contactTagsError);
-          return null;
-        }
-        
-        const contactTags = contactTagsData.map(ct => ct.tag_name);
-        
-        // Look up client information
-        const client = clientMap.get(contact.client_id);
-        const clientName = client ? client.accountName : '';
-        
-        // Look up admin information based on client's createdBy
-        const adminId = client ? client.createdBy : undefined;
-        const admin = adminId ? userMap.get(adminId) : undefined;
-        const adminName = admin ? admin.accountName : '';
-        
-        return {
-          id: contact.id,
-          name: contact.name,
-          phoneNumber: contact.phone_number,
-          clientId: contact.client_id,
-          clientName: clientName,
-          adminId: adminId,
-          adminName: adminName,
-          inboxId: contact.inbox_id,
-          conversationId: contact.conversation_id,
-          displayId: contact.display_id,
-          createdAt: contact.created_at,
-          updatedAt: contact.updated_at,
-          tags: contactTags
-        };
-      });
-      
-      // Resolver todas as promessas
-      const typedContacts = (await Promise.all(contactPromises)).filter(Boolean) as Contact[];
-      setContacts(typedContacts);
-      
-      console.log(`Contacts fetched: ${typedContacts.length}`);
+
+    } catch (error) {
+      console.error("Error loading sequences data:", error);
+      toast.error("Erro ao carregar dados de sequências");
+    } finally {
+      setIsLoading(prev => ({ ...prev, sequences: false }));
+    }
+  };
+
+  // Separate function to load scheduled messages data
+  const loadMessages = async () => {
+    if (!user || isLoading.messages) return;
+    
+    try {
+      console.log("Loading messages data...");
+      setIsLoading(prev => ({ ...prev, messages: true }));
       
       // Fetch scheduled messages
       const { data: scheduledMsgsData, error: scheduledMsgsError } = await supabase
@@ -574,64 +682,217 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       }));
       
       setScheduledMessages(typedScheduledMsgs);
+
+    } catch (error) {
+      console.error("Error loading messages data:", error);
+      toast.error("Erro ao carregar dados de mensagens");
+    } finally {
+      setIsLoading(prev => ({ ...prev, messages: false }));
+    }
+  };
+
+  // Separate function to load clients data
+  const loadClients = async () => {
+    if (!user || isLoading.clients) return;
+    
+    try {
+      console.log("Loading clients data...");
+      setIsLoading(prev => ({ ...prev, clients: true }));
       
-      // Fetch contact sequences and their progress
-      const { data: contactSeqsData, error: contactSeqsError } = await supabase
-        .from('contact_sequences')
+      // Fetch clients
+      const { data: clientsData, error: clientsError } = await supabase
+        .from('clients')
         .select('*');
       
-      if (contactSeqsError) throw contactSeqsError;
+      if (clientsError) throw clientsError;
       
-      // Iniciar a busca de progresso de estágios para cada sequência de contato
-      const contactSeqPromises = contactSeqsData.map(async (contactSeq) => {
-        // Buscar progresso de estágio para esta sequência de contato
-        const { data: progressData, error: progressError } = await supabase
-          .from('stage_progress')
-          .select('*')
-          .eq('contact_sequence_id', contactSeq.id);
-          
-        if (progressError) {
-          console.error(`Erro ao buscar progresso de estágios para sequência ${contactSeq.id}:`, progressError);
-          return null;
-        }
+      const typedClients = clientsData.map(client => ({
+        id: client.id,
+        accountId: client.account_id,
+        accountName: client.account_name,
+        createdBy: client.created_by,
+        createdAt: client.created_at,
+        updatedAt: client.updated_at
+      }));
+      
+      setClients(typedClients);
+
+    } catch (error) {
+      console.error("Error loading clients data:", error);
+      toast.error("Erro ao carregar dados de clientes");
+    } finally {
+      setIsLoading(prev => ({ ...prev, clients: false }));
+    }
+  };
+
+  // Separate function to load time restrictions data
+  const loadTimeRestrictions = async () => {
+    if (!user || isLoading.timeRestrictions) return;
+    
+    try {
+      console.log("Loading time restrictions data...");
+      setIsLoading(prev => ({ ...prev, timeRestrictions: true }));
+      
+      // Fetch time restrictions
+      const { data: restrictionsData, error: restrictionsError } = await supabase
+        .from('time_restrictions')
+        .select('*');
+      
+      if (restrictionsError) throw restrictionsError;
+      
+      const typedRestrictions = restrictionsData.map(restriction => ({
+        id: restriction.id,
+        name: restriction.name,
+        active: restriction.active,
+        days: restriction.days,
+        startHour: restriction.start_hour,
+        startMinute: restriction.start_minute,
+        endHour: restriction.end_hour,
+        endMinute: restriction.end_minute,
+        isGlobal: true // Todas as restrições desta tabela são globais
+      }));
+      
+      setTimeRestrictions(typedRestrictions);
+
+    } catch (error) {
+      console.error("Error loading time restrictions data:", error);
+      toast.error("Erro ao carregar dados de restrições de horário");
+    } finally {
+      setIsLoading(prev => ({ ...prev, timeRestrictions: false }));
+    }
+  };
+
+  // Separate function to load tags data
+  const loadTags = async () => {
+    if (!user || isLoading.tags) return;
+    
+    try {
+      console.log("Loading tags data...");
+      setIsLoading(prev => ({ ...prev, tags: true }));
+      
+      // Fetch tags
+      const { data: tagsData, error: tagsError } = await supabase
+        .from('tags')
+        .select('name');
+      
+      if (tagsError) throw tagsError;
+      
+      setTags(tagsData.map(tag => tag.name));
+
+    } catch (error) {
+      console.error("Error loading tags data:", error);
+      toast.error("Erro ao carregar dados de tags");
+    } finally {
+      setIsLoading(prev => ({ ...prev, tags: false }));
+    }
+  };
+
+  // Separate function to load users data
+  const loadUsers = async () => {
+    if (!user || isLoading.users) return;
+    
+    try {
+      console.log("Loading users data...");
+      setIsLoading(prev => ({ ...prev, users: true }));
+      
+      // Get profiles data
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('*');
+      
+      if (profilesError) throw profilesError;
+      
+      // Get user emails from auth.users through Supabase function or RPC
+      const { data: authUsersData, error: authUsersError } = await supabase
+        .rpc('get_users_with_emails');
         
-        const stageProgress = progressData.map(progress => ({
-          id: progress.id,
-          stageId: progress.stage_id,
-          status: progress.status,
-          completedAt: progress.completed_at
-        }));
+      if (authUsersError) {
+        console.error("Error fetching user emails:", authUsersError);
+      }
+      
+      // Create a map of user IDs to emails for quick lookup
+      const emailMap = new Map();
+      if (authUsersData && Array.isArray(authUsersData)) {
+        authUsersData.forEach(userData => {
+          if (userData.id && userData.email) {
+            emailMap.set(userData.id, userData.email);
+          }
+        });
+      }
+      
+      // Now map profiles to users with emails from the emailMap
+      const usersList = profilesData.map(profile => {
+        // Try to get email from the map, fall back to current user email or a placeholder
+        const email = emailMap.get(profile.id) || 
+                      (profile.id === user.id ? user.email : `user-${profile.id.substring(0, 4)}@example.com`);
         
         return {
-          id: contactSeq.id,
-          contactId: contactSeq.contact_id,
-          sequenceId: contactSeq.sequence_id,
-          currentStageId: contactSeq.current_stage_id,
-          currentStageIndex: contactSeq.current_stage_index,
-          status: contactSeq.status,
-          startedAt: contactSeq.started_at,
-          completedAt: contactSeq.completed_at,
-          lastMessageAt: contactSeq.last_message_at,
-          removedAt: contactSeq.removed_at,
-          stageProgress
+          id: profile.id,
+          accountName: profile.account_name,
+          email,
+          role: profile.role,
+          avatar: ""
         };
       });
       
-      // Resolver todas as promessas de sequências de contato
-      const typedContactSeqs = (await Promise.all(contactSeqPromises)).filter(Boolean) as ContactSequence[];
-      setContactSequences(typedContactSeqs);
+      setUsers(usersList);
+
+    } catch (error) {
+      console.error("Error loading users data:", error);
+      toast.error("Erro ao carregar dados de usuários");
+    } finally {
+      setIsLoading(prev => ({ ...prev, users: false }));
+    }
+  };
+
+  // Updated refreshData function to load data in parallel
+  const refreshData = useCallback(async () => {
+    if (!user || isRefreshing) return;
+    
+    // Prevent rapid consecutive refreshes (throttle to once every 3 seconds)
+    const now = Date.now();
+    if (now - lastRefresh < 3000 && isDataInitialized) {
+      console.log("Refresh throttled - too soon since last refresh");
+      return;
+    }
+    
+    try {
+      setIsRefreshing(true);
+      setLastRefresh(now);
+      console.log("Refreshing data...");
       
-      // Set initialized state to true after successful data load
+      // Load essential data first
+      await loadInstances();
+      
+      // Load other data in parallel
+      await Promise.all([
+        loadTags(),
+        loadTimeRestrictions(),
+      ]);
+      
+      // Load based on current route if appropriate
+      const path = location.pathname;
+      if (path === '/contacts') {
+        await loadContacts();
+      } else if (path === '/sequences') {
+        await loadSequences();
+      } else if (path === '/messages') {
+        await loadMessages();
+      } else if (path === '/') {
+        await loadBasicStats();
+      }
+      
+      // Mark data as initialized
       setIsDataInitialized(true);
       console.log("Data refresh completed successfully");
       
     } catch (error) {
-      console.error("Error fetching data:", error);
-      toast.error("Erro ao carregar dados");
+      console.error("Error refreshing data:", error);
+      toast.error("Erro ao atualizar dados");
     } finally {
       setIsRefreshing(false);
     }
-  };
+  }, [user, isRefreshing, lastRefresh, isDataInitialized, location.pathname]);
 
   const addInstance = async (instanceData: Omit<Instance, "id" | "createdAt" | "updatedAt" | "createdBy">) => {
     try {
@@ -1092,7 +1353,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const addTimeRestriction = async (restrictionData: Omit<TimeRestriction, "id">) => {
     try {
       if (!user) {
-        toast.error("Usu��rio não autenticado");
+        toast.error("Usuário não autenticado");
         return;
       }
       
@@ -1454,130 +1715,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const loadSequences = async () => {
-    try {
-      setLoading(true);
-      
-      // Buscar sequências
-      const { data: sequencesData, error: sequencesError } = await supabase
-        .from("sequences")
-        .select("*")
-        .order("created_at", { ascending: false });
-      
-      if (sequencesError) throw sequencesError;
-      
-      // Para cada sequência, buscar seus estágios
-      const sequencesWithStages: Sequence[] = [];
-      
-      for (const seq of sequencesData || []) {
-        // Buscar estágios
-        const { data: stagesData, error: stagesError } = await supabase
-          .from("sequence_stages")
-          .select("*")
-          .eq("sequence_id", seq.id)
-          .order("order_index", { ascending: true });
-        
-        if (stagesError) throw stagesError;
-        
-        // Buscar restrições locais
-        const { data: localRestrictionsData, error: localRestrictionsError } = await supabase
-          .from("sequence_local_restrictions")
-          .select("*")
-          .eq("sequence_id", seq.id);
-        
-        if (localRestrictionsError) throw localRestrictionsError;
-        
-        // Buscar restrições globais
-        const { data: globalRestrictions, error: globalRestrictionsError } = await supabase
-          .rpc("get_sequence_time_restrictions", { seq_id: seq.id });
-        
-        if (globalRestrictionsError) throw globalRestrictionsError;
-        
-        // Mapear estágios
-        const stages = stagesData.map(stage => ({
-          id: stage.id,
-          name: stage.name,
-          type: stage.type as "message" | "pattern" | "typebot",
-          content: stage.content,
-          typebotStage: stage.typebot_stage || undefined,
-          delay: stage.delay,
-          delayUnit: stage.delay_unit as "minutes" | "hours" | "days"
-        }));
-        
-        // Mapear restrições locais
-        const localRestrictions = localRestrictionsData.map(restriction => ({
-          id: restriction.id,
-          name: restriction.name,
-          active: restriction.active,
-          days: restriction.days,
-          startHour: restriction.start_hour,
-          startMinute: restriction.start_minute,
-          endHour: restriction.end_hour,
-          endMinute: restriction.end_minute,
-          isGlobal: false
-        }));
-        
-        // Mapear restrições globais
-        const globalRestrictionsProcessed = (globalRestrictions || []).map(restriction => ({
-          id: restriction.id,
-          name: restriction.name,
-          active: restriction.active,
-          days: restriction.days,
-          startHour: restriction.start_hour,
-          startMinute: restriction.start_minute,
-          endHour: restriction.end_hour,
-          endMinute: restriction.end_minute,
-          isGlobal: true
-        }));
-        
-        // Combinar todas as restrições
-        const timeRestrictions = [...localRestrictions, ...globalRestrictionsProcessed];
-        
-        // Determinar o tipo de sequência com base nos estágios ou usar um valor padrão
-        let sequenceType: "message" | "pattern" | "typebot" = "message";
-        if (stages.length > 0) {
-          // Se o último estágio for um typebot, consideramos que é uma sequência de typebot
-          const lastStage = stages[stages.length - 1];
-          if (lastStage.type === "typebot") {
-            sequenceType = "typebot";
-          } else if (lastStage.type === "pattern") {
-            sequenceType = "pattern";
-          }
-        }
-        
-        // Adicionar sequência ao array
-        sequencesWithStages.push({
-          id: seq.id,
-          name: seq.name,
-          instanceId: seq.instance_id,
-          type: (seq as any).type || sequenceType,
-          status: seq.status as "active" | "inactive",
-          startCondition: {
-            type: seq.start_condition_type as "AND" | "OR",
-            tags: seq.start_condition_tags || []
-          },
-          stopCondition: {
-            type: seq.stop_condition_type as "AND" | "OR",
-            tags: seq.stop_condition_tags || []
-          },
-          stages,
-          timeRestrictions,
-          createdAt: seq.created_at,
-          updatedAt: seq.updated_at,
-          createdBy: seq.created_by, // Add missing createdBy field
-          webhookEnabled: seq.webhook_enabled || false, // Add the webhook enabled field
-          webhookId: seq.webhook_id // Add the webhook ID field
-        });
-      }
-      
-      setSequences(sequencesWithStages);
-    } catch (error) {
-      console.error("Erro ao carregar sequências:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const transformSequence = (seq) => {    
     return {
       id: seq.id,
@@ -1651,6 +1788,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     deleteTag,
     refreshData,
     isDataInitialized,
+    loadContacts,
+    loadSequences,
+    loadMessages,
+    loadClients,
+    loadTimeRestrictions,
+    loadTags,
+    loadUsers,
+    isLoading,
     
     // Funções de manipulação de contatos
     deleteContact: contactFunctions.deleteContact,
