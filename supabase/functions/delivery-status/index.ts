@@ -309,9 +309,32 @@ Deno.serve(async (req) => {
       
       console.log(`[PROGRESS] Progresso para estágio ${nextStage.name} criado como pendente`);
       
+      // Obter as variáveis da mensagem atual para passar para a próxima mensagem
+      console.log('[VARIÁVEIS] Obtendo variáveis da mensagem atual:', message.variables);
+      const messageVariables = message.variables || {};
+      
       // Calcular atraso para a próxima mensagem
       const delayMs = calculateDelayMs(nextStage.delay, nextStage.delay_unit);
       const scheduledTime = new Date(Date.now() + delayMs);
+      
+      // Processar o conteúdo com as variáveis
+      let processedContent = null;
+      
+      // Processar o conteúdo de acordo com o tipo da mensagem
+      if (nextStage.type === 'message' || nextStage.type === 'pattern') {
+        console.log('[VARIÁVEIS] Processando variáveis para conteúdo do tipo', nextStage.type);
+        try {
+          processedContent = processMessageContent(nextStage.content, messageVariables);
+          console.log('[VARIÁVEIS] Conteúdo processado com sucesso:', processedContent);
+        } catch (varError) {
+          console.error('[VARIÁVEIS] Erro ao processar variáveis:', varError);
+          processedContent = nextStage.content;
+        }
+      } 
+      // Para o tipo typebot, apenas passamos as variáveis, o conteúdo será processado pelo typebot
+      else if (nextStage.type === 'typebot') {
+        console.log('[VARIÁVEIS] Mensagem do tipo typebot, as variáveis serão passadas para o typebot');
+      }
       
       // Agendar a próxima mensagem
       const { error: scheduleError } = await supabase
@@ -322,7 +345,9 @@ Deno.serve(async (req) => {
           stage_id: nextStage.id,
           raw_scheduled_time: scheduledTime.toISOString(),
           scheduled_time: scheduledTime.toISOString(),
-          status: 'pending'
+          status: 'pending',
+          variables: messageVariables,
+          processed_content: processedContent
         });
       
       if (scheduleError) {
@@ -338,6 +363,10 @@ Deno.serve(async (req) => {
       }
       
       console.log(`[SCHEDULE] Nova mensagem agendada com sucesso para ${scheduledTime.toISOString()}`);
+      console.log(`[VARIÁVEIS] Variáveis passadas para a próxima mensagem:`, JSON.stringify(messageVariables));
+      if (processedContent) {
+        console.log(`[VARIÁVEIS] Conteúdo processado para a próxima mensagem:`, processedContent);
+      }
       
       // Incrementar estatísticas
       try {
@@ -455,3 +484,28 @@ function calculateDelayMs(delay: number, unit: string): number {
       return delay * minute; // Fallback para minutos
   }
 }
+
+// Função auxiliar para processar conteúdo da mensagem com variáveis
+function processMessageContent(content: string, variables: Record<string, any>): string {
+  console.log('[VARIÁVEIS] Variáveis disponíveis:', variables);
+  
+  // Se não tiver variáveis ou não for uma string, retornar conteúdo original
+  if (!variables || typeof content !== 'string') {
+    return content;
+  }
+
+  let processedContent = content;
+  
+  // Substituir todas as variáveis no formato {nome_variavel}
+  for (const [key, value] of Object.entries(variables)) {
+    const placeholder = `{${key}}`;
+    if (processedContent.includes(placeholder)) {
+      console.log(`[VARIÁVEIS] Substituindo ${key} por ${value}`);
+      processedContent = processedContent.replace(new RegExp(placeholder, 'g'), String(value));
+    }
+  }
+
+  console.log('[VARIÁVEIS] Conteúdo após substituição:', processedContent);
+  return processedContent;
+}
+
