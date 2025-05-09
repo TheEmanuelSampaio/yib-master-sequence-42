@@ -16,6 +16,13 @@ export const MainLayout = () => {
   useEffect(() => {
     console.log("MainLayout rendering with currentInstance:", 
       currentInstance ? currentInstance.name : "none");
+    
+    // Log application version to help with debugging
+    console.log("Application info:", {
+      version: "1.0.1", 
+      mode: process.env.NODE_ENV,
+      lastBuildTime: new Date().toISOString()
+    });
   }, [currentInstance]);
   
   const toggleSidebar = () => {

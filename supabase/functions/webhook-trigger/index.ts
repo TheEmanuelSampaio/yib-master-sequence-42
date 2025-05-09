@@ -1,3 +1,4 @@
+
 // Follow this setup guide to integrate the Deno runtime into your project:
 // https://deno.com/manual/getting_started/setup_your_environment
 
@@ -539,21 +540,21 @@ serve(async (req) => {
       );
     }
     
-    // Create stage progress records
-    console.log("[WEBHOOK] Criando registros de progresso dos estágios...");
-    const stageProgressRecords = stages.map(stage => ({
+    // ALTERAÇÃO AQUI: Criar SOMENTE UM registro de progresso de estágio para o PRIMEIRO estágio
+    console.log("[WEBHOOK] Criando registro de progresso para o primeiro estágio...");
+    const stageProgressRecord = {
       id: crypto.randomUUID(),
       contact_sequence_id: contactSequenceId,
-      stage_id: stage.id,
+      stage_id: stages[0].id,
       status: "pending"
-    }));
+    };
     
     const { error: stageProgressError } = await supabase
       .from("stage_progress")
-      .insert(stageProgressRecords);
+      .insert(stageProgressRecord);
       
     if (stageProgressError) {
-      console.error("[WEBHOOK] Erro ao criar registros de progresso: " + stageProgressError.message);
+      console.error("[WEBHOOK] Erro ao criar registro de progresso: " + stageProgressError.message);
       // Continue anyway - not critical
     }
     

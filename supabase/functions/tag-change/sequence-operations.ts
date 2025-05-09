@@ -266,21 +266,22 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
 
       console.log(`[5.5 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Contato adicionado com sucesso à sequência: ${newContactSequence.id}`);
 
-      // Adicionar registros de stage_progress para todos os estágios
-      const stageProgressRecords = sortedStages.map((stage, index) => ({
+      // ALTERAÇÃO AQUI: Adicionar SOMENTE o registro de stage_progress para o PRIMEIRO estágio
+      // Antes criávamos registros para todos os estágios, agora só para o primeiro
+      const stageProgressRecord = {
         contact_sequence_id: newContactSequence.id,
-        stage_id: stage.id,
-        status: index === 0 ? "pending" : "pending"
-      }));
+        stage_id: firstStage.id,
+        status: "pending"
+      };
 
       const { error: stageProgressError } = await supabase
         .from("stage_progress")
-        .insert(stageProgressRecords);
+        .insert(stageProgressRecord);
 
       if (stageProgressError) {
-        console.error(`[5.6 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Erro ao criar registros de progresso de estágio: ${stageProgressError.message}`);
+        console.error(`[5.6 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Erro ao criar registro de progresso de estágio: ${stageProgressError.message}`);
       } else {
-        console.log(`[5.6 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Criados ${stageProgressRecords.length} registros de progresso de estágio`);
+        console.log(`[5.6 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Criado registro de progresso para o primeiro estágio`);
       }
 
       // Calcular tempo de delay para a primeira mensagem
