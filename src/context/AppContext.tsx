@@ -1,3 +1,4 @@
+
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import { supabase, UserWithEmail, isValidUUID, checkStagesInUse } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
@@ -290,7 +291,18 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           
         if (statsError) throw statsError;
         
-        setStats(statsData as DailyStats[]);
+        // Transform the data to match the DailyStats type
+        const typedStats = statsData.map(stat => ({
+          date: stat.date,
+          instanceId: stat.instance_id,
+          messagesScheduled: stat.messages_scheduled,
+          messagesSent: stat.messages_sent,
+          messagesFailed: stat.messages_failed,
+          newContacts: stat.new_contacts,
+          completedSequences: stat.completed_sequences
+        }));
+        
+        setStats(typedStats);
       }
     } catch (error) {
       console.error("Error loading dashboard stats:", error);
