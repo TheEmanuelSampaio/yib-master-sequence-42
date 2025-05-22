@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { Toaster } from "@/components/ui/toaster";
@@ -10,35 +10,82 @@ import { useApp } from "@/context/AppContext";
 
 export const MainLayout = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const { currentInstance, refreshData, isLoading } = useApp();
+  const { currentInstance, refreshData, isLoading, isDataInitialized } = useApp();
   const location = useLocation();
+  const refreshInProgressRef = useRef(false);
+  const lastRefreshTimestampRef = useRef(0);
   
-  // Implement route-based data loading
+  // Implement a better data loading strategy with debounce mechanism
+  const safeRefreshData = useCallback(async () => {
+    const now = Date.now();
+    // Prevent refresh if one is already in progress
+    if (refreshInProgressRef.current) {
+      console.log("Refresh already in progress, skipping...");
+      return;
+    }
+    
+    // Debounce refreshes (no more than once every 3 seconds)
+    if (now - lastRefreshTimestampRef.current < 3000 && isDataInitialized) {
+      console.log("Debounced refresh - too soon since last refresh");
+      return;
+    }
+    
+    try {
+      console.log("MainLayout - Safe refresh triggered from route:", location.pathname);
+      refreshInProgressRef.current = true;
+      lastRefreshTimestampRef.current = now;
+      await refreshData();
+    } catch (error) {
+      console.error("Error refreshing data:", error);
+    } finally {
+      refreshInProgressRef.current = false;
+    }
+  }, [refreshData, isDataInitialized, location.pathname]);
+  
+  // Route-based data loading with reduced dependencies
   useEffect(() => {
-    console.log("MainLayout - Route changed to:", location.pathname);
+    if (!isDataInitialized) {
+      console.log("Initial data load on first render");
+      safeRefreshData();
+      return;
+    }
     
-    // Initial data load for essential data or route-specific data
-    const loadPageData = async () => {
-      // Only refresh data if we haven't loaded it yet or when changing major routes
-      await refreshData(); // Remove the parameter
-    };
+    // Only refresh data on major route changes if already initialized
+    // We extract the main route path to avoid refreshing on subroute changes
+    const mainRoutePath = `/${location.pathname.split('/')[1]}`;
+    console.log(`Route changed to ${mainRoutePath}, considering refresh if needed`);
     
-    loadPageData();
-  }, [location.pathname, refreshData]);
+    // Skip refresh for debug routes or if we just loaded data recently
+    const skipRefreshRoutes = ['/debug'];
+    if (skipRefreshRoutes.includes(mainRoutePath)) {
+      console.log("Skipping refresh for route:", mainRoutePath);
+      return;
+    }
+    
+    safeRefreshData();
+  }, [location.pathname, safeRefreshData, isDataInitialized]);
   
-  // Debug logging
+  // Debug logging with reduced frequency
   useEffect(() => {
     console.log("MainLayout rendering with currentInstance:", 
       currentInstance ? currentInstance.name : "none");
     
-    // Log application info
-    console.log("Application info:", {
-      version: "1.0.3", // Updated version number
-      mode: process.env.NODE_ENV,
-      routePath: location.pathname,
-      lastBuildTime: new Date().toISOString()
-    });
-  }, [currentInstance, location.pathname]);
+    // Log application info less frequently
+    const logAppInfo = () => {
+      console.log("Application info:", {
+        version: "1.0.3",
+        mode: process.env.NODE_ENV,
+        routePath: location.pathname,
+        dataInitialized: isDataInitialized,
+        lastBuildTime: new Date().toISOString()
+      });
+    };
+    
+    // Only log detailed app info on initial render
+    if (!isDataInitialized) {
+      logAppInfo();
+    }
+  }, [currentInstance, location.pathname, isDataInitialized]);
   
   const toggleSidebar = () => {
     setSidebarCollapsed(!sidebarCollapsed);
