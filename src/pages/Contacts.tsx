@@ -129,7 +129,8 @@ export default function Contacts() {
     setLastRefreshTime(now);
     
     try {
-      await refreshData("contacts");
+      // Fix: Call refreshData without arguments if it doesn't accept any
+      await refreshData();
     } catch (error) {
       console.error("[Contacts] Error refreshing contact data:", error);
     } finally {

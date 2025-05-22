@@ -68,7 +68,8 @@ export const MainLayout = () => {
       console.log(`[MainLayout] Refresh triggered from route: ${location.pathname} with scope: ${scope}`);
       refreshInProgressRef.current = true;
       lastRefreshTimestampRef.current = now;
-      await refreshData(scope);
+      // Fix: Call refreshData without arguments if it doesn't accept any
+      await refreshData();
       return true;
     } catch (error) {
       console.error("[MainLayout] Error refreshing data:", error);
