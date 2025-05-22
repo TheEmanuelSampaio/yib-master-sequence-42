@@ -15,11 +15,31 @@ export const MainLayout = () => {
   const refreshInProgressRef = useRef(false);
   const lastRefreshTimestampRef = useRef(0);
   const lastRoutePathRef = useRef("");
+  const refreshQueueRef = useRef<Set<string>>(new Set());
   
   // Get the main route path (first segment)
   const getMainRoutePath = useCallback(() => {
     return `/${location.pathname.split('/')[1]}`;
   }, [location.pathname]);
+  
+  // Cache TTL management - define how long different data types stay fresh
+  const dataTTLRef = useRef({
+    contacts: 30000,    // 30 seconds
+    sequences: 60000,   // 60 seconds
+    messages: 15000,    // 15 seconds
+    dashboard: 120000,  // 2 minutes
+    settings: 300000    // 5 minutes
+  });
+  
+  // Track when each data type was last loaded
+  const lastDataLoadTimeRef = useRef({
+    contacts: 0,
+    sequences: 0, 
+    messages: 0,
+    dashboard: 0,
+    settings: 0,
+    all: 0
+  });
   
   // Determine if we should refresh based on route change
   const shouldRefreshOnRouteChange = useCallback((newPath) => {
@@ -32,55 +52,109 @@ export const MainLayout = () => {
       return false;
     }
     
-    // Avoid unnecessary refreshes when navigating between tabs on the same page
+    // Check if we're staying on the same route
     if (newPath === lastRoutePathRef.current) {
-      console.log(`[MainLayout] Staying on same main route: ${newPath}, no refresh needed`);
+      console.log(`[MainLayout] Staying on same main route: ${newPath}, checking data freshness`);
+      
+      // Even on same route, check if data is stale based on TTL
+      const now = Date.now();
+      const routeType = newPath.substring(1) || 'dashboard'; // Remove leading slash
+      const lastLoadTime = lastDataLoadTimeRef.current[routeType] || 0;
+      const ttl = dataTTLRef.current[routeType] || 30000;
+      
+      if (now - lastLoadTime > ttl) {
+        console.log(`[MainLayout] ${routeType} data is stale (${now - lastLoadTime}ms), refreshing`);
+        return true;
+      }
       return false;
     }
     
-    // If moving to a data-intensive route, refresh
-    const dataIntensiveRoutes = ['/contacts', '/sequences', '/messages', '/dashboard'];
-    if (dataIntensiveRoutes.includes(newPath)) {
-      console.log(`[MainLayout] Moving to data-intensive route: ${newPath}, refresh needed`);
+    // Data-intensive routes check - only load what's needed
+    const routeDataMap = {
+      '/contacts': ['contacts'],
+      '/sequences': ['sequences'],
+      '/messages': ['messages'],
+      '/dashboard': ['dashboard'],
+      '/settings': ['settings']
+    };
+    
+    if (routeDataMap[newPath]) {
+      // Check if data for this route is already fresh
+      const now = Date.now();
+      const dataTypes = routeDataMap[newPath];
+      const needsRefresh = dataTypes.some(type => {
+        const lastLoadTime = lastDataLoadTimeRef.current[type] || 0;
+        const ttl = dataTTLRef.current[type] || 30000;
+        return (now - lastLoadTime > ttl);
+      });
+      
+      if (!needsRefresh) {
+        console.log(`[MainLayout] Data for ${newPath} is still fresh, skipping refresh`);
+        return false;
+      }
+      
+      console.log(`[MainLayout] Moving to ${newPath}, data needs refresh`);
       return true;
     }
     
     return true;
   }, [isDataInitialized]);
   
-  // Enhanced safeRefreshData with scope parameter and better throttling
-  const safeRefreshData = useCallback(async (scope = "all") => {
-    // Prevent concurrent refreshes
-    if (refreshInProgressRef.current) {
-      console.log(`[MainLayout] Refresh already in progress, skipping... (scope: ${scope})`);
-      return false;
+  // Add a data refresh queue system
+  const processRefreshQueue = useCallback(async () => {
+    if (refreshInProgressRef.current || refreshQueueRef.current.size === 0) {
+      return;
     }
     
-    const now = Date.now();
-    // Implement a more aggressive throttling for repeated calls
-    const minDelay = scope === "all" ? 5000 : 3000;
-    if (now - lastRefreshTimestampRef.current < minDelay && isDataInitialized) {
-      console.log(`[MainLayout] Throttled refresh - too soon since last refresh (${now - lastRefreshTimestampRef.current}ms < ${minDelay}ms)`);
-      return false;
-    }
+    const scope = Array.from(refreshQueueRef.current)[0];
+    refreshQueueRef.current.delete(scope);
     
     try {
-      console.log(`[MainLayout] Refresh triggered from route: ${location.pathname} with scope: ${scope}`);
       refreshInProgressRef.current = true;
-      lastRefreshTimestampRef.current = now;
-      // Fix: Call refreshData without arguments if it doesn't accept any
+      console.log(`[MainLayout] Processing queued refresh: ${scope}`);
+      
+      // Call the refreshData function (no parameters as per the fix)
       await refreshData();
-      return true;
+      
+      // Update last load time for appropriate data types
+      const now = Date.now();
+      if (scope === "all") {
+        Object.keys(lastDataLoadTimeRef.current).forEach(key => {
+          lastDataLoadTimeRef.current[key] = now;
+        });
+      } else {
+        lastDataLoadTimeRef.current[scope] = now;
+      }
+      
+      console.log(`[MainLayout] Completed refresh for: ${scope}`);
     } catch (error) {
-      console.error("[MainLayout] Error refreshing data:", error);
-      return false;
+      console.error("[MainLayout] Error in refresh queue processing:", error);
     } finally {
-      // Add a small delay before allowing another refresh to prevent rapid successive calls
+      refreshInProgressRef.current = false;
+      
+      // Process next item in queue after a small delay
       setTimeout(() => {
-        refreshInProgressRef.current = false;
-      }, 500);
+        processRefreshQueue();
+      }, 100);
     }
-  }, [refreshData, isDataInitialized, location.pathname]);
+  }, [refreshData]);
+  
+  // Enhanced safeRefreshData with scope parameter and better throttling
+  const safeRefreshData = useCallback(async (scope = "all") => {
+    // Add to queue instead of executing immediately
+    refreshQueueRef.current.add(scope);
+    console.log(`[MainLayout] Queued refresh for scope: ${scope}`);
+    
+    const now = Date.now();
+    lastRefreshTimestampRef.current = now;
+    
+    // Determine if we should start processing the queue
+    if (!refreshInProgressRef.current) {
+      processRefreshQueue();
+    }
+    
+    return true;
+  }, [processRefreshQueue]);
   
   // Route-based data loading with smarter route change detection
   useEffect(() => {
@@ -109,23 +183,22 @@ export const MainLayout = () => {
     lastRoutePathRef.current = mainRoutePath;
   }, [getMainRoutePath, safeRefreshData, isDataInitialized, shouldRefreshOnRouteChange]);
   
-  // Debug logging with reduced frequency
+  // Reduced logging - only log on important state changes
   useEffect(() => {
-    if (currentInstance) {
+    if (currentInstance && lastRoutePathRef.current !== getMainRoutePath()) {
       console.log("[MainLayout] Current instance:", currentInstance.name);
     }
     
     // Only log detailed app info on initial render
     if (!isDataInitialized) {
       console.log("Application info:", {
-        version: "1.0.4",
+        version: "1.0.5",
         mode: process.env.NODE_ENV,
         routePath: location.pathname,
-        dataInitialized: isDataInitialized,
-        lastBuildTime: new Date().toISOString()
+        dataInitialized: isDataInitialized
       });
     }
-  }, [currentInstance, location.pathname, isDataInitialized]);
+  }, [currentInstance, location.pathname, isDataInitialized, getMainRoutePath]);
   
   const toggleSidebar = () => {
     setSidebarCollapsed(!sidebarCollapsed);
