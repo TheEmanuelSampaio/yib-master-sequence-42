@@ -20,7 +20,7 @@ export const MainLayout = () => {
     // Initial data load for essential data or route-specific data
     const loadPageData = async () => {
       // Only refresh data if we haven't loaded it yet or when changing major routes
-      await refreshData(location.pathname);
+      await refreshData(); // Remove the parameter
     };
     
     loadPageData();

@@ -51,6 +51,8 @@ interface AppContextType {
   deleteTag: (tagName: string) => Promise<void>;
   refreshData: () => Promise<void>;
   isDataInitialized: boolean;
+  isLoading: boolean; // Add isLoading property
+  isInstancesLoading: boolean; // Add isInstancesLoading property
   
   // Funções de manipulação de contatos
   deleteContact: (contactId: string) => Promise<{ success: boolean; error?: string }>;
@@ -118,6 +120,8 @@ const defaultContextValue: AppContextType = {
   deleteTag: async () => {},
   refreshData: async () => {},
   isDataInitialized: false,
+  isLoading: false, // Add the new property
+  isInstancesLoading: false, // Add the new property
   
   // Add the missing contact functions to the default context value
   deleteContact: async () => ({ success: false, error: 'Não implementado' }),
@@ -146,6 +150,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [isDataInitialized, setIsDataInitialized] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [isInstancesLoading, setIsInstancesLoading] = useState(false); // Add this state for instance loading
 
   // Get contact sequences helper function
   const getContactSequences = (contactId: string): ContactSequence[] => {
@@ -208,6 +213,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     
     try {
       setIsRefreshing(true);
+      setLoading(true); // Set loading to true when refreshing data
       setLastRefresh(now);
       console.log("Refreshing data...");
       
@@ -230,6 +236,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       setClients(typedClients);
       
       // Fetch instances
+      setIsInstancesLoading(true); // Set instances loading state
       const { data: instancesData, error: instancesError } = await supabase
         .from('instances')
         .select('*, clients(*)');
@@ -257,6 +264,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       }));
       
       setInstances(typedInstances);
+      setIsInstancesLoading(false); // Reset instances loading state
       
       // Get saved instance ID from localStorage
       const savedInstanceId = localStorage.getItem('selectedInstanceId');
@@ -630,6 +638,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       toast.error("Erro ao carregar dados");
     } finally {
       setIsRefreshing(false);
+      setLoading(false); // Set loading to false when done
     }
   };
 
@@ -1092,7 +1101,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const addTimeRestriction = async (restrictionData: Omit<TimeRestriction, "id">) => {
     try {
       if (!user) {
-        toast.error("Usu��rio não autenticado");
+        toast.error("Usuário não autenticado");
         return;
       }
       
@@ -1651,6 +1660,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     deleteTag,
     refreshData,
     isDataInitialized,
+    isLoading: loading, // Map the loading state to isLoading
+    isInstancesLoading, // Include isInstancesLoading in context value
     
     // Funções de manipulação de contatos
     deleteContact: contactFunctions.deleteContact,
