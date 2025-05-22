@@ -1,16 +1,28 @@
 
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/context/AuthContext";
-import { UsersTab } from "@/components/settings/UsersTab";
-import { ClientsTab } from "@/components/settings/ClientsTab";
-import { TimeRestrictionsTab } from "@/components/settings/TimeRestrictionsTab";
-import { TagsTab } from "@/components/settings/TagsTab";
-import { GeneralTab } from "@/components/settings/GeneralTab";
-import { TokensTab } from "@/components/settings/TokensTab";
+import { Loader2 } from "lucide-react";
+
+// Lazy load tab components
+const UsersTab = lazy(() => import("@/components/settings/UsersTab"));
+const ClientsTab = lazy(() => import("@/components/settings/ClientsTab"));
+const TimeRestrictionsTab = lazy(() => import("@/components/settings/TimeRestrictionsTab"));
+const TagsTab = lazy(() => import("@/components/settings/TagsTab"));
+const GeneralTab = lazy(() => import("@/components/settings/GeneralTab"));
+const TokensTab = lazy(() => import("@/components/settings/TokensTab"));
+
+// Loading component for Suspense fallback
+const TabLoading = () => (
+  <div className="flex flex-col items-center justify-center p-8 min-h-[300px]">
+    <Loader2 className="h-8 w-8 mb-4 animate-spin text-primary" />
+    <p className="text-muted-foreground text-sm">Carregando...</p>
+  </div>
+);
 
 export default function Settings() {
   const { isSuper } = useAuth();
+  const [activeTab, setActiveTab] = useState<string>(isSuper ? "users" : "clients");
 
   return (
     <div className="container mx-auto py-6 space-y-8">
@@ -21,7 +33,7 @@ export default function Settings() {
         </p>
       </div>
       
-      <Tabs defaultValue={isSuper ? "users" : "clients"}>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           {/* Mostrar a aba Usuários apenas para super admins */}
           {isSuper && <TabsTrigger value="users">Usuários</TabsTrigger>}
@@ -35,33 +47,45 @@ export default function Settings() {
         {/* Visível apenas para super admin */}
         {isSuper && (
           <TabsContent value="users">
-            <UsersTab />
+            <Suspense fallback={<TabLoading />}>
+              <UsersTab />
+            </Suspense>
           </TabsContent>
         )}
         
         {/* Clients Tab */}
         <TabsContent value="clients">
-          <ClientsTab />
+          <Suspense fallback={<TabLoading />}>
+            <ClientsTab />
+          </Suspense>
         </TabsContent>
 
-        {/* Tokens Tab (nova) */}
+        {/* Tokens Tab */}
         <TabsContent value="tokens">
-          <TokensTab />
+          <Suspense fallback={<TabLoading />}>
+            <TokensTab />
+          </Suspense>
         </TabsContent>
         
         {/* Time Restrictions Tab */}
         <TabsContent value="time-restrictions">
-          <TimeRestrictionsTab />
+          <Suspense fallback={<TabLoading />}>
+            <TimeRestrictionsTab />
+          </Suspense>
         </TabsContent>
         
         {/* Tags Tab */}
         <TabsContent value="tags">
-          <TagsTab />
+          <Suspense fallback={<TabLoading />}>
+            <TagsTab />
+          </Suspense>
         </TabsContent>
 
         {/* General Settings Tab */}
         <TabsContent value="general">
-          <GeneralTab />
+          <Suspense fallback={<TabLoading />}>
+            <GeneralTab />
+          </Suspense>
         </TabsContent>
       </Tabs>
     </div>
