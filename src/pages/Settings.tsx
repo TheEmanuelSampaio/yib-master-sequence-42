@@ -4,13 +4,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/context/AuthContext";
 import { Loader2 } from "lucide-react";
 
-// Lazy load tab components - fix imports to use default exports
-const UsersTab = lazy(() => import("@/components/settings/UsersTab").then(module => ({ default: module })));
-const ClientsTab = lazy(() => import("@/components/settings/ClientsTab").then(module => ({ default: module })));
-const TimeRestrictionsTab = lazy(() => import("@/components/settings/TimeRestrictionsTab").then(module => ({ default: module })));
-const TagsTab = lazy(() => import("@/components/settings/TagsTab").then(module => ({ default: module })));
-const GeneralTab = lazy(() => import("@/components/settings/GeneralTab").then(module => ({ default: module })));
-const TokensTab = lazy(() => import("@/components/settings/TokensTab").then(module => ({ default: module })));
+// Lazy load tab components
+const UsersTab = lazy(() => import("@/components/settings/UsersTab"));
+const ClientsTab = lazy(() => import("@/components/settings/ClientsTab"));
+const TimeRestrictionsTab = lazy(() => import("@/components/settings/TimeRestrictionsTab"));
+const TagsTab = lazy(() => import("@/components/settings/TagsTab"));
+const GeneralTab = lazy(() => import("@/components/settings/GeneralTab"));
+const TokensTab = lazy(() => import("@/components/settings/TokensTab"));
 
 // Loading component for Suspense fallback
 const TabLoading = () => (

@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,7 +7,7 @@ import { Tag, Trash2 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { toast } from "sonner";
 
-export const TagsTab = () => {
+const TagsTab = () => {
   const { tags, addTag, deleteTag } = useApp();
   const [newTagName, setNewTagName] = useState("");
 
@@ -94,3 +93,5 @@ export const TagsTab = () => {
     </Card>
   );
 };
+
+export default TagsTab;

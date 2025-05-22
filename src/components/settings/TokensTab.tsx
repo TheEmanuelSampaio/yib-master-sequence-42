@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,7 +8,7 @@ import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
-export const TokensTab = () => {
+const TokensTab = () => {
   const { user, updateUser } = useAuth();
   const [showToken, setShowToken] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -159,3 +158,5 @@ export const TokensTab = () => {
     </Card>
   );
 };
+
+export default TokensTab;

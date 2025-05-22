@@ -1,8 +1,7 @@
-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 
-export const GeneralTab = () => {
+const GeneralTab = () => {
   return (
     <Card className="mt-6">
       <CardHeader>
@@ -55,3 +54,5 @@ export const GeneralTab = () => {
     </Card>
   );
 };
+
+export default GeneralTab;
