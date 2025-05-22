@@ -14,76 +14,115 @@ export const MainLayout = () => {
   const location = useLocation();
   const refreshInProgressRef = useRef(false);
   const lastRefreshTimestampRef = useRef(0);
+  const lastRoutePathRef = useRef("");
   
-  // Implement a better data loading strategy with debounce mechanism
-  const safeRefreshData = useCallback(async () => {
-    const now = Date.now();
-    // Prevent refresh if one is already in progress
-    if (refreshInProgressRef.current) {
-      console.log("Refresh already in progress, skipping...");
-      return;
+  // Get the main route path (first segment)
+  const getMainRoutePath = useCallback(() => {
+    return `/${location.pathname.split('/')[1]}`;
+  }, [location.pathname]);
+  
+  // Determine if we should refresh based on route change
+  const shouldRefreshOnRouteChange = useCallback((newPath) => {
+    if (!isDataInitialized) return true;
+    
+    // Skip refresh for these routes
+    const skipRefreshRoutes = ['/debug'];
+    if (skipRefreshRoutes.includes(newPath)) {
+      console.log(`[MainLayout] Skipping refresh for ${newPath}`);
+      return false;
     }
     
-    // Debounce refreshes (no more than once every 3 seconds)
-    if (now - lastRefreshTimestampRef.current < 3000 && isDataInitialized) {
-      console.log("Debounced refresh - too soon since last refresh");
-      return;
+    // Avoid unnecessary refreshes when navigating between tabs on the same page
+    if (newPath === lastRoutePathRef.current) {
+      console.log(`[MainLayout] Staying on same main route: ${newPath}, no refresh needed`);
+      return false;
+    }
+    
+    // If moving to a data-intensive route, refresh
+    const dataIntensiveRoutes = ['/contacts', '/sequences', '/messages', '/dashboard'];
+    if (dataIntensiveRoutes.includes(newPath)) {
+      console.log(`[MainLayout] Moving to data-intensive route: ${newPath}, refresh needed`);
+      return true;
+    }
+    
+    return true;
+  }, [isDataInitialized]);
+  
+  // Enhanced safeRefreshData with scope parameter and better throttling
+  const safeRefreshData = useCallback(async (scope = "all") => {
+    // Prevent concurrent refreshes
+    if (refreshInProgressRef.current) {
+      console.log(`[MainLayout] Refresh already in progress, skipping... (scope: ${scope})`);
+      return false;
+    }
+    
+    const now = Date.now();
+    // Implement a more aggressive throttling for repeated calls
+    const minDelay = scope === "all" ? 5000 : 3000;
+    if (now - lastRefreshTimestampRef.current < minDelay && isDataInitialized) {
+      console.log(`[MainLayout] Throttled refresh - too soon since last refresh (${now - lastRefreshTimestampRef.current}ms < ${minDelay}ms)`);
+      return false;
     }
     
     try {
-      console.log("MainLayout - Safe refresh triggered from route:", location.pathname);
+      console.log(`[MainLayout] Refresh triggered from route: ${location.pathname} with scope: ${scope}`);
       refreshInProgressRef.current = true;
       lastRefreshTimestampRef.current = now;
-      await refreshData();
+      await refreshData(scope);
+      return true;
     } catch (error) {
-      console.error("Error refreshing data:", error);
+      console.error("[MainLayout] Error refreshing data:", error);
+      return false;
     } finally {
-      refreshInProgressRef.current = false;
+      // Add a small delay before allowing another refresh to prevent rapid successive calls
+      setTimeout(() => {
+        refreshInProgressRef.current = false;
+      }, 500);
     }
   }, [refreshData, isDataInitialized, location.pathname]);
   
-  // Route-based data loading with reduced dependencies
+  // Route-based data loading with smarter route change detection
   useEffect(() => {
+    const mainRoutePath = getMainRoutePath();
+    
     if (!isDataInitialized) {
-      console.log("Initial data load on first render");
-      safeRefreshData();
+      console.log("[MainLayout] Initial data load");
+      safeRefreshData("all");
       return;
     }
     
-    // Only refresh data on major route changes if already initialized
-    // We extract the main route path to avoid refreshing on subroute changes
-    const mainRoutePath = `/${location.pathname.split('/')[1]}`;
-    console.log(`Route changed to ${mainRoutePath}, considering refresh if needed`);
-    
-    // Skip refresh for debug routes or if we just loaded data recently
-    const skipRefreshRoutes = ['/debug'];
-    if (skipRefreshRoutes.includes(mainRoutePath)) {
-      console.log("Skipping refresh for route:", mainRoutePath);
-      return;
+    if (shouldRefreshOnRouteChange(mainRoutePath)) {
+      console.log(`[MainLayout] Route changed from ${lastRoutePathRef.current} to ${mainRoutePath}, refreshing`);
+      
+      // Determine what data to load based on the route
+      let scope = "all";
+      if (mainRoutePath === "/contacts") scope = "contacts";
+      else if (mainRoutePath === "/sequences") scope = "sequences";
+      else if (mainRoutePath === "/messages") scope = "messages";
+      else if (mainRoutePath === "/settings") scope = "settings";
+      
+      safeRefreshData(scope);
     }
     
-    safeRefreshData();
-  }, [location.pathname, safeRefreshData, isDataInitialized]);
+    // Update the last route path
+    lastRoutePathRef.current = mainRoutePath;
+  }, [getMainRoutePath, safeRefreshData, isDataInitialized, shouldRefreshOnRouteChange]);
   
   // Debug logging with reduced frequency
   useEffect(() => {
-    console.log("MainLayout rendering with currentInstance:", 
-      currentInstance ? currentInstance.name : "none");
+    if (currentInstance) {
+      console.log("[MainLayout] Current instance:", currentInstance.name);
+    }
     
-    // Log application info less frequently
-    const logAppInfo = () => {
+    // Only log detailed app info on initial render
+    if (!isDataInitialized) {
       console.log("Application info:", {
-        version: "1.0.3",
+        version: "1.0.4",
         mode: process.env.NODE_ENV,
         routePath: location.pathname,
         dataInitialized: isDataInitialized,
         lastBuildTime: new Date().toISOString()
       });
-    };
-    
-    // Only log detailed app info on initial render
-    if (!isDataInitialized) {
-      logAppInfo();
     }
   }, [currentInstance, location.pathname, isDataInitialized]);
   

@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useApp } from '@/context/AppContext';
 import { useAuth } from '@/context/AuthContext';
 import { Search, User, Filter } from "lucide-react";
@@ -24,7 +24,21 @@ import { ContactStageChangeDialog } from "@/components/contacts/ContactStageChan
 import { ContactSequencesDialog } from "@/components/contacts/ContactSequencesDialog";
 
 export default function Contacts() {
-  const { contacts, sequences, contactSequences, clients, users, deleteContact, updateContact, removeFromSequence, updateContactSequence, refreshData } = useApp();
+  console.log("[Contacts] Render start");
+  const { 
+    contacts, 
+    sequences, 
+    contactSequences, 
+    clients, 
+    users, 
+    deleteContact, 
+    updateContact, 
+    removeFromSequence, 
+    updateContactSequence,
+    refreshData,
+    isLoading: globalLoading
+  } = useApp();
+
   const { isSuper } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
@@ -39,16 +53,18 @@ export default function Contacts() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [clientFilter, setClientFilter] = useState<string>("");
   const [adminFilter, setAdminFilter] = useState<string>("");
+  const [lastRefreshTime, setLastRefreshTime] = useState(0);
+  const [localLoading, setLocalLoading] = useState(false);
   
-  // Helper function to get contact sequences
-  const getContactSequences = (contactId: string) => {
+  // Helper function to get contact sequences - memoized for better performance
+  const getContactSequences = useCallback((contactId: string) => {
     return contactSequences.filter(seq => seq.contactId === contactId);
-  };
+  }, [contactSequences]);
   
-  // Apply all filters to contacts
-  const applyFilters = (contacts: Contact[]) => {
+  // Apply all filters to contacts - memoized to prevent recomputation on every render
+  const applyFilters = useCallback((contactsList: Contact[]) => {
     // First apply text search
-    let filtered = contacts.filter(contact =>
+    let filtered = contactsList.filter(contact =>
       contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       contact.phoneNumber.includes(searchQuery) ||
       contact.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -65,19 +81,25 @@ export default function Contacts() {
     }
     
     return filtered;
-  };
+  }, [searchQuery, clientFilter, adminFilter, isSuper]);
   
-  // Apply filters to get filtered contacts
-  const filteredContacts = applyFilters(contacts);
+  // Memoized filtered contacts
+  const filteredContacts = useMemo(() => {
+    console.log("[Contacts] Recalculating filtered contacts");
+    return applyFilters(contacts);
+  }, [contacts, applyFilters]);
   
-  // Active contacts have at least one active sequence
-  const activeContacts = filteredContacts.filter(contact => {
-    const sequences = getContactSequences(contact.id);
-    return sequences.some(seq => seq.status === 'active');
-  });
+  // Memoized active contacts
+  const activeContacts = useMemo(() => {
+    console.log("[Contacts] Recalculating active contacts");
+    return filteredContacts.filter(contact => {
+      const sequences = getContactSequences(contact.id);
+      return sequences.some(seq => seq.status === 'active');
+    });
+  }, [filteredContacts, getContactSequences]);
   
-  // Function to get contact's sequence data
-  const getContactSequenceDetails = (contactId: string) => {
+  // Function to get contact's sequence data - memoized
+  const getContactSequenceDetails = useCallback((contactId: string) => {
     const sequences = getContactSequences(contactId);
     return {
       active: sequences.filter(seq => seq.status === 'active').length,
@@ -85,110 +107,173 @@ export default function Contacts() {
       removed: sequences.filter(seq => seq.status === 'removed').length,
       total: sequences.length
     };
-  };
+  }, [getContactSequences]);
   
   // Reset filters
-  const resetFilters = () => {
+  const resetFilters = useCallback(() => {
     setClientFilter("");
     setAdminFilter("");
-  };
+  }, []);
+  
+  // Safe refresh function with throttling
+  const safeRefreshContacts = useCallback(async () => {
+    const now = Date.now();
+    // Ensure we don't refresh too often (at least 3 seconds between refreshes)
+    if (now - lastRefreshTime < 3000) {
+      console.log("[Contacts] Throttling refresh request");
+      return;
+    }
+    
+    console.log("[Contacts] Refreshing contacts data");
+    setLocalLoading(true);
+    setLastRefreshTime(now);
+    
+    try {
+      await refreshData("contacts");
+    } catch (error) {
+      console.error("[Contacts] Error refreshing contact data:", error);
+    } finally {
+      setLocalLoading(false);
+    }
+  }, [refreshData, lastRefreshTime]);
   
   // View contact sequences
-  const handleViewSequences = (contact: Contact) => {
+  const handleViewSequences = useCallback((contact: Contact) => {
     setSelectedContact(contact);
     setShowSequences(true);
-  };
+  }, []);
   
   // Preparar edição do contato
-  const handlePrepareEdit = (contact: Contact) => {
+  const handlePrepareEdit = useCallback((contact: Contact) => {
     setContactToEdit(contact);
     setEditName(contact.name);
     setEditPhone(contact.phoneNumber);
     setShowEditDialog(true);
-  };
+  }, []);
   
   // Salvar edição do contato
-  const handleSaveEdit = async () => {
+  const handleSaveEdit = useCallback(async () => {
     if (!contactToEdit) return;
     
     setIsProcessing(true);
     
-    const result = await updateContact(contactToEdit.id, {
-      name: editName,
-      phoneNumber: editPhone
-    });
-    
-    if (result.success) {
-      toast.success("Contato atualizado com sucesso");
-      refreshData();
-      setShowEditDialog(false);
-    } else {
-      toast.error(result.error || "Erro ao atualizar contato");
+    try {
+      const result = await updateContact(contactToEdit.id, {
+        name: editName,
+        phoneNumber: editPhone
+      });
+      
+      if (result.success) {
+        toast.success("Contato atualizado com sucesso");
+        setShowEditDialog(false);
+        
+        // Update local state instead of full refresh
+        // Only refresh on failure
+      } else {
+        toast.error(result.error || "Erro ao atualizar contato");
+        // Only refresh on failure
+        safeRefreshContacts();
+      }
+    } catch (error) {
+      console.error("[Contacts] Error updating contact:", error);
+      toast.error("Erro ao atualizar contato");
+    } finally {
+      setIsProcessing(false);
     }
-    
-    setIsProcessing(false);
-  };
+  }, [contactToEdit, editName, editPhone, updateContact, safeRefreshContacts]);
   
   // Excluir contato
-  const handleDeleteContact = async (contactId: string) => {
+  const handleDeleteContact = useCallback(async (contactId: string) => {
     setIsProcessing(true);
     
-    const result = await deleteContact(contactId);
-    
-    if (result.success) {
-      toast.success("Contato excluído com sucesso");
-      refreshData();
-    } else {
-      toast.error(result.error || "Erro ao excluir contato");
+    try {
+      const result = await deleteContact(contactId);
+      
+      if (result.success) {
+        toast.success("Contato excluído com sucesso");
+        // Let the delete operation update the context state
+        // Don't call refreshData() here
+      } else {
+        toast.error(result.error || "Erro ao excluir contato");
+        safeRefreshContacts(); // Only refresh on failure
+      }
+    } catch (error) {
+      console.error("[Contacts] Error deleting contact:", error);
+      toast.error("Erro ao excluir contato");
+    } finally {
+      setIsProcessing(false);
     }
-    
-    setIsProcessing(false);
-  };
+  }, [deleteContact, safeRefreshContacts]);
   
   // Remover contato de uma sequência
-  const handleRemoveFromSequence = async (contactSequenceId: string) => {
+  const handleRemoveFromSequence = useCallback(async (contactSequenceId: string) => {
     setIsProcessing(true);
     
-    const result = await removeFromSequence(contactSequenceId);
-    
-    if (result.success) {
-      toast.success("Contato removido da sequência com sucesso");
-      refreshData();
-      setShowSequences(false); // Fechar o modal
-    } else {
-      toast.error(result.error || "Erro ao remover contato da sequência");
+    try {
+      const result = await removeFromSequence(contactSequenceId);
+      
+      if (result.success) {
+        toast.success("Contato removido da sequência com sucesso");
+        setShowSequences(false); // Fechar o modal
+        // Let the remove operation update the context state
+        // Don't call refreshData() here
+      } else {
+        toast.error(result.error || "Erro ao remover contato da sequência");
+        safeRefreshContacts(); // Only refresh on failure
+      }
+    } catch (error) {
+      console.error("[Contacts] Error removing contact from sequence:", error);
+      toast.error("Erro ao remover contato da sequência");
+    } finally {
+      setIsProcessing(false);
     }
-    
-    setIsProcessing(false);
-  };
+  }, [removeFromSequence, safeRefreshContacts]);
   
   // Preparar mudança de estágio
-  const handlePrepareStageChange = (contactSequence: ContactSequence) => {
+  const handlePrepareStageChange = useCallback((contactSequence: ContactSequence) => {
     setSelectedContactSequence(contactSequence);
     setSelectedStageId(contactSequence.currentStageId || '');
     setShowStageChangeDialog(true);
-  };
+  }, []);
   
   // Salvar mudança de estágio
-  const handleSaveStageChange = async () => {
+  const handleSaveStageChange = useCallback(async () => {
     if (!selectedContactSequence || !selectedStageId) return;
     
     setIsProcessing(true);
     
-    const result = await updateContactSequence(selectedContactSequence.id, {
-      currentStageId: selectedStageId
-    });
-    
-    if (result.success) {
-      toast.success("Estágio atualizado com sucesso e mensagens reagendadas");
-      refreshData();
-      setShowStageChangeDialog(false);
-    } else {
-      toast.error(result.error || "Erro ao atualizar estágio");
+    try {
+      const result = await updateContactSequence(selectedContactSequence.id, {
+        currentStageId: selectedStageId
+      });
+      
+      if (result.success) {
+        toast.success("Estágio atualizado com sucesso e mensagens reagendadas");
+        setShowStageChangeDialog(false);
+        // Let the update operation handle state changes
+        // Don't call refreshData() here
+      } else {
+        toast.error(result.error || "Erro ao atualizar estágio");
+        safeRefreshContacts(); // Only refresh on failure
+      }
+    } catch (error) {
+      console.error("[Contacts] Error updating stage:", error);
+      toast.error("Erro ao atualizar estágio");
+    } finally {
+      setIsProcessing(false);
     }
-    
-    setIsProcessing(false);
-  };
+  }, [selectedContactSequence, selectedStageId, updateContactSequence, safeRefreshContacts]);
+  
+  // Only refresh on initial mount or when explicitly needed - avoids multiple loading loops
+  useEffect(() => {
+    console.log("[Contacts] Component mounted or reloaded");
+    // Do not call refreshData here - rely on the MainLayout to load initial data
+  }, []);
+  
+  // Determine if loading is needed
+  const isLoadingData = globalLoading || localLoading;
+
+  console.log("[Contacts] Render complete");
 
   return (
     <div className="space-y-6">
@@ -294,7 +379,7 @@ export default function Contacts() {
                 onViewSequences={handleViewSequences}
                 onPrepareEdit={handlePrepareEdit}
                 onDeleteContact={handleDeleteContact}
-                isProcessing={isProcessing}
+                isProcessing={isProcessing || isLoadingData}
                 showClientColumn={true}
                 showAdminColumn={isSuper}
               />
@@ -317,7 +402,7 @@ export default function Contacts() {
                 onViewSequences={handleViewSequences}
                 onPrepareEdit={handlePrepareEdit}
                 onDeleteContact={handleDeleteContact}
-                isProcessing={isProcessing}
+                isProcessing={isProcessing || isLoadingData}
                 showClientColumn={true}
                 showAdminColumn={isSuper}
               />
