@@ -219,7 +219,7 @@ export function ContactProvider({ children, pageSize = 10 }: { children: ReactNo
             stageProgress: (progressData || []).map(progress => ({
               id: progress.id,
               stageId: progress.stage_id,
-              status: progress.status,
+              status: progress.status as "removed" | "completed" | "pending" | "skipped",
               completedAt: progress.completed_at,
             })),
           };
