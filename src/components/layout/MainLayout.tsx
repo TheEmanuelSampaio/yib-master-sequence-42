@@ -7,23 +7,28 @@ import { Outlet } from "react-router-dom";
 import { ContextDebugger } from "../debug/ContextDebugger";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/context/AppContext";
+import { Skeleton } from "../ui/skeleton";
 
 export const MainLayout = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const { currentInstance } = useApp();
+  const { currentInstance, isDataInitialized } = useApp();
   
-  // Add debugging log to track when MainLayout renders and what the current instance is
+  // Add debounced effect for logging to prevent excessive re-renders
   useEffect(() => {
-    console.log("MainLayout rendering with currentInstance:", 
-      currentInstance ? currentInstance.name : "none");
+    const timer = setTimeout(() => {
+      console.log("MainLayout rendering with currentInstance:", 
+        currentInstance ? currentInstance.name : "none");
+      
+      console.log("Application info:", {
+        version: "1.0.3", // Updated version number
+        mode: process.env.NODE_ENV,
+        initialized: isDataInitialized,
+        lastBuildTime: new Date().toISOString()
+      });
+    }, 100);
     
-    // Log application version to help with debugging
-    console.log("Application info:", {
-      version: "1.0.2", // Updated version number
-      mode: process.env.NODE_ENV,
-      lastBuildTime: new Date().toISOString()
-    });
-  }, [currentInstance]);
+    return () => clearTimeout(timer);
+  }, [currentInstance, isDataInitialized]);
   
   const toggleSidebar = () => {
     setSidebarCollapsed(!sidebarCollapsed);
@@ -40,7 +45,19 @@ export const MainLayout = () => {
       >
         <Header sidebarCollapsed={sidebarCollapsed} />
         <main className="flex-1 p-4 md:p-8 pt-0 md:pt-0 overflow-y-auto">
-          <Outlet />
+          {!isDataInitialized ? (
+            <div className="space-y-4 p-4">
+              <Skeleton className="h-8 w-1/3" />
+              <Skeleton className="h-4 w-1/2" />
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
+                {[...Array(6)].map((_, i) => (
+                  <Skeleton key={i} className="h-48 rounded-lg" />
+                ))}
+              </div>
+            </div>
+          ) : (
+            <Outlet />
+          )}
         </main>
         <Toaster />
         <ContextDebugger />

@@ -8,9 +8,13 @@ import { TimeRestrictionsTab } from "@/components/settings/TimeRestrictionsTab";
 import { TagsTab } from "@/components/settings/TagsTab";
 import { GeneralTab } from "@/components/settings/GeneralTab";
 import { TokensTab } from "@/components/settings/TokensTab";
+import { useRouteDataFetchers, usePagedData } from "@/hooks/useRouteData";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
 
 export default function Settings() {
   const { isSuper } = useAuth();
+  const [activeTab, setActiveTab] = useState<string>(isSuper ? "users" : "clients");
 
   return (
     <div className="container mx-auto py-6 space-y-8">
@@ -21,7 +25,7 @@ export default function Settings() {
         </p>
       </div>
       
-      <Tabs defaultValue={isSuper ? "users" : "clients"}>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           {/* Mostrar a aba Usuários apenas para super admins */}
           {isSuper && <TabsTrigger value="users">Usuários</TabsTrigger>}
@@ -44,7 +48,7 @@ export default function Settings() {
           <ClientsTab />
         </TabsContent>
 
-        {/* Tokens Tab (nova) */}
+        {/* Tokens Tab */}
         <TabsContent value="tokens">
           <TokensTab />
         </TabsContent>

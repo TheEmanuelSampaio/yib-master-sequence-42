@@ -2,12 +2,13 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/context/AuthContext";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { AppProvider } from "@/context/AppContext";
+import { queryClient } from "@/lib/queryClient";
 
 // Pages
 import Dashboard from "./pages/Dashboard";
@@ -24,15 +25,6 @@ import Login from "./pages/Login";
 // Auth components
 import { RequireAuth } from "./components/auth/RequireAuth";
 import { RequireSetup } from "./components/auth/RequireSetup";
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      refetchOnWindowFocus: false,
-    },
-  },
-});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
