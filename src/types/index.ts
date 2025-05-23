@@ -354,3 +354,8 @@ export interface Database {
     };
   };
 }
+
+export interface AppContextType {
+  loadSequencesData: () => Promise<void>;
+  isSequencesLoading: boolean;
+}
