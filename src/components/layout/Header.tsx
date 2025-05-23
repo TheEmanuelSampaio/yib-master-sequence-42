@@ -27,11 +27,33 @@ interface HeaderProps {
 
 export function Header({ sidebarCollapsed }: HeaderProps) {
   const { user, logout } = useAuth();
-  const { instances, currentInstance, setCurrentInstance, refreshData, isDataInitialized } = useApp();
+  const { currentInstance, setCurrentInstance, refreshBasicData } = useApp();
   const [selectedInstanceId, setSelectedInstanceId] = useState<string>("");
+  const [instances, setInstances] = useState([]);
 
-//heeeeeeeeere
+  // Load instances from local storage or fetch them
+  useEffect(() => {
+    const fetchInstances = async () => {
+      if (user) {
+        try {
+          // Using the refreshBasicData to properly load instances
+          await refreshBasicData();
+          // We're not directly setting instances here as they will be available via AppContext
+        } catch (error) {
+          console.error("Error loading instances:", error);
+        }
+      }
+    };
+    
+    fetchInstances();
+  }, [user, refreshBasicData]);
 
+  // When currentInstance changes, update the selected instance ID
+  useEffect(() => {
+    if (currentInstance) {
+      setSelectedInstanceId(currentInstance.id);
+    }
+  }, [currentInstance]);
   
   const handleInstanceChange = (instanceId: string) => {
     console.log("Header - Instance selected manually:", instanceId);
@@ -41,6 +63,7 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
       setSelectedInstanceId(instanceId);
     }
   };
+  
   // Caso não tenha user ou instâncias carregadas, mostrar versão simplificada
   const hasInstances = Array.isArray(instances) && instances.length > 0;
   
