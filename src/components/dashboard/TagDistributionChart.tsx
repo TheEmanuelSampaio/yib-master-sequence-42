@@ -9,17 +9,11 @@ export function TagDistributionChart() {
   // Count tag occurrences
   const tagCounts: Record<string, number> = {};
   
-  // Add null checks to prevent errors
-  if (contacts && Array.isArray(contacts)) {
-    contacts.forEach(contact => {
-      // Check if contact.tags exists and is an array before iterating
-      if (contact && contact.tags && Array.isArray(contact.tags)) {
-        contact.tags.forEach(tag => {
-          tagCounts[tag] = (tagCounts[tag] || 0) + 1;
-        });
-      }
+  contacts.forEach(contact => {
+    contact.tags.forEach(tag => {
+      tagCounts[tag] = (tagCounts[tag] || 0) + 1;
     });
-  }
+  });
 
   // Convert to chart data format and sort by count
   const chartData = Object.entries(tagCounts)
