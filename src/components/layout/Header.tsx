@@ -30,8 +30,6 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
   const { instances, currentInstance, setCurrentInstance, refreshData, isDataInitialized } = useApp();
   const [selectedInstanceId, setSelectedInstanceId] = useState<string>("");
 
-//heeeeeeeeeeeeeeeere
-
   // Update local state when currentInstance changes
   useEffect(() => {
     if (currentInstance?.id) {
@@ -44,10 +42,9 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
     console.log("Header - Instance selected manually:", instanceId);
     const instance = instances?.find(inst => inst.id === instanceId);
     if (instance) {
-      setCurrentInstance(instance);
+      setCurrentInstance(instance); // This already saves to localStorage via AppContext
       setSelectedInstanceId(instanceId);
-      // Save selected instance ID to localStorage
-      localStorage.setItem('selectedInstanceId', instance.id);
+      // Removed redundant localStorage save
     }
   };
 
