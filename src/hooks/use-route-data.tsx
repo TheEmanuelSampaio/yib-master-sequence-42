@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { useLocation } from "react-router-dom";
 
-export type DataType = 
+// Renamed to RouteDataType to avoid type conflicts
+export type RouteDataType = 
   | "clients" 
   | "instances" 
   | "sequences" 
@@ -15,7 +16,7 @@ export type DataType =
 
 interface RouteDataConfig {
   path: string;
-  dataTypes: DataType[];
+  dataTypes: RouteDataType[];
 }
 
 // Define which data types should be loaded for each route
@@ -33,22 +34,28 @@ export function useRouteData() {
   const { pathname } = useLocation();
   const { refreshData, isDataInitialized } = useApp();
   const [isLoading, setIsLoading] = useState(!isDataInitialized);
-  const [loadingType, setLoadingType] = useState<DataType | null>(null);
+  const [loadingType, setLoadingType] = useState<RouteDataType | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
       // Find the config for the current route
       const config = routeConfigs.find(conf => pathname.startsWith(conf.path)) || 
-                    { path: pathname, dataTypes: ["all"] as DataType[] };
+                    { path: pathname, dataTypes: ["all"] as RouteDataType[] };
       
       setIsLoading(true);
-      setLoadingType(config.dataTypes.includes("all" as DataType) ? "all" as DataType : config.dataTypes[0]);
+      setLoadingType(config.dataTypes.includes("all") ? "all" : config.dataTypes[0]);
       
       // Load the required data for this route
       try {
-        // Use a type assertion to ensure compatibility
-        const dataTypes = config.dataTypes.includes("all" as DataType) ? undefined : config.dataTypes;
-        await refreshData(dataTypes);
+        // Map RouteDataType to the expected DataType from AppContext
+        // If "all" is included, pass undefined to refresh all data
+        if (config.dataTypes.includes("all")) {
+          await refreshData();
+        } else {
+          // Convert our route data types to match what AppContext expects
+          const typesToRefresh = config.dataTypes.filter(t => t !== "all");
+          await refreshData(typesToRefresh);
+        }
       } finally {
         setIsLoading(false);
         setLoadingType(null);
