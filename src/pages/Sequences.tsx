@@ -40,33 +40,23 @@ import { Sequence } from "@/types";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
-import { Spinner } from '@/components/layout/Spinner';
+import { isValidUUID } from "@/integrations/supabase/client";
 
 export default function Sequences() {
-  const { 
-    sequences, 
-    currentInstance, 
-    addSequence, 
-    updateSequence, 
-    deleteSequence, 
-    loadSequencesData, 
-    isSequencesLoading,
-    isDataInitialized
-  } = useApp();
-  
+  const { sequences, currentInstance, addSequence, updateSequence, deleteSequence, refreshData, isDataInitialized } = useApp();
   const [isCreateMode, setIsCreateMode] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [currentSequence, setCurrentSequence] = useState<Sequence | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   
-  // Carregar sequências quando a página é montada ou currentInstance muda
+  // Fetch data only if not initialized yet
   useEffect(() => {
-    if (currentInstance && isDataInitialized) {
-      console.log("Sequences page - carregando dados de sequências específicos");
-      loadSequencesData();
+    if (!isDataInitialized && currentInstance) {
+      console.log("Sequences page - loading initial data");
+      refreshData();
     }
-  }, [currentInstance, loadSequencesData, isDataInitialized]);
+  }, [refreshData, currentInstance, isDataInitialized]);
   
   const instanceSequences = sequences
     .filter(seq => seq.instanceId === currentInstance?.id)
@@ -179,15 +169,6 @@ export default function Sequences() {
     setHasUnsavedChanges(false);
   };
 
-  if (isSequencesLoading && sequences.length === 0) {
-    return (
-      <div className="flex h-[50vh] items-center justify-center">
-        <Spinner size="lg" />
-        <span className="ml-2 text-muted-foreground">Carregando sequências...</span>
-      </div>
-    );
-  }
-  
   if (isCreateMode) {
     return (
       <div className="space-y-6">
@@ -257,13 +238,6 @@ export default function Sequences() {
             <Search className="h-4 w-4" />
           </Button>
         </div>
-        
-        {isSequencesLoading && (
-          <div className="flex items-center text-sm text-muted-foreground">
-            <Spinner size="sm" className="mr-2" />
-            Atualizando...
-          </div>
-        )}
         
         <Button onClick={() => setIsCreateMode(true)}>
           <PlusCircle className="h-4 w-4 mr-2" />
