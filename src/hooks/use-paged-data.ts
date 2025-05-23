@@ -36,7 +36,7 @@ export function usePagedData<T>({
     try {
       // Fetch the total count
       const countQuery = supabase
-        .from(tableName)
+        .from(tableName as any)
         .select('id', { count: 'exact', head: true });
       
       // Apply filters to count query
@@ -57,7 +57,7 @@ export function usePagedData<T>({
       
       // Fetch the paginated data
       let query = supabase
-        .from(tableName)
+        .from(tableName as any)
         .select(`${select}${relationships ? `, ${relationships}` : ''}`)
         .order(orderBy.column, { ascending: !!orderBy.ascending })
         .range((page - 1) * pageSize, page * pageSize - 1);

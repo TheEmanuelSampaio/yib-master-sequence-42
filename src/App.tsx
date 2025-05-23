@@ -35,9 +35,9 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <InstanceProvider>
-            <AppProvider>
-              <ContactProvider>
-                <SequenceProvider>
+            <ContactProvider>
+              <SequenceProvider>
+                <AppProvider>
                   <TooltipProvider>
                     <Routes>
                       {/* Auth Routes */}
@@ -61,9 +61,9 @@ const App = () => (
                     <Toaster />
                     <Sonner />
                   </TooltipProvider>
-                </SequenceProvider>
-              </ContactProvider>
-            </AppProvider>
+                </AppProvider>
+              </SequenceProvider>
+            </ContactProvider>
           </InstanceProvider>
         </AuthProvider>
       </BrowserRouter>

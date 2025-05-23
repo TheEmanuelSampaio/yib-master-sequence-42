@@ -160,9 +160,14 @@ export function ContactProvider({ children, pageSize = 10 }: { children: ReactNo
     }
   ): Promise<{ success: boolean; error?: string }> => {
     try {
+      const updateData: any = {};
+      
+      if (data.sequenceId) updateData.sequence_id = data.sequenceId;
+      if (data.currentStageId) updateData.current_stage_id = data.currentStageId;
+      
       const { error } = await supabase
         .from("contact_sequences")
-        .update(data)
+        .update(updateData)
         .eq("id", contactSequenceId);
 
       if (error) throw error;
@@ -206,7 +211,7 @@ export function ContactProvider({ children, pageSize = 10 }: { children: ReactNo
             sequenceId: seq.sequence_id,
             currentStageId: seq.current_stage_id,
             currentStageIndex: seq.current_stage_index,
-            status: seq.status,
+            status: seq.status as "active" | "removed" | "completed" | "paused" | "stopped",
             startedAt: seq.started_at,
             completedAt: seq.completed_at,
             lastMessageAt: seq.last_message_at,
