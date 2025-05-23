@@ -1,80 +1,8 @@
-import { useEffect, useState } from "react";
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { useToast } from "@/components/ui/use-toast";
-import { Skeleton } from "@/components/ui/skeleton";
 
 export const GeneralTab = () => {
-  const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(true);
-  const [settings, setSettings] = useState({
-    requireReview: false,
-    emailNotifications: false,
-    autoDarkTheme: true,
-    safeMode: true
-  });
-
-  // Simulate loading settings
-  useEffect(() => {
-    const loadSettings = async () => {
-      setIsLoading(true);
-      
-      try {
-        // Simulate API request
-        await new Promise(resolve => setTimeout(resolve, 300));
-        
-        // In a real implementation, you would fetch settings from Supabase
-        // For now, we'll just use some default values
-        setSettings({
-          requireReview: false,
-          emailNotifications: false,
-          autoDarkTheme: true,
-          safeMode: true
-        });
-      } catch (error) {
-        console.error("Error loading settings:", error);
-        toast.error("Não foi possível carregar as configurações");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    loadSettings();
-  }, [toast]);
-  
-  const handleSettingChange = (setting: keyof typeof settings) => {
-    setSettings(prev => {
-      const newSettings = { ...prev, [setting]: !prev[setting] };
-      
-      // In a real implementation, you would save changes to Supabase here
-      toast.success(`${setting} foi ${newSettings[setting] ? "ativado" : "desativado"}.`);
-      
-      return newSettings;
-    });
-  };
-
-  if (isLoading) {
-    return (
-      <Card className="mt-6">
-        <CardHeader>
-          <Skeleton className="h-6 w-1/3" />
-          <Skeleton className="h-4 w-2/3" />
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {Array(4).fill(0).map((_, i) => (
-            <div key={i} className="flex items-center justify-between">
-              <div>
-                <Skeleton className="h-5 w-32 mb-1" />
-                <Skeleton className="h-4 w-48" />
-              </div>
-              <Skeleton className="h-6 w-12" />
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
     <Card className="mt-6">
       <CardHeader>
@@ -91,11 +19,7 @@ export const GeneralTab = () => {
               Exigir revisão manual antes de enviar mensagens
             </p>
           </div>
-          <Switch 
-            id="require-review" 
-            checked={settings.requireReview}
-            onCheckedChange={() => handleSettingChange('requireReview')}
-          />
+          <Switch id="require-review" />
         </div>
         
         <div className="flex items-center justify-between">
@@ -105,11 +29,7 @@ export const GeneralTab = () => {
               Enviar notificações por email
             </p>
           </div>
-          <Switch 
-            id="email-notifications" 
-            checked={settings.emailNotifications}
-            onCheckedChange={() => handleSettingChange('emailNotifications')}
-          />
+          <Switch id="email-notifications" />
         </div>
         
         <div className="flex items-center justify-between">
@@ -119,11 +39,7 @@ export const GeneralTab = () => {
               Alternar automaticamente para o tema escuro conforme o sistema
             </p>
           </div>
-          <Switch 
-            id="auto-dark-theme" 
-            checked={settings.autoDarkTheme}
-            onCheckedChange={() => handleSettingChange('autoDarkTheme')}
-          />
+          <Switch id="auto-dark-theme" defaultChecked />
         </div>
         
         <div className="flex items-center justify-between">
@@ -133,11 +49,7 @@ export const GeneralTab = () => {
               Pedir confirmação antes de enviar mensagens em massa
             </p>
           </div>
-          <Switch 
-            id="safe-mode" 
-            checked={settings.safeMode}
-            onCheckedChange={() => handleSettingChange('safeMode')}
-          />
+          <Switch id="safe-mode" defaultChecked />
         </div>
       </CardContent>
     </Card>
