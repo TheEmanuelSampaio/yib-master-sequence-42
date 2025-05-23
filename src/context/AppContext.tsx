@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { supabase, UserWithEmail, isValidUUID, checkStagesInUse } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
@@ -197,7 +196,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [instances, isDataInitialized]);
 
-  // Optimized refresh data function to fetch only data from the selected instance
   const refreshData = async () => {
     if (!user || isRefreshing) return;
     
@@ -213,7 +211,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       setLastRefresh(now);
       console.log("Refreshing data...");
       
-      // Fetch clients (needed for all instances)
+      // Fetch clients
       const { data: clientsData, error: clientsError } = await supabase
         .from('clients')
         .select('*');
@@ -231,7 +229,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       
       setClients(typedClients);
       
-      // Fetch instances (needed to select the current instance)
+      // Fetch instances
       const { data: instancesData, error: instancesError } = await supabase
         .from('instances')
         .select('*, clients(*)');
@@ -265,33 +263,28 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       console.log("Checking for saved instance ID:", savedInstanceId);
       
       // Set current instance based on saved ID or default to first active instance
-      let selectedInstance: Instance | null = null;
-      
       if (typedInstances.length > 0) {
         if (savedInstanceId) {
           // Try to find the saved instance
           const savedInstance = typedInstances.find(i => i.id === savedInstanceId);
           if (savedInstance) {
             setCurrentInstance(savedInstance);
-            selectedInstance = savedInstance;
             console.log("Restored saved instance:", savedInstance.name);
           } else {
             // Fallback to first active instance if saved instance not found
             const activeInstance = typedInstances.find(i => i.active) || typedInstances[0];
             setCurrentInstance(activeInstance);
-            selectedInstance = activeInstance;
             console.log("Saved instance not found, using default");
           }
         } else {
           // No saved instance, use first active instance
           const activeInstance = typedInstances.find(i => i.active) || typedInstances[0];
           setCurrentInstance(activeInstance);
-          selectedInstance = activeInstance;
           console.log("No saved instance, using default:", activeInstance?.name);
         }
       }
       
-      // Fetch tags (global resource, needed for all instances)
+      // Fetch tags
       const { data: tagsData, error: tagsError } = await supabase
         .from('tags')
         .select('name');
@@ -300,7 +293,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       
       setTags(tagsData.map(tag => tag.name));
       
-      // Fetch time restrictions (global resource, needed for all instances)
+      // Fetch time restrictions
       const { data: restrictionsData, error: restrictionsError } = await supabase
         .from('time_restrictions')
         .select('*');
@@ -366,315 +359,267 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       
       setUsers(usersList);
       
-      // Only fetch instance-specific data if an instance is selected
-      if (selectedInstance) {
-        // Fetch sequences for the selected instance
-        const { data: sequencesData, error: sequencesError } = await supabase
-          .from('sequences')
-          .select(`
+      // Buscar sequências e seus estágios
+      const { data: sequencesData, error: sequencesError } = await supabase
+        .from('sequences')
+        .select(`
+          *,
+          sequence_stages (*),
+          sequence_time_restrictions (
             *,
-            sequence_stages (*),
-            sequence_time_restrictions (
-              *,
-              time_restrictions (*)
-            )
-          `)
-          .eq('instance_id', selectedInstance.id)
-          .order('created_at', { ascending: false });
+            time_restrictions (*)
+          )
+        `)
+        .order('created_at', { ascending: false });
       
-        if (sequencesError) throw sequencesError;
+      if (sequencesError) throw sequencesError;
+      
+      // Processar sequências
+      const processedSequences = sequencesData as ExtendedSequence[];
+      
+      for (const sequence of processedSequences) {
+        // Adicionar uma propriedade para restrições de tempo local
+        sequence.localTimeRestrictions = [];
         
-        // Process sequences
-        const processedSequences = sequencesData as ExtendedSequence[];
-        
-        for (const sequence of processedSequences) {
-          // Add property for local time restrictions
-          sequence.localTimeRestrictions = [];
+        const { data: localRestrictions, error: localRestError } = await supabase
+          .from('sequence_local_restrictions')
+          .select('*')
+          .eq('sequence_id', sequence.id);
           
-          const { data: localRestrictions, error: localRestError } = await supabase
-            .from('sequence_local_restrictions')
-            .select('*')
-            .eq('sequence_id', sequence.id);
-            
-          if (localRestError) {
-            console.error("Erro ao carregar restrições locais:", localRestError);
-            continue;
-          }
-          
-          // Add local restrictions if they exist
-          if (localRestrictions && localRestrictions.length > 0) {
-            const typedLocalRestrictions = localRestrictions.map(lr => ({
-              id: lr.id,
-              name: lr.name,
-              active: lr.active,
-              days: lr.days,
-              startHour: lr.start_hour,
-              startMinute: lr.start_minute,
-              endHour: lr.end_hour,
-              endMinute: lr.end_minute,
-              isGlobal: false // Mark explicitly as local restriction
-            }));
-            
-            sequence.localTimeRestrictions = typedLocalRestrictions;
-          }
+        if (localRestError) {
+          console.error("Erro ao carregar restrições locais:", localRestError);
+          continue;
         }
         
-        console.log(`Sequences fetched for instance ${selectedInstance.name}: ${sequencesData.length}`);
-        
-        const typedSequences: Sequence[] = processedSequences.map(sequence => {
-          // Transform stages into correct format
-          const stages = sequence.sequence_stages
-            .sort((a: any, b: any) => a.order_index - b.order_index)
-            .map((stage: any) => ({
-              id: stage.id,
-              name: stage.name,
-              type: stage.type,
-              content: stage.content,
-              typebotStage: stage.typebot_stage,
-              delay: stage.delay,
-              delayUnit: stage.delay_unit
-            }));
-            
-          // Transform global time restrictions
-          const globalTimeRestrictions = sequence.sequence_time_restrictions
-            .map((str: any) => str.time_restrictions)
-            .filter(Boolean)
-            .map((tr: any) => ({
-              id: tr.id,
-              name: tr.name,
-              active: tr.active,
-              days: tr.days,
-              startHour: tr.start_hour,
-              startMinute: tr.start_minute,
-              endHour: tr.end_hour,
-              endMinute: tr.end_minute,
-              isGlobal: true // All restrictions from this join are global
-            }));
-          
-          // Combine global and local restrictions
-          const allTimeRestrictions = [
-            ...globalTimeRestrictions,
-            ...(sequence.localTimeRestrictions || [])
-          ];
-
-          // Ensure startCondition.type and stopCondition.type are "AND" or "OR"
-          const startType = sequence.start_condition_type === "AND" ? "AND" : "OR";
-          const stopType = sequence.stop_condition_type === "AND" ? "AND" : "OR";
-          
-          // Ensure status is "active" or "inactive"
-          const status = sequence.status === "active" ? "active" : "inactive";
-          
-          // Determine sequence type based on stages or use default value
-          let sequenceType: "message" | "pattern" | "typebot" = "message";
-          if (stages.length > 0) {
-            // If the last stage is a typebot, consider it a typebot sequence
-            const lastStage = stages[stages.length - 1];
-            if (lastStage.type === "typebot") {
-              sequenceType = "typebot";
-            } else if (lastStage.type === "pattern") {
-              sequenceType = "pattern";
-            }
-          }
-          
-          return {
-            id: sequence.id,
-            name: sequence.name,
-            instanceId: sequence.instance_id,
-            type: sequence.type || sequenceType, // Use the type of the sequence or determine by the last stage
-            startCondition: {
-              type: startType as "AND" | "OR",
-              tags: sequence.start_condition_tags
-            },
-            stopCondition: {
-              type: stopType as "AND" | "OR",
-              tags: sequence.stop_condition_tags
-            },
-            status: status as "active" | "inactive",
-            stages,
-            timeRestrictions: allTimeRestrictions,
-            createdAt: sequence.created_at,
-            updatedAt: sequence.updated_at,
-            createdBy: sequence.created_by,
-            webhookEnabled: sequence.webhook_enabled || false,
-            webhookId: sequence.webhook_id || undefined
-          };
-        });
-        
-        setSequences(typedSequences);
-
-        // Fetch contacts for the selected instance's client
-        const { data: contactsData, error: contactsError } = await supabase
-          .from('contacts')
-          .select('*')
-          .eq('client_id', selectedInstance.clientId);
-      
-        if (contactsError) throw contactsError;
-        
-        // Create maps for quick lookups
-        const clientMap = new Map(typedClients.map(client => [client.id, client]));
-        const userMap = new Map(usersList.map(user => [user.id, user]));
-        
-        // Start fetching contact_tag data
-        const contactPromises = contactsData.map(async (contact) => {
-          // Fetch tags for this contact
-          const { data: contactTagsData, error: contactTagsError } = await supabase
-            .from('contact_tags')
-            .select('tag_name')
-            .eq('contact_id', contact.id);
-            
-          if (contactTagsError) {
-            console.error(`Error fetching tags for contact ${contact.id}:`, contactTagsError);
-            return null;
-          }
-          
-          const contactTags = contactTagsData.map(ct => ct.tag_name);
-          
-          // Look up client information
-          const client = clientMap.get(contact.client_id);
-          const clientName = client ? client.accountName : '';
-          
-          // Look up admin information based on client's createdBy
-          const adminId = client ? client.createdBy : undefined;
-          const admin = adminId ? userMap.get(adminId) : undefined;
-          const adminName = admin ? admin.accountName : '';
-          
-          return {
-            id: contact.id,
-            name: contact.name,
-            phoneNumber: contact.phone_number,
-            clientId: contact.client_id,
-            clientName: clientName,
-            adminId: adminId,
-            adminName: adminName,
-            inboxId: contact.inbox_id,
-            conversationId: contact.conversation_id,
-            displayId: contact.display_id,
-            createdAt: contact.created_at,
-            updatedAt: contact.updated_at,
-            tags: contactTags
-          };
-        });
-        
-        // Resolve all promises
-        const typedContacts = (await Promise.all(contactPromises)).filter(Boolean) as Contact[];
-        setContacts(typedContacts);
-        
-        console.log(`Contacts fetched for client ${selectedInstance.client?.accountName}: ${typedContacts.length}`);
-        
-        // Fetch scheduled messages for the selected instance's sequences
-        const sequenceIds = typedSequences.map(seq => seq.id);
-        let typedScheduledMsgs: ScheduledMessage[] = [];
-
-        if (sequenceIds.length > 0) {
-          const { data: scheduledMsgsData, error: scheduledMsgsError } = await supabase
-            .from('scheduled_messages')
-            .select('*')
-            .in('sequence_id', sequenceIds)
-            .order('scheduled_time', { ascending: true });
-        
-          if (scheduledMsgsError) throw scheduledMsgsError;
-          
-          typedScheduledMsgs = scheduledMsgsData.map(msg => ({
-            id: msg.id,
-            contactId: msg.contact_id,
-            sequenceId: msg.sequence_id,
-            stageId: msg.stage_id,
-            // Ensure status is one of the valid types
-            status: msg.status as "pending" | "processing" | "sent" | "failed" | "persistent_error",
-            scheduledTime: msg.scheduled_time,
-            rawScheduledTime: msg.raw_scheduled_time,
-            sentAt: msg.sent_at,
-            attempts: msg.attempts,
-            scheduledAt: msg.scheduled_at,
-            createdAt: msg.created_at
+        // Adicionar restrições locais se existirem
+        if (localRestrictions && localRestrictions.length > 0) {
+          const typedLocalRestrictions = localRestrictions.map(lr => ({
+            id: lr.id,
+            name: lr.name,
+            active: lr.active,
+            days: lr.days,
+            startHour: lr.start_hour,
+            startMinute: lr.start_minute,
+            endHour: lr.end_hour,
+            endMinute: lr.end_minute,
+            isGlobal: false // Marca explicitamente como restrição local
           }));
+          
+          sequence.localTimeRestrictions = typedLocalRestrictions;
         }
+      }
+      
+      console.log(`Sequences fetched: ${sequencesData.length}`);
+      
+      const typedSequences: Sequence[] = processedSequences.map(sequence => {
+        // Transformar os estágios no formato correto
+        const stages = sequence.sequence_stages
+          .sort((a: any, b: any) => a.order_index - b.order_index)
+          .map((stage: any) => ({
+            id: stage.id,
+            name: stage.name,
+            type: stage.type,
+            content: stage.content,
+            typebotStage: stage.typebot_stage,
+            delay: stage.delay,
+            delayUnit: stage.delay_unit
+          }));
+          
+        // Transformar as restrições de tempo globais
+        const globalTimeRestrictions = sequence.sequence_time_restrictions
+          .map((str: any) => str.time_restrictions)
+          .filter(Boolean)
+          .map((tr: any) => ({
+            id: tr.id,
+            name: tr.name,
+            active: tr.active,
+            days: tr.days,
+            startHour: tr.start_hour,
+            startMinute: tr.start_minute,
+            endHour: tr.end_hour,
+            endMinute: tr.end_minute,
+            isGlobal: true // Todas as restrições desta junção são globais
+          }));
         
-        setScheduledMessages(typedScheduledMsgs);
-        
-        // Fetch contact sequences for the selected instance's contacts
-        const contactIds = typedContacts.map(contact => contact.id);
-        let typedContactSeqs: ContactSequence[] = [];
+        // Combinar restrições globais e locais
+        const allTimeRestrictions = [
+          ...globalTimeRestrictions,
+          ...(sequence.localTimeRestrictions || [])
+        ];
 
-        if (contactIds.length > 0) {
-          const { data: contactSeqsData, error: contactSeqsError } = await supabase
-            .from('contact_sequences')
-            .select('*')
-            .in('contact_id', contactIds);
+        // Ensure startCondition.type and stopCondition.type are "AND" or "OR"
+        const startType = sequence.start_condition_type === "AND" ? "AND" : "OR";
+        const stopType = sequence.stop_condition_type === "AND" ? "AND" : "OR";
         
-          if (contactSeqsError) throw contactSeqsError;
-          
-          // Start fetching stage progress for each contact sequence
-          const contactSeqPromises = contactSeqsData.map(async (contactSeq) => {
-            // Fetch stage progress for this contact sequence
-            const { data: progressData, error: progressError } = await supabase
-              .from('stage_progress')
-              .select('*')
-              .eq('contact_sequence_id', contactSeq.id);
-              
-            if (progressError) {
-              console.error(`Error fetching stage progress for sequence ${contactSeq.id}:`, progressError);
-              return null;
-            }
-            
-            const stageProgress = progressData.map(progress => ({
-              id: progress.id,
-              stageId: progress.stage_id,
-              status: progress.status,
-              completedAt: progress.completed_at
-            }));
-            
-            return {
-              id: contactSeq.id,
-              contactId: contactSeq.contact_id,
-              sequenceId: contactSeq.sequence_id,
-              currentStageId: contactSeq.current_stage_id,
-              currentStageIndex: contactSeq.current_stage_index,
-              status: contactSeq.status,
-              startedAt: contactSeq.started_at,
-              completedAt: contactSeq.completed_at,
-              lastMessageAt: contactSeq.last_message_at,
-              removedAt: contactSeq.removed_at,
-              stageProgress
-            };
-          });
-          
-          // Resolve all contact sequence promises
-          typedContactSeqs = (await Promise.all(contactSeqPromises)).filter(Boolean) as ContactSequence[];
+        // Ensure status is "active" or "inactive"
+        const status = sequence.status === "active" ? "active" : "inactive";
+        
+        // Determinar o tipo de sequência com base nos estágios ou usar um valor padrão
+        let sequenceType: "message" | "pattern" | "typebot" = "message";
+        if (stages.length > 0) {
+          // Se o último estágio for um typebot, consideramos que é uma sequência de typebot
+          const lastStage = stages[stages.length - 1];
+          if (lastStage.type === "typebot") {
+            sequenceType = "typebot";
+          } else if (lastStage.type === "pattern") {
+            sequenceType = "pattern";
+          }
         }
         
-        setContactSequences(typedContactSeqs);
-        
-        // Fetch stats for the selected instance
-        const { data: statsData, error: statsError } = await supabase
-          .from('daily_stats')
-          .select('*')
-          .eq('instance_id', selectedInstance.id)
-          .order('date', { ascending: false })
-          .limit(30);
+        return {
+          id: sequence.id,
+          name: sequence.name,
+          instanceId: sequence.instance_id,
+          type: sequence.type || sequenceType, // Use the type of the sequence or determine by the last stage
+          startCondition: {
+            type: startType as "AND" | "OR",
+            tags: sequence.start_condition_tags
+          },
+          stopCondition: {
+            type: stopType as "AND" | "OR",
+            tags: sequence.stop_condition_tags
+          },
+          status: status as "active" | "inactive",
+          stages,
+          timeRestrictions: allTimeRestrictions,
+          createdAt: sequence.created_at,
+          updatedAt: sequence.updated_at,
+          createdBy: sequence.created_by,
+          webhookEnabled: sequence.webhook_enabled || false,
+          webhookId: sequence.webhook_id || undefined
+        };
+      });
+      
+      setSequences(typedSequences);
+      
+      // Fetch contacts and their tags
+      const { data: contactsData, error: contactsError } = await supabase
+        .from('contacts')
+        .select('*');
+      
+      if (contactsError) throw contactsError;
+      
+      // Create maps for quick lookups - now usersList is defined before it's used
+      const clientMap = new Map(typedClients.map(client => [client.id, client]));
+      const userMap = new Map(usersList.map(user => [user.id, user]));
+      
+      // Iniciar a busca de dados de contato_tag
+      const contactPromises = contactsData.map(async (contact) => {
+        // Buscar tags deste contato
+        const { data: contactTagsData, error: contactTagsError } = await supabase
+          .from('contact_tags')
+          .select('tag_name')
+          .eq('contact_id', contact.id);
           
-        if (statsError) throw statsError;
+        if (contactTagsError) {
+          console.error(`Erro ao buscar tags do contato ${contact.id}:`, contactTagsError);
+          return null;
+        }
         
-        const typedStats: DailyStats[] = (statsData || []).map(stat => ({
-          id: stat.id,
-          date: stat.date,
-          instanceId: stat.instance_id,
-          messagesSent: stat.messages_sent,
-          messagesFailed: stat.messages_failed,
-          messagesScheduled: stat.messages_scheduled,
-          newContacts: stat.new_contacts,
-          completedSequences: stat.completed_sequences
+        const contactTags = contactTagsData.map(ct => ct.tag_name);
+        
+        // Look up client information
+        const client = clientMap.get(contact.client_id);
+        const clientName = client ? client.accountName : '';
+        
+        // Look up admin information based on client's createdBy
+        const adminId = client ? client.createdBy : undefined;
+        const admin = adminId ? userMap.get(adminId) : undefined;
+        const adminName = admin ? admin.accountName : '';
+        
+        return {
+          id: contact.id,
+          name: contact.name,
+          phoneNumber: contact.phone_number,
+          clientId: contact.client_id,
+          clientName: clientName,
+          adminId: adminId,
+          adminName: adminName,
+          inboxId: contact.inbox_id,
+          conversationId: contact.conversation_id,
+          displayId: contact.display_id,
+          createdAt: contact.created_at,
+          updatedAt: contact.updated_at,
+          tags: contactTags
+        };
+      });
+      
+      // Resolver todas as promessas
+      const typedContacts = (await Promise.all(contactPromises)).filter(Boolean) as Contact[];
+      setContacts(typedContacts);
+      
+      console.log(`Contacts fetched: ${typedContacts.length}`);
+      
+      // Fetch scheduled messages
+      const { data: scheduledMsgsData, error: scheduledMsgsError } = await supabase
+        .from('scheduled_messages')
+        .select('*')
+        .order('scheduled_time', { ascending: true });
+      
+      if (scheduledMsgsError) throw scheduledMsgsError;
+      
+      const typedScheduledMsgs = scheduledMsgsData.map(msg => ({
+        id: msg.id,
+        contactId: msg.contact_id,
+        sequenceId: msg.sequence_id,
+        stageId: msg.stage_id,
+        // Ensure status is one of the valid types
+        status: msg.status as "pending" | "processing" | "sent" | "failed" | "persistent_error",
+        scheduledTime: msg.scheduled_time,
+        rawScheduledTime: msg.raw_scheduled_time,
+        sentAt: msg.sent_at,
+        attempts: msg.attempts,
+        scheduledAt: msg.scheduled_at,
+        createdAt: msg.created_at
+      }));
+      
+      setScheduledMessages(typedScheduledMsgs);
+      
+      // Fetch contact sequences and their progress
+      const { data: contactSeqsData, error: contactSeqsError } = await supabase
+        .from('contact_sequences')
+        .select('*');
+      
+      if (contactSeqsError) throw contactSeqsError;
+      
+      // Iniciar a busca de progresso de estágios para cada sequência de contato
+      const contactSeqPromises = contactSeqsData.map(async (contactSeq) => {
+        // Buscar progresso de estágio para esta sequência de contato
+        const { data: progressData, error: progressError } = await supabase
+          .from('stage_progress')
+          .select('*')
+          .eq('contact_sequence_id', contactSeq.id);
+          
+        if (progressError) {
+          console.error(`Erro ao buscar progresso de estágios para sequência ${contactSeq.id}:`, progressError);
+          return null;
+        }
+        
+        const stageProgress = progressData.map(progress => ({
+          id: progress.id,
+          stageId: progress.stage_id,
+          status: progress.status,
+          completedAt: progress.completed_at
         }));
         
-        setStats(typedStats);
-      } else {
-        // Clear instance-specific data if no instance is selected
-        setSequences([]);
-        setContacts([]);
-        setScheduledMessages([]);
-        setContactSequences([]);
-        setStats([]);
-      }
+        return {
+          id: contactSeq.id,
+          contactId: contactSeq.contact_id,
+          sequenceId: contactSeq.sequence_id,
+          currentStageId: contactSeq.current_stage_id,
+          currentStageIndex: contactSeq.current_stage_index,
+          status: contactSeq.status,
+          startedAt: contactSeq.started_at,
+          completedAt: contactSeq.completed_at,
+          lastMessageAt: contactSeq.last_message_at,
+          removedAt: contactSeq.removed_at,
+          stageProgress
+        };
+      });
+      
+      // Resolver todas as promessas de sequências de contato
+      const typedContactSeqs = (await Promise.all(contactSeqPromises)).filter(Boolean) as ContactSequence[];
+      setContactSequences(typedContactSeqs);
       
       // Set initialized state to true after successful data load
       setIsDataInitialized(true);
@@ -1707,7 +1652,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     refreshData,
     isDataInitialized,
     
-    // Contact manipulation functions
+    // Funções de manipulação de contatos
     deleteContact: contactFunctions.deleteContact,
     updateContact: contactFunctions.updateContact,
     removeFromSequence: contactFunctions.removeFromSequence,
