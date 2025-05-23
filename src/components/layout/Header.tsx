@@ -20,7 +20,6 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { Loader2 } from 'lucide-react';
 
 interface HeaderProps {
   sidebarCollapsed: boolean;
@@ -28,7 +27,7 @@ interface HeaderProps {
 
 export function Header({ sidebarCollapsed }: HeaderProps) {
   const { user, logout } = useAuth();
-  const { instances, currentInstance, setCurrentInstance, refreshData, isDataInitialized, isLoading, isInstancesLoading } = useApp();
+  const { instances, currentInstance, setCurrentInstance, refreshData, isDataInitialized } = useApp();
   const [selectedInstanceId, setSelectedInstanceId] = useState<string>("");
 
   // Carregar dados apenas se ainda não foram inicializados e temos um usuário
@@ -111,17 +110,9 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
           <Select 
             onValueChange={handleInstanceChange} 
             value={selectedInstanceId}
-            disabled={isInstancesLoading}
           >
             <SelectTrigger className="w-[180px] md:w-[220px]">
-              {isInstancesLoading ? (
-                <div className="flex items-center">
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  <span>Carregando...</span>
-                </div>
-              ) : (
-                <SelectValue placeholder="Selecionar instância" />
-              )}
+              <SelectValue placeholder="Selecionar instância" />
             </SelectTrigger>
             <SelectContent>
               {instances.map((instance) => (
@@ -135,12 +126,6 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
       </div>
 
       <div className="flex items-center space-x-4">
-        {isLoading && (
-          <div className="text-xs text-muted-foreground flex items-center">
-            <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-            <span>Sincronizando...</span>
-          </div>
-        )}
         <ThemeToggle />
 
         <DropdownMenu>

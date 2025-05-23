@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,7 +13,7 @@ import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
 import { Edit, MoreHorizontal, Trash2, User, UserCog, UserPlus } from "lucide-react";
 
-const UsersTab = () => {
+export const UsersTab = () => {
   const { users, addUser, updateUser, deleteUser } = useApp();
   const { user: currentUser, isSuper } = useAuth();
   const [openAddUser, setOpenAddUser] = useState(false);
@@ -283,5 +284,3 @@ const UsersTab = () => {
     </Card>
   );
 };
-
-export default UsersTab;

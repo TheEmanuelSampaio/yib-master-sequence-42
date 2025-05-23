@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode, useRef } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { supabase, UserWithEmail, isValidUUID, checkStagesInUse } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -51,8 +51,6 @@ interface AppContextType {
   deleteTag: (tagName: string) => Promise<void>;
   refreshData: () => Promise<void>;
   isDataInitialized: boolean;
-  isLoading: boolean; // Add isLoading property
-  isInstancesLoading: boolean; // Add isInstancesLoading property
   
   // Funções de manipulação de contatos
   deleteContact: (contactId: string) => Promise<{ success: boolean; error?: string }>;
@@ -120,8 +118,6 @@ const defaultContextValue: AppContextType = {
   deleteTag: async () => {},
   refreshData: async () => {},
   isDataInitialized: false,
-  isLoading: false, // Add the new property
-  isInstancesLoading: false, // Add the new property
   
   // Add the missing contact functions to the default context value
   deleteContact: async () => ({ success: false, error: 'Não implementado' }),
@@ -150,9 +146,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [isDataInitialized, setIsDataInitialized] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [isInstancesLoading, setIsInstancesLoading] = useState(false); // Add this state for instance loading
-  const refreshInProgressRef = useRef(false); // Add a ref to track refresh status
-  
+
   // Get contact sequences helper function
   const getContactSequences = (contactId: string): ContactSequence[] => {
     return contactSequences.filter(cs => cs.contactId === contactId);
@@ -161,9 +155,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   // Criar funções de manipulação de contatos
   const contactFunctions = createContactFunctions();
   
-  // Enhanced fetch data when auth user changes with better control flow
+  // Fetch data when auth user changes
   useEffect(() => {
-    if (user && !isDataInitialized && !refreshInProgressRef.current) {
+    if (user && !isDataInitialized) {
       console.log("Initial data load after authentication");
       refreshData();
     } else if (!user) {
@@ -186,9 +180,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [user, isDataInitialized]);
   
-  // Better instance selection logic with improved dependency array
+  // Set current instance when instances are loaded and initialized
   useEffect(() => {
-    if (instances.length > 0 && isDataInitialized && !currentInstance) {
+    if (instances.length > 0 && isDataInitialized) {
       const savedInstanceId = localStorage.getItem('selectedInstanceId');
       
       if (savedInstanceId) {
@@ -197,27 +191,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         if (savedInstance) {
           console.log("Effect: Setting saved instance after data initialization:", savedInstance.name);
           setCurrentInstance(savedInstance);
-        } else {
-          // Fallback if saved instance not found
-          const activeInstance = instances.find(i => i.active) || instances[0];
-          setCurrentInstance(activeInstance);
-          localStorage.setItem('selectedInstanceId', activeInstance.id);
         }
-      } else {
-        // No saved instance, use first active instance
-        const activeInstance = instances.find(i => i.active) || instances[0];
-        setCurrentInstance(activeInstance);
-        localStorage.setItem('selectedInstanceId', activeInstance.id);
       }
     }
-  }, [instances, isDataInitialized, currentInstance]);
+  }, [instances, isDataInitialized]);
 
-  // Improved refreshData function with better concurrency control
   const refreshData = async () => {
-    if (!user || refreshInProgressRef.current) {
-      console.log("Refresh skipped - no user or refresh already in progress");
-      return;
-    }
+    if (!user || isRefreshing) return;
     
     // Prevent rapid consecutive refreshes (throttle to once every 3 seconds)
     const now = Date.now();
@@ -227,9 +207,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
     
     try {
-      refreshInProgressRef.current = true; // Set ref before state to prevent race conditions
       setIsRefreshing(true);
-      setLoading(true);
       setLastRefresh(now);
       console.log("Refreshing data...");
       
@@ -251,8 +229,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       
       setClients(typedClients);
       
-      // Fetch instances - with improved loading state management
-      setIsInstancesLoading(true);
+      // Fetch instances
       const { data: instancesData, error: instancesError } = await supabase
         .from('instances')
         .select('*, clients(*)');
@@ -280,12 +257,32 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       }));
       
       setInstances(typedInstances);
-      setIsInstancesLoading(false);
       
-      // Get saved instance ID from localStorage - but don't immediately set current instance
-      // This will be handled in the useEffect that depends on instances and isDataInitialized
+      // Get saved instance ID from localStorage
       const savedInstanceId = localStorage.getItem('selectedInstanceId');
       console.log("Checking for saved instance ID:", savedInstanceId);
+      
+      // Set current instance based on saved ID or default to first active instance
+      if (typedInstances.length > 0) {
+        if (savedInstanceId) {
+          // Try to find the saved instance
+          const savedInstance = typedInstances.find(i => i.id === savedInstanceId);
+          if (savedInstance) {
+            setCurrentInstance(savedInstance);
+            console.log("Restored saved instance:", savedInstance.name);
+          } else {
+            // Fallback to first active instance if saved instance not found
+            const activeInstance = typedInstances.find(i => i.active) || typedInstances[0];
+            setCurrentInstance(activeInstance);
+            console.log("Saved instance not found, using default");
+          }
+        } else {
+          // No saved instance, use first active instance
+          const activeInstance = typedInstances.find(i => i.active) || typedInstances[0];
+          setCurrentInstance(activeInstance);
+          console.log("No saved instance, using default:", activeInstance?.name);
+        }
+      }
       
       // Fetch tags
       const { data: tagsData, error: tagsError } = await supabase
@@ -317,7 +314,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       
       setTimeRestrictions(typedRestrictions);
       
-      // Fetch users (for both admin and super_admin)
+      // Fetch users (for both admin and super_admin) - MOVED THIS UP before contacts
       let usersList: User[] = [];
       
       // Get profiles data
@@ -632,9 +629,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       console.error("Error fetching data:", error);
       toast.error("Erro ao carregar dados");
     } finally {
-      refreshInProgressRef.current = false; // Reset ref before state to prevent race conditions
       setIsRefreshing(false);
-      setLoading(false); // Set loading to false when done
     }
   };
 
@@ -1097,7 +1092,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const addTimeRestriction = async (restrictionData: Omit<TimeRestriction, "id">) => {
     try {
       if (!user) {
-        toast.error("Usuário não autenticado");
+        toast.error("Usu��rio não autenticado");
         return;
       }
       
@@ -1656,8 +1651,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     deleteTag,
     refreshData,
     isDataInitialized,
-    isLoading: loading, // Map the loading state to isLoading
-    isInstancesLoading, // Include isInstancesLoading in context value
     
     // Funções de manipulação de contatos
     deleteContact: contactFunctions.deleteContact,

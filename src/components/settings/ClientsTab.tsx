@@ -12,7 +12,7 @@ import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 
-const ClientsTab = () => {
+export const ClientsTab = () => {
   const { users, clients, addClient, updateClient, deleteClient } = useApp();
   const { isSuper } = useAuth();
   const [openAddClient, setOpenAddClient] = useState(false);
@@ -365,5 +365,3 @@ const ClientsTab = () => {
     </Card>
   );
 };
-
-export default ClientsTab;

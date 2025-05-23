@@ -1,5 +1,4 @@
 
-import { useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useApp } from '@/context/AppContext';
 import {
@@ -16,56 +15,27 @@ import {
 export function MessagesChart() {
   const { stats } = useApp();
 
-  // Process chart data with memoization to prevent unnecessary recalculations
-  const chartData = useMemo(() => {
-    console.log("[MessagesChart] Processing chart data");
-    
-    // Ensure stats is an array before sorting
-    if (!Array.isArray(stats) || stats.length === 0) {
-      return [];
-    }
-    
-    // Sort stats by date
-    const sortedStats = [...stats].sort((a, b) => 
-      new Date(a.date).getTime() - new Date(b.date).getTime()
-    );
+  // Ensure stats is an array before sorting
+  const statsArray = Array.isArray(stats) ? stats : [];
+  
+  // Sort stats by date
+  const sortedStats = [...statsArray].sort((a, b) => 
+    new Date(a.date).getTime() - new Date(b.date).getTime()
+  );
 
-    // Format data for chart - limit to last 14 days if we have more data
-    // to improve performance and readability
-    const limitedStats = sortedStats.length > 14 
-      ? sortedStats.slice(sortedStats.length - 14) 
-      : sortedStats;
+  // Format data for chart
+  const chartData = sortedStats.map(stat => {
+    // Format date (DD/MM)
+    const dateObj = new Date(stat.date);
+    const formattedDate = `${dateObj.getDate().toString().padStart(2, '0')}/${(dateObj.getMonth() + 1).toString().padStart(2, '0')}`;
     
-    return limitedStats.map(stat => {
-      // Format date (DD/MM)
-      const dateObj = new Date(stat.date);
-      const formattedDate = `${dateObj.getDate().toString().padStart(2, '0')}/${(dateObj.getMonth() + 1).toString().padStart(2, '0')}`;
-      
-      return {
-        date: formattedDate,
-        agendadas: stat.messagesScheduled || 0,
-        enviadas: stat.messagesSent || 0,
-        falhas: stat.messagesFailed || 0,
-      };
-    });
-  }, [stats]);
-
-  // If we have no data, show placeholder
-  if (chartData.length === 0) {
-    return (
-      <Card className="col-span-3">
-        <CardHeader>
-          <CardTitle>Mensagens ao Longo do Tempo</CardTitle>
-          <CardDescription>
-            Volume diário de mensagens agendadas, enviadas e com falhas
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex items-center justify-center h-[300px]">
-          <div className="text-muted-foreground">Sem dados disponíveis</div>
-        </CardContent>
-      </Card>
-    );
-  }
+    return {
+      date: formattedDate,
+      agendadas: stat.messagesScheduled,
+      enviadas: stat.messagesSent,
+      falhas: stat.messagesFailed,
+    };
+  });
 
   return (
     <Card className="col-span-3">
