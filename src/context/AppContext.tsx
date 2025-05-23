@@ -17,6 +17,10 @@ import {
 import { toast } from "@/components/ui/use-toast";
 import AppContactContext, { createContactFunctions, AppContactFunctions } from './AppContact';
 
+// Define data type for partial loading
+type DataType = "clients" | "instances" | "sequences" | "contacts" | "scheduledMessages" | 
+               "contactSequences" | "tags" | "timeRestrictions" | "users" | "stats";
+
 interface AppContextType {
   clients: Client[];
   instances: Instance[];
@@ -49,7 +53,7 @@ interface AppContextType {
   deleteUser: (id: string) => Promise<void>;
   addTag: (tagName: string) => Promise<void>;
   deleteTag: (tagName: string) => Promise<void>;
-  refreshData: () => Promise<void>;
+  refreshData: (dataTypes?: DataType[]) => Promise<void>;
   isDataInitialized: boolean;
   
   // Funções de manipulação de contatos
@@ -146,6 +150,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [isDataInitialized, setIsDataInitialized] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [refreshQueue, setRefreshQueue] = useState<DataType[][]>([]);
+  const [isProcessingQueue, setIsProcessingQueue] = useState(false);
 
   // Get contact sequences helper function
   const getContactSequences = (contactId: string): ContactSequence[] => {
@@ -196,22 +202,124 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [instances, isDataInitialized]);
 
-  const refreshData = async () => {
-    if (!user || isRefreshing) return;
+  // Process the refresh queue
+  useEffect(() => {
+    const processQueue = async () => {
+      if (refreshQueue.length === 0 || isProcessingQueue) {
+        return;
+      }
+      
+      setIsProcessingQueue(true);
+      
+      try {
+        const nextDataTypes = refreshQueue[0];
+        await refreshDataInternal(nextDataTypes);
+        
+        // Remove the processed item from queue
+        setRefreshQueue(prevQueue => prevQueue.slice(1));
+      } finally {
+        setIsProcessingQueue(false);
+      }
+    };
+    
+    processQueue();
+  }, [refreshQueue, isProcessingQueue]);
+
+  // Improved refresh data function that supports selective data loading
+  const refreshData = async (dataTypes?: DataType[]) => {
+    if (!user) return;
     
     // Prevent rapid consecutive refreshes (throttle to once every 3 seconds)
     const now = Date.now();
     if (now - lastRefresh < 3000 && isDataInitialized) {
       console.log("Refresh throttled - too soon since last refresh");
+      
+      // Add request to queue instead
+      setRefreshQueue(prevQueue => [...prevQueue, dataTypes || []]);
       return;
     }
     
+    if (isRefreshing) {
+      // Add to queue if already refreshing
+      setRefreshQueue(prevQueue => [...prevQueue, dataTypes || []]);
+      return;
+    }
+    
+    return refreshDataInternal(dataTypes);
+  };
+  
+  // Internal implementation of data refresh
+  const refreshDataInternal = async (dataTypes?: DataType[]) => {
+    if (!user) return;
+    
     try {
       setIsRefreshing(true);
-      setLastRefresh(now);
-      console.log("Refreshing data...");
+      setLastRefresh(Date.now());
+      console.log(`Refreshing data ${dataTypes ? 'for: ' + dataTypes.join(', ') : '(all)'}`);
       
-      // Fetch clients
+      // If no specific dataTypes provided, load all data
+      const loadAll = !dataTypes || dataTypes.length === 0;
+      
+      // Fetch clients if needed
+      if (loadAll || dataTypes.includes('clients')) {
+        await fetchClients();
+      }
+      
+      // Fetch instances if needed
+      if (loadAll || dataTypes.includes('instances')) {
+        await fetchInstances();
+      }
+      
+      // Fetch tags if needed
+      if (loadAll || dataTypes.includes('tags')) {
+        await fetchTags();
+      }
+      
+      // Fetch time restrictions if needed
+      if (loadAll || dataTypes.includes('timeRestrictions')) {
+        await fetchTimeRestrictions();
+      }
+      
+      // Fetch users if needed
+      if (loadAll || dataTypes.includes('users')) {
+        await fetchUsers();
+      }
+      
+      // Fetch sequences if needed
+      if (loadAll || dataTypes.includes('sequences')) {
+        await fetchSequences();
+      }
+      
+      // Fetch contacts if needed
+      if (loadAll || dataTypes.includes('contacts')) {
+        await fetchContacts();
+      }
+      
+      // Fetch scheduled messages if needed
+      if (loadAll || dataTypes.includes('scheduledMessages')) {
+        await fetchScheduledMessages();
+      }
+      
+      // Fetch contact sequences if needed
+      if (loadAll || dataTypes.includes('contactSequences')) {
+        await fetchContactSequences();
+      }
+      
+      // Set initialized state to true after successful data load
+      setIsDataInitialized(true);
+      console.log("Data refresh completed successfully");
+      
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      toast.error("Erro ao carregar dados");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  // Split data fetching into modular functions
+  const fetchClients = async () => {
+    try {
       const { data: clientsData, error: clientsError } = await supabase
         .from('clients')
         .select('*');
@@ -228,8 +336,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       }));
       
       setClients(typedClients);
-      
-      // Fetch instances
+      return typedClients;
+    } catch (error) {
+      console.error("Error fetching clients:", error);
+      throw error;
+    }
+  };
+  
+  const fetchInstances = async () => {
+    try {
       const { data: instancesData, error: instancesError } = await supabase
         .from('instances')
         .select('*, clients(*)');
@@ -260,10 +375,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       
       // Get saved instance ID from localStorage
       const savedInstanceId = localStorage.getItem('selectedInstanceId');
-      console.log("Checking for saved instance ID:", savedInstanceId);
       
       // Set current instance based on saved ID or default to first active instance
-      if (typedInstances.length > 0) {
+      if (typedInstances.length > 0 && !currentInstance) {
         if (savedInstanceId) {
           // Try to find the saved instance
           const savedInstance = typedInstances.find(i => i.id === savedInstanceId);
@@ -284,16 +398,32 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         }
       }
       
-      // Fetch tags
+      return typedInstances;
+    } catch (error) {
+      console.error("Error fetching instances:", error);
+      throw error;
+    }
+  };
+  
+  const fetchTags = async () => {
+    try {
       const { data: tagsData, error: tagsError } = await supabase
         .from('tags')
         .select('name');
       
       if (tagsError) throw tagsError;
       
-      setTags(tagsData.map(tag => tag.name));
-      
-      // Fetch time restrictions
+      const tagNames = tagsData.map(tag => tag.name);
+      setTags(tagNames);
+      return tagNames;
+    } catch (error) {
+      console.error("Error fetching tags:", error);
+      throw error;
+    }
+  };
+  
+  const fetchTimeRestrictions = async () => {
+    try {
       const { data: restrictionsData, error: restrictionsError } = await supabase
         .from('time_restrictions')
         .select('*');
@@ -313,8 +443,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       }));
       
       setTimeRestrictions(typedRestrictions);
-      
-      // Fetch users (for both admin and super_admin) - MOVED THIS UP before contacts
+      return typedRestrictions;
+    } catch (error) {
+      console.error("Error fetching time restrictions:", error);
+      throw error;
+    }
+  };
+  
+  const fetchUsers = async () => {
+    try {
       let usersList: User[] = [];
       
       // Get profiles data
@@ -358,7 +495,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       });
       
       setUsers(usersList);
-      
+      return usersList;
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      throw error;
+    }
+  };
+  
+  const fetchSequences = async () => {
+    try {
       // Buscar sequências e seus estágios
       const { data: sequencesData, error: sequencesError } = await supabase
         .from('sequences')
@@ -408,8 +553,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           sequence.localTimeRestrictions = typedLocalRestrictions;
         }
       }
-      
-      console.log(`Sequences fetched: ${sequencesData.length}`);
       
       const typedSequences: Sequence[] = processedSequences.map(sequence => {
         // Transformar os estágios no formato correto
@@ -491,7 +634,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       });
       
       setSequences(typedSequences);
-      
+      return typedSequences;
+    } catch (error) {
+      console.error("Error fetching sequences:", error);
+      throw error;
+    }
+  };
+  
+  const fetchContacts = async () => {
+    try {
       // Fetch contacts and their tags
       const { data: contactsData, error: contactsError } = await supabase
         .from('contacts')
@@ -499,9 +650,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       
       if (contactsError) throw contactsError;
       
-      // Create maps for quick lookups - now usersList is defined before it's used
-      const clientMap = new Map(typedClients.map(client => [client.id, client]));
-      const userMap = new Map(usersList.map(user => [user.id, user]));
+      // Create maps for quick lookups
+      const clientMap = new Map(clients.map(client => [client.id, client]));
+      const userMap = new Map(users.map(user => [user.id, user]));
       
       // Iniciar a busca de dados de contato_tag
       const contactPromises = contactsData.map(async (contact) => {
@@ -547,9 +698,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       // Resolver todas as promessas
       const typedContacts = (await Promise.all(contactPromises)).filter(Boolean) as Contact[];
       setContacts(typedContacts);
-      
-      console.log(`Contacts fetched: ${typedContacts.length}`);
-      
+      return typedContacts;
+    } catch (error) {
+      console.error("Error fetching contacts:", error);
+      throw error;
+    }
+  };
+  
+  const fetchScheduledMessages = async () => {
+    try {
       // Fetch scheduled messages
       const { data: scheduledMsgsData, error: scheduledMsgsError } = await supabase
         .from('scheduled_messages')
@@ -574,7 +731,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       }));
       
       setScheduledMessages(typedScheduledMsgs);
-      
+      return typedScheduledMsgs;
+    } catch (error) {
+      console.error("Error fetching scheduled messages:", error);
+      throw error;
+    }
+  };
+  
+  const fetchContactSequences = async () => {
+    try {
       // Fetch contact sequences and their progress
       const { data: contactSeqsData, error: contactSeqsError } = await supabase
         .from('contact_sequences')
@@ -620,16 +785,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       // Resolver todas as promessas de sequências de contato
       const typedContactSeqs = (await Promise.all(contactSeqPromises)).filter(Boolean) as ContactSequence[];
       setContactSequences(typedContactSeqs);
-      
-      // Set initialized state to true after successful data load
-      setIsDataInitialized(true);
-      console.log("Data refresh completed successfully");
-      
+      return typedContactSeqs;
     } catch (error) {
-      console.error("Error fetching data:", error);
-      toast.error("Erro ao carregar dados");
-    } finally {
-      setIsRefreshing(false);
+      console.error("Error fetching contact sequences:", error);
+      throw error;
     }
   };
 
@@ -1092,7 +1251,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const addTimeRestriction = async (restrictionData: Omit<TimeRestriction, "id">) => {
     try {
       if (!user) {
-        toast.error("Usu��rio não autenticado");
+        toast.error("Usuário não autenticado");
         return;
       }
       
