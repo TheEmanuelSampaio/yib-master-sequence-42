@@ -1,19 +1,24 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useApp } from '@/context/AppContext';
-import { Check, Clock, Activity, Ban, MessageCircle, FileCode, Bot } from 'lucide-react';
+import { Check, Clock, Activity, Ban, MessageCircle, FileCode, Bot, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export function SequenceOverview() {
   const { sequences, currentInstance, refreshData, isDataInitialized } = useApp();
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Recarregar dados apenas se necessário quando a instância mudar
+  // Load data only if necessary when instance changes
   useEffect(() => {
     if (currentInstance && !isDataInitialized) {
-      refreshData();
+      setIsLoading(true);
+      refreshData().finally(() => setIsLoading(false));
+    } else {
+      setIsLoading(false);
     }
   }, [currentInstance, refreshData, isDataInitialized]);
 
@@ -37,6 +42,64 @@ export function SequenceOverview() {
         return <MessageCircle className="h-4 w-4" />;
     }
   };
+
+  // Render skeleton loading state
+  if (isLoading) {
+    return (
+      <Card className="col-span-full">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Visão Geral das Sequências</CardTitle>
+              <CardDescription className="mt-1">
+                <Skeleton className="h-4 w-24" />
+              </CardDescription>
+            </div>
+            <div className="space-x-2">
+              <Skeleton className="h-6 w-20 rounded-full" />
+              <Skeleton className="h-6 w-20 rounded-full" />
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="border border-border rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <Skeleton className="h-5 w-40" />
+                  <Skeleton className="h-6 w-16 rounded-full" />
+                </div>
+                <div className="grid grid-cols-2 gap-4 mt-2">
+                  <div>
+                    <Skeleton className="h-4 w-28 mb-2" />
+                    <div className="flex flex-wrap gap-1">
+                      <Skeleton className="h-6 w-16 rounded-full" />
+                      <Skeleton className="h-6 w-16 rounded-full" />
+                    </div>
+                  </div>
+                  <div>
+                    <Skeleton className="h-4 w-28 mb-2" />
+                    <div className="flex flex-wrap gap-1">
+                      <Skeleton className="h-6 w-16 rounded-full" />
+                      <Skeleton className="h-6 w-16 rounded-full" />
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <Skeleton className="h-4 w-24 mb-2" />
+                  <Skeleton className="h-2 w-full mb-1" />
+                  <div className="flex justify-between mt-1">
+                    <Skeleton className="h-4 w-12" />
+                    <Skeleton className="h-4 w-12" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
   
   return (
     <Card className="col-span-full">

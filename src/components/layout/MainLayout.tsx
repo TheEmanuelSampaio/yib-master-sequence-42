@@ -17,9 +17,14 @@ export const MainLayout = () => {
     console.log("MainLayout rendering with currentInstance:", 
       currentInstance ? currentInstance.name : "none");
     
+    // Save the selected instance ID to localStorage when it changes
+    if (currentInstance?.id) {
+      localStorage.setItem('selectedInstanceId', currentInstance.id);
+    }
+    
     // Log application version to help with debugging
     console.log("Application info:", {
-      version: "1.0.2", // Updated version number
+      version: "1.0.3", // Updated version number
       mode: process.env.NODE_ENV,
       lastBuildTime: new Date().toISOString()
     });
