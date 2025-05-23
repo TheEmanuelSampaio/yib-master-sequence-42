@@ -30,7 +30,15 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
   const { instances, currentInstance, setCurrentInstance, refreshData, isDataInitialized } = useApp();
   const [selectedInstanceId, setSelectedInstanceId] = useState<string>("");
 
-//heeeeeeeeeeere
+//heeeeeeeeeeeeeeeere
+
+  // Update local state when currentInstance changes
+  useEffect(() => {
+    if (currentInstance?.id) {
+      console.log("Header - currentInstance changed:", currentInstance.name);
+      setSelectedInstanceId(currentInstance.id);
+    }
+  }, [currentInstance]);
 
   const handleInstanceChange = (instanceId: string) => {
     console.log("Header - Instance selected manually:", instanceId);
