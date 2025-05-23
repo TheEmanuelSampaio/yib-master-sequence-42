@@ -46,7 +46,7 @@ import { ptBR } from "date-fns/locale";
 type MessageStatus = 'waiting' | 'pending' | 'processing' | 'sent' | 'failed' | 'persistent_error' | 'removed' | 'stopped';
 
 export default function Messages() {
-  const { scheduledMessages, contacts, sequences } = useApp();
+  const { scheduledMessages = [], contacts = [], sequences = [] } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilters, setStatusFilters] = useState<MessageStatus[]>([]);
   const [showMessageContent, setShowMessageContent] = useState(false);
