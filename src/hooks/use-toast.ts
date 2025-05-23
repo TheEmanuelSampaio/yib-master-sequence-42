@@ -1,4 +1,3 @@
-
 import * as React from "react";
 import { 
   Toast,
@@ -173,7 +172,6 @@ function useToast() {
         toast: {
           ...props,
           id,
-          open: true,
         },
       });
 
@@ -207,7 +205,6 @@ const toast = ((props: {
     toast: {
       ...props,
       id,
-      open: true,
     },
   });
 

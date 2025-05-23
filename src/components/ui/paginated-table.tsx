@@ -8,7 +8,7 @@ interface PaginatedTableProps<T> {
   data: T[];
   columns: {
     header: string;
-    accessor: string | ((item: T) => React.ReactNode);
+    accessor: keyof T | ((item: T) => React.ReactNode);
     className?: string;
   }[];
   isLoading: boolean;
@@ -134,7 +134,7 @@ export function PaginatedTable<T>({
                   <TableCell key={colIndex} className={column.className}>
                     {typeof column.accessor === 'function' 
                       ? column.accessor(item) 
-                      : item[column.accessor as keyof typeof item]
+                      : String(item[column.accessor])
                     }
                   </TableCell>
                 ))}
