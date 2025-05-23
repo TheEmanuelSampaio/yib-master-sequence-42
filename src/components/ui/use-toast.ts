@@ -1,6 +1,15 @@
 
+import * as React from "react";
 import { useToast as useOriginalToast, toast as originalToast } from "@/hooks/use-toast";
-import { ToasterToast } from "@/components/ui/toast";
+import type { ToastProps } from "@/components/ui/toast";
+
+// Define o tipo ToasterToast (já que não está sendo exportado do componente toast)
+type ToasterToast = ToastProps & {
+  id: string;
+  title?: React.ReactNode;
+  description?: React.ReactNode;
+  action?: React.ReactElement;
+};
 
 // Create proper callable methods
 const successToast = (message: string) => originalToast({ title: "Sucesso", description: message });

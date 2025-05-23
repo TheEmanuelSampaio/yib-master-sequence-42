@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -34,11 +33,7 @@ export const GeneralTab = () => {
         });
       } catch (error) {
         console.error("Error loading settings:", error);
-        toast({
-          title: "Erro",
-          description: "Não foi possível carregar as configurações",
-          variant: "destructive"
-        });
+        toast.error("Não foi possível carregar as configurações");
       } finally {
         setIsLoading(false);
       }
@@ -52,10 +47,7 @@ export const GeneralTab = () => {
       const newSettings = { ...prev, [setting]: !prev[setting] };
       
       // In a real implementation, you would save changes to Supabase here
-      toast({
-        title: "Configuração alterada",
-        description: `${setting} foi ${newSettings[setting] ? "ativado" : "desativado"}.`
-      });
+      toast.success(`${setting} foi ${newSettings[setting] ? "ativado" : "desativado"}.`);
       
       return newSettings;
     });

@@ -39,14 +39,16 @@ export function useRouteData() {
     const loadData = async () => {
       // Find the config for the current route
       const config = routeConfigs.find(conf => pathname.startsWith(conf.path)) || 
-                    { path: pathname, dataTypes: ["all" as DataType] };
+                    { path: pathname, dataTypes: ["all"] as DataType[] };
       
       setIsLoading(true);
       setLoadingType(config.dataTypes.includes("all" as DataType) ? "all" as DataType : config.dataTypes[0]);
       
       // Load the required data for this route
       try {
-        await refreshData(config.dataTypes.includes("all" as DataType) ? undefined : config.dataTypes);
+        // Use a type assertion to ensure compatibility
+        const dataTypes = config.dataTypes.includes("all" as DataType) ? undefined : config.dataTypes;
+        await refreshData(dataTypes);
       } finally {
         setIsLoading(false);
         setLoadingType(null);
