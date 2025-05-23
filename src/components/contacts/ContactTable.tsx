@@ -58,9 +58,10 @@ export const ContactTable = ({
         </TableRow>
       </TableHeader>
       <TableBody>
-        {contacts.length > 0 ? (
+        {contacts && contacts.length > 0 ? (
           contacts.map(contact => {
-            const sequenceDetails = getContactSequenceDetails(contact.id);
+            // Make sure contact exists before trying to get sequence details
+            const sequenceDetails = contact ? getContactSequenceDetails(contact.id) : { active: 0, completed: 0, removed: 0, total: 0 };
             
             return (
               <TableRow key={contact.id}>
@@ -92,11 +93,12 @@ export const ContactTable = ({
                 )}
                 <TableCell>
                   <div className="flex flex-wrap gap-1">
-                    {contact.tags.map(tag => (
+                    {/* Add null check for contact.tags before mapping */}
+                    {contact.tags && Array.isArray(contact.tags) ? contact.tags.map(tag => (
                       <Badge key={tag} variant="outline" className="text-xs">
                         {tag}
                       </Badge>
-                    ))}
+                    )) : null}
                   </div>
                 </TableCell>
                 <TableCell>
