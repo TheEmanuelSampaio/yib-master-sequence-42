@@ -1,5 +1,7 @@
+
 import { useState, useEffect } from "react";
 import { useApp } from '@/context/AppContext';
+import { useSequence } from '@/context/SequenceContext';
 import {
   Activity,
   Ban,
@@ -12,7 +14,8 @@ import {
   MessageCircle,
   FileCode,
   Bot,
-  Globe
+  Globe,
+  Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,33 +43,32 @@ import { Sequence } from "@/types";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
-import { isValidUUID } from "@/integrations/supabase/client";
 
 export default function Sequences() {
-  const { sequences, currentInstance, addSequence, updateSequence, deleteSequence, refreshData, isDataInitialized } = useApp();
+  const { currentInstance } = useApp();
+  const { sequences, loadingState, loadSequences, addSequence, updateSequence, deleteSequence } = useSequence();
   const [isCreateMode, setIsCreateMode] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [currentSequence, setCurrentSequence] = useState<Sequence | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   
-  // Fetch data only if not initialized yet
+  // Load sequences when the page loads or instance changes
   useEffect(() => {
-    if (!isDataInitialized && currentInstance) {
-      console.log("Sequences page - loading initial data");
-      refreshData();
+    if (currentInstance) {
+      console.log("Sequences page - loading sequences for current instance", currentInstance.id);
+      loadSequences(currentInstance.id);
     }
-  }, [refreshData, currentInstance, isDataInitialized]);
+  }, [currentInstance, loadSequences]);
   
-  const instanceSequences = sequences
-    .filter(seq => seq.instanceId === currentInstance?.id)
+  const filteredSequences = sequences
     .filter(seq => 
       searchQuery === '' || 
       seq.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
     
-  const activeSequences = instanceSequences.filter(seq => seq.status === 'active');
-  const inactiveSequences = instanceSequences.filter(seq => seq.status === 'inactive');
+  const activeSequences = filteredSequences.filter(seq => seq.status === 'active');
+  const inactiveSequences = filteredSequences.filter(seq => seq.status === 'inactive');
   
   const handleSaveSequence = async (sequence: Omit<Sequence, "id" | "createdAt" | "updatedAt">) => {
     // Enhanced logging for better debugging
@@ -245,25 +247,50 @@ export default function Sequences() {
         </Button>
       </div>
       
-      <Tabs defaultValue="all">
-        <TabsList>
-          <TabsTrigger value="all">Todas ({instanceSequences.length})</TabsTrigger>
-          <TabsTrigger value="active">Ativas ({activeSequences.length})</TabsTrigger>
-          <TabsTrigger value="inactive">Inativas ({inactiveSequences.length})</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="all" className="mt-4">
-          {renderSequenceList(instanceSequences)}
-        </TabsContent>
-        
-        <TabsContent value="active" className="mt-4">
-          {renderSequenceList(activeSequences)}
-        </TabsContent>
-        
-        <TabsContent value="inactive" className="mt-4">
-          {renderSequenceList(inactiveSequences)}
-        </TabsContent>
-      </Tabs>
+      {/* Show loading spinner when loading */}
+      {loadingState.isLoading && (
+        <div className="flex justify-center py-8">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <span className="sr-only">Carregando sequências...</span>
+        </div>
+      )}
+      
+      {/* Show error message if there's an error */}
+      {loadingState.error && (
+        <Card className="p-8 flex flex-col items-center justify-center text-center bg-red-50">
+          <div className="rounded-full bg-red-100 p-3 mb-4">
+            <Ban className="h-6 w-6 text-red-600" />
+          </div>
+          <h3 className="font-semibold text-lg mb-1">Erro ao carregar sequências</h3>
+          <p className="text-muted-foreground mb-4">{loadingState.error}</p>
+          <Button variant="outline" onClick={() => loadSequences(currentInstance?.id)}>
+            Tentar novamente
+          </Button>
+        </Card>
+      )}
+      
+      {/* Show sequences content when not loading and no error */}
+      {!loadingState.isLoading && !loadingState.error && (
+        <Tabs defaultValue="all">
+          <TabsList>
+            <TabsTrigger value="all">Todas ({filteredSequences.length})</TabsTrigger>
+            <TabsTrigger value="active">Ativas ({activeSequences.length})</TabsTrigger>
+            <TabsTrigger value="inactive">Inativas ({inactiveSequences.length})</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="all" className="mt-4">
+            {renderSequenceList(filteredSequences)}
+          </TabsContent>
+          
+          <TabsContent value="active" className="mt-4">
+            {renderSequenceList(activeSequences)}
+          </TabsContent>
+          
+          <TabsContent value="inactive" className="mt-4">
+            {renderSequenceList(inactiveSequences)}
+          </TabsContent>
+        </Tabs>
+      )}
     </div>
   );
   
