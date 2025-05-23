@@ -2,9 +2,7 @@
 import { useState, useEffect } from "react";
 import { useApp } from '@/context/AppContext';
 import { useAuth } from '@/context/AuthContext';
-import { useContact } from '@/context/ContactContext';
-import { useConfig } from '@/context/ConfigContext';
-import { Search, Filter } from "lucide-react";
+import { Search, User, Filter } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,11 +24,8 @@ import { ContactStageChangeDialog } from "@/components/contacts/ContactStageChan
 import { ContactSequencesDialog } from "@/components/contacts/ContactSequencesDialog";
 
 export default function Contacts() {
-  const { currentInstance } = useApp();
+  const { contacts, sequences, contactSequences, clients, users, deleteContact, updateContact, removeFromSequence, updateContactSequence, refreshData } = useApp();
   const { isSuper } = useAuth();
-  const { contacts, contactSequences, scheduledMessages, deleteContact, updateContact, removeFromSequence, updateContactSequence, refreshContactData } = useContact();
-  const { clients, users, sequences } = useConfig();
-  
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [showSequences, setShowSequences] = useState(false);
@@ -125,7 +120,7 @@ export default function Contacts() {
     
     if (result.success) {
       toast.success("Contato atualizado com sucesso");
-      refreshContactData();
+      refreshData();
       setShowEditDialog(false);
     } else {
       toast.error(result.error || "Erro ao atualizar contato");
@@ -142,7 +137,7 @@ export default function Contacts() {
     
     if (result.success) {
       toast.success("Contato excluído com sucesso");
-      refreshContactData();
+      refreshData();
     } else {
       toast.error(result.error || "Erro ao excluir contato");
     }
@@ -158,7 +153,7 @@ export default function Contacts() {
     
     if (result.success) {
       toast.success("Contato removido da sequência com sucesso");
-      refreshContactData();
+      refreshData();
       setShowSequences(false); // Fechar o modal
     } else {
       toast.error(result.error || "Erro ao remover contato da sequência");
@@ -186,7 +181,7 @@ export default function Contacts() {
     
     if (result.success) {
       toast.success("Estágio atualizado com sucesso e mensagens reagendadas");
-      refreshContactData();
+      refreshData();
       setShowStageChangeDialog(false);
     } else {
       toast.error(result.error || "Erro ao atualizar estágio");

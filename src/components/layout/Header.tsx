@@ -27,43 +27,36 @@ interface HeaderProps {
 
 export function Header({ sidebarCollapsed }: HeaderProps) {
   const { user, logout } = useAuth();
-  const { currentInstance, setCurrentInstance, refreshBasicData } = useApp();
+  const { instances, currentInstance, setCurrentInstance, refreshData, isDataInitialized } = useApp();
   const [selectedInstanceId, setSelectedInstanceId] = useState<string>("");
-  const [instances, setInstances] = useState([]);
 
-  // Load instances from local storage or fetch them
+  // Carregar dados apenas se ainda não foram inicializados e temos um usuário
   useEffect(() => {
-    const fetchInstances = async () => {
-      if (user) {
-        try {
-          // Using the refreshBasicData to properly load instances
-          await refreshBasicData();
-          // We're not directly setting instances here as they will be available via AppContext
-        } catch (error) {
-          console.error("Error loading instances:", error);
-        }
-      }
-    };
-    
-    fetchInstances();
-  }, [user, refreshBasicData]);
+    if (user && !isDataInitialized) {
+      console.log("Header - Initial data load");
+      refreshData();
+    }
+  }, [user, refreshData, isDataInitialized]);
 
-  // When currentInstance changes, update the selected instance ID
+  // Update local state when currentInstance changes
   useEffect(() => {
-    if (currentInstance) {
+    if (currentInstance?.id) {
+      console.log("Header - currentInstance changed:", currentInstance.name);
       setSelectedInstanceId(currentInstance.id);
     }
   }, [currentInstance]);
-  
+
   const handleInstanceChange = (instanceId: string) => {
     console.log("Header - Instance selected manually:", instanceId);
     const instance = instances?.find(inst => inst.id === instanceId);
     if (instance) {
-      setCurrentInstance(instance); // This already saves to localStorage via AppContext
+      setCurrentInstance(instance);
       setSelectedInstanceId(instanceId);
+      // Save selected instance ID to localStorage
+      localStorage.setItem('selectedInstanceId', instance.id);
     }
   };
-  
+
   // Caso não tenha user ou instâncias carregadas, mostrar versão simplificada
   const hasInstances = Array.isArray(instances) && instances.length > 0;
   

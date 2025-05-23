@@ -1,60 +1,113 @@
 
-import { useContact } from '@/context/ContactContext';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { format, parseISO } from 'date-fns';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useApp } from '@/context/AppContext';
+import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 export function RecentContacts() {
-  const { contacts, contactSequences } = useContact();
-  
-  // Get the 5 most recent contacts
-  const recentContacts = [...contacts]
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  const { contacts, contactSequences } = useApp();
+
+  // Helper function to get contact sequences
+  const getContactSequences = (contactId: string) => {
+    return contactSequences.filter(seq => seq.contactId === contactId);
+  };
+
+  // Get contacts with recent activity
+  const contactsWithActivity = contacts
+    .map(contact => {
+      const sequences = getContactSequences(contact.id);
+      if (sequences.length === 0) return null;
+      
+      // Find the most recent activity
+      const mostRecentActivity = sequences.reduce((latest, seq) => {
+        const dates = [
+          seq.startedAt,
+          seq.completedAt,
+          seq.removedAt
+        ].filter(Boolean) as string[];
+        
+        const mostRecent = dates.sort((a, b) => 
+          new Date(b).getTime() - new Date(a).getTime()
+        )[0];
+        
+        if (!latest || new Date(mostRecent) > new Date(latest)) {
+          return mostRecent;
+        }
+        
+        return latest;
+      }, '');
+      
+      if (!mostRecentActivity) return null;
+      
+      return {
+        ...contact,
+        lastActivity: mostRecentActivity,
+        // Count of active sequences
+        activeSequences: sequences.filter(s => s.status === 'active').length,
+        completedSequences: sequences.filter(s => s.status === 'completed').length,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => new Date(b!.lastActivity).getTime() - new Date(a!.lastActivity).getTime())
     .slice(0, 5);
-  
+
   return (
-    <Card className="col-span-2">
-      <CardHeader>
+    <Card className="col-span-3 lg:col-span-2">
+      <CardHeader className="pb-3">
         <CardTitle>Contatos Recentes</CardTitle>
         <CardDescription>
-          Os 5 contatos mais recentemente adicionados
+          Últimos contatos com atividade nas sequências
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="divide-y">
-          {contacts.length === 0 ? (
-            <p className="py-4 text-center text-muted-foreground">Nenhum contato encontrado.</p>
-          ) : (
-            recentContacts.map((contact) => {
-              // Get active sequences for this contact
-              const activeSeqs = contactSequences.filter(
-                seq => seq.contactId === contact.id && seq.status === 'active'
-              );
-              
-              return (
-                <div key={contact.id} className="flex items-center justify-between py-3">
-                  <div>
-                    <div className="font-medium">{contact.name}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {contact.phoneNumber}
+        <ScrollArea className="h-[260px]">
+          <div className="space-y-4">
+            {contactsWithActivity.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                Nenhuma atividade recente
+              </div>
+            ) : (
+              contactsWithActivity.map(contact => contact && (
+                <div key={contact.id} className="flex items-start justify-between border-b pb-3">
+                  <div className="space-y-1">
+                    <p className="font-medium">{contact.name}</p>
+                    <p className="text-sm text-muted-foreground">{contact.phoneNumber}</p>
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {contact.tags.slice(0, 3).map(tag => (
+                        <Badge key={tag} variant="outline" className="text-xs py-0 font-normal">
+                          {tag}
+                        </Badge>
+                      ))}
+                      {contact.tags.length > 3 && (
+                        <Badge variant="outline" className="text-xs py-0 font-normal">
+                          +{contact.tags.length - 3}
+                        </Badge>
+                      )}
                     </div>
                   </div>
-                  <div className="flex flex-col items-end">
-                    {activeSeqs.length > 0 && (
-                      <Badge variant="outline" className="mb-1">
-                        {activeSeqs.length} seq. {activeSeqs.length === 1 ? 'ativa' : 'ativas'}
+                  <div className="text-right">
+                    <div className="flex flex-col items-end">
+                      <Badge variant="secondary" className="mb-1">
+                        {contact.activeSequences} ativas
                       </Badge>
-                    )}
-                    <span className="text-xs text-muted-foreground">
-                      {format(parseISO(contact.createdAt), "dd/MM/yyyy", { locale: ptBR })}
-                    </span>
+                      <Badge variant="outline" className="bg-green-500/10">
+                        {contact.completedSequences} completas
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      {formatDistanceToNow(new Date(contact.lastActivity), { 
+                        addSuffix: true,
+                        locale: ptBR 
+                      })}
+                    </p>
                   </div>
                 </div>
-              );
-            })
-          )}
-        </div>
+              ))
+            )}
+          </div>
+        </ScrollArea>
       </CardContent>
     </Card>
   );
