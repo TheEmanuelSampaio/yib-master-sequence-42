@@ -1,4 +1,5 @@
-
+// src/App.tsx
+import React, { Suspense } from 'react'; // Adicione Suspense
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -8,18 +9,19 @@ import { AuthProvider } from "@/context/AuthContext";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { AppProvider } from "@/context/AppContext";
+import { Spinner } from "@/components/layout/Spinner"; // Componente de fallback
 
-// Pages
-import Dashboard from "./pages/Dashboard";
-import Sequences from "./pages/Sequences";
-import Contacts from "./pages/Contacts";
-import Messages from "./pages/Messages";
-import Instances from "./pages/Instances";
-import Settings from "./pages/Settings";
-import ApiDocs from "./pages/ApiDocs";
-import NotFound from "./pages/NotFound";
-import Setup from "./pages/Setup";
-import Login from "./pages/Login";
+// Lazy load pages
+const Dashboard = React.lazy(() => import('./pages/Dashboard'));
+const Sequences = React.lazy(() => import('./pages/Sequences'));
+const Contacts = React.lazy(() => import('./pages/Contacts'));
+const Messages = React.lazy(() => import('./pages/Messages'));
+const Instances = React.lazy(() => import('./pages/Instances'));
+const Settings = React.lazy(() => import('./pages/Settings'));
+const ApiDocs = React.lazy(() => import('./pages/ApiDocs'));
+const NotFound = React.lazy(() => import('./pages/NotFound'));
+const Setup = React.lazy(() => import('./pages/Setup'));
+const Login = React.lazy(() => import('./pages/Login'));
 
 // Auth components
 import { RequireAuth } from "./components/auth/RequireAuth";
@@ -41,25 +43,27 @@ const App = () => (
         <AuthProvider>
           <AppProvider>
             <TooltipProvider>
-              <Routes>
-                {/* Auth Routes */}
-                <Route path="/setup" element={<RequireSetup><Setup /></RequireSetup>} />
-                <Route path="/login" element={<Login />} />
+              <Suspense fallback={<Spinner message="Carregando página..." />}> {/* Fallback UI */}
+                <Routes>
+                  {/* Auth Routes */}
+                  <Route path="/setup" element={<RequireSetup><Setup /></RequireSetup>} />
+                  <Route path="/login" element={<Login />} />
 
-                {/* Protected Routes */}
-                <Route element={<RequireAuth><MainLayout /></RequireAuth>}>
-                  <Route path="/" element={<Dashboard />} />
-                  <Route path="/sequences" element={<Sequences />} />
-                  <Route path="/contacts" element={<Contacts />} />
-                  <Route path="/messages" element={<Messages />} />
-                  <Route path="/instances" element={<Instances />} />
-                  <Route path="/settings" element={<Settings />} />
-                  <Route path="/api-docs" element={<ApiDocs />} />
-                </Route>
-                
-                {/* 404 Route */}
-                <Route path="*" element={<NotFound />} />
-              </Routes>
+                  {/* Protected Routes */}
+                  <Route element={<RequireAuth><MainLayout /></RequireAuth>}>
+                    <Route path="/" element={<Dashboard />} />
+                    <Route path="/sequences" element={<Sequences />} />
+                    <Route path="/contacts" element={<Contacts />} />
+                    <Route path="/messages" element={<Messages />} />
+                    <Route path="/instances" element={<Instances />} />
+                    <Route path="/settings" element={<Settings />} />
+                    <Route path="/api-docs" element={<ApiDocs />} />
+                  </Route>
+
+                  {/* 404 Route */}
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </Suspense>
               <Toaster />
               <Sonner />
             </TooltipProvider>
