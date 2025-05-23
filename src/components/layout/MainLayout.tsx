@@ -6,12 +6,31 @@ import { Toaster } from "@/components/ui/toaster";
 import { Outlet } from "react-router-dom";
 import { ContextDebugger } from "../debug/ContextDebugger";
 import { cn } from "@/lib/utils";
-import { useApp } from "@/context/AppContext";
+import { useInstances } from "@/context/InstanceContext";
 import { Skeleton } from "../ui/skeleton";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 export const MainLayout = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const { currentInstance, isDataInitialized } = useApp();
+  const { currentInstance } = useInstances();
+  
+  // Use React Query to check if the application is initially set up
+  const { data: setupData, isLoading: setupLoading } = useQuery({
+    queryKey: ["appSetup"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("app_setup")
+        .select("*")
+        .single();
+      
+      if (error && error.code !== "PGRST116") {
+        console.error("Error checking app setup:", error);
+      }
+      
+      return { isSetup: !!data?.setup_completed };
+    }
+  });
   
   // Add debounced effect for logging to prevent excessive re-renders
   useEffect(() => {
@@ -20,15 +39,15 @@ export const MainLayout = () => {
         currentInstance ? currentInstance.name : "none");
       
       console.log("Application info:", {
-        version: "1.0.3", // Updated version number
+        version: "1.0.3",
         mode: process.env.NODE_ENV,
-        initialized: isDataInitialized,
+        initialized: setupData?.isSetup || false,
         lastBuildTime: new Date().toISOString()
       });
     }, 100);
     
     return () => clearTimeout(timer);
-  }, [currentInstance, isDataInitialized]);
+  }, [currentInstance, setupData]);
   
   const toggleSidebar = () => {
     setSidebarCollapsed(!sidebarCollapsed);
@@ -45,7 +64,7 @@ export const MainLayout = () => {
       >
         <Header sidebarCollapsed={sidebarCollapsed} />
         <main className="flex-1 p-4 md:p-8 pt-0 md:pt-0 overflow-y-auto">
-          {!isDataInitialized ? (
+          {setupLoading ? (
             <div className="space-y-4 p-4">
               <Skeleton className="h-8 w-1/3" />
               <Skeleton className="h-4 w-1/2" />
