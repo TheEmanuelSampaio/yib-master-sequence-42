@@ -1,5 +1,7 @@
 
 import { useApp } from '@/context/AppContext';
+import { useContact } from '@/context/ContactContext';
+import { useSequence } from '@/context/SequenceContext';
 import { StatsCard } from '@/components/dashboard/StatsCard';
 import { SequenceOverview } from '@/components/dashboard/SequenceOverview';
 import { MessagesChart } from '@/components/dashboard/MessagesChart';
@@ -8,7 +10,9 @@ import { TagDistributionChart } from '@/components/dashboard/TagDistributionChar
 import { LayoutDashboard, Users, MessageSquare, CheckCheck } from 'lucide-react';
 
 export default function Dashboard() {
-  const { currentInstance, sequences, contacts, stats } = useApp();
+  const { currentInstance } = useApp();
+  const { sequences } = useSequence();
+  const { contacts, stats } = useContact();
   
   // Calculate key metrics
   const activeSequenceCount = sequences.filter(

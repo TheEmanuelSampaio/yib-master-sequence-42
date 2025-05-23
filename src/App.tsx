@@ -10,7 +10,7 @@ import Messages from './pages/Messages';
 import Contacts from './pages/Contacts';
 import Settings from './pages/Settings';
 import NotFound from './pages/NotFound';
-import MainLayout from './layouts/MainLayout';
+import MainLayout from './components/layout/MainLayout';
 import { RequireAuth } from './components/auth/RequireAuth';
 import { AuthProvider } from './context/AuthContext';
 import Setup from './pages/Setup';

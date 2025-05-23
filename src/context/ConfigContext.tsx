@@ -3,8 +3,8 @@ import { createContext, useContext, useState, useEffect, ReactNode } from "react
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { useApp } from "@/context/AppContext";
-import { Client, TimeRestriction, User, Tag } from "@/types";
-import { ConfigContextType } from "@/types/context";
+import { Client, TimeRestriction, User } from "@/types";
+import { ConfigContextType, Tag } from "@/types/context";
 import { toast } from "sonner";
 
 const defaultContextValue: ConfigContextType = {
@@ -53,15 +53,38 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
         .select('*');
       
       if (clientsError) throw clientsError;
-      setClients(clientsData as Client[]);
       
-      // Load users
+      // Map database fields to our Client interface
+      const mappedClients = clientsData.map(client => ({
+        id: client.id,
+        accountId: client.account_id,
+        accountName: client.account_name,
+        createdBy: client.created_by,
+        createdAt: client.created_at,
+        updatedAt: client.updated_at,
+        authToken: client.auth_token,
+        creator_account_name: client.creator_account_name
+      }));
+      
+      setClients(mappedClients);
+      
+      // Load users from profiles table
       const { data: usersData, error: usersError } = await supabase
-        .from('users')
+        .from('profiles')
         .select('*');
       
       if (usersError) throw usersError;
-      setUsers(usersData as User[]);
+      
+      // Map database fields to our User interface
+      const mappedUsers = usersData.map(profile => ({
+        id: profile.id,
+        accountName: profile.account_name,
+        email: '', // Email isn't directly accessible from profiles
+        role: profile.role,
+        authToken: profile.auth_token
+      }));
+      
+      setUsers(mappedUsers);
       
       // Load tags
       const { data: tagsData, error: tagsError } = await supabase
@@ -70,31 +93,38 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
         .eq('created_by', user.id);
       
       if (tagsError) throw tagsError;
-      setTags(tagsData.map(tag => ({
+      
+      const mappedTags = tagsData.map(tag => ({
         id: tag.id,
         name: tag.name,
         createdBy: tag.created_by,
         createdAt: tag.created_at
-      })));
+      }));
+      
+      setTags(mappedTags);
       
       // Load time restrictions
       if (currentInstance) {
         const { data: restrictionsData, error: restrictionsError } = await supabase
           .from('time_restrictions')
           .select('*')
-          .eq('instance_id', currentInstance.id);
+          .eq('created_by', user.id);
         
         if (restrictionsError) throw restrictionsError;
-        setTimeRestrictions(restrictionsData.map(restriction => ({
+        
+        const mappedRestrictions = restrictionsData.map(restriction => ({
           id: restriction.id,
           name: restriction.name,
-          instanceId: restriction.instance_id,
+          active: restriction.active,
           days: restriction.days,
-          startTime: restriction.start_time,
-          endTime: restriction.end_time,
-          createdAt: restriction.created_at,
-          updatedAt: restriction.updated_at
-        })));
+          startHour: restriction.start_hour,
+          startMinute: restriction.start_minute, 
+          endHour: restriction.end_hour,
+          endMinute: restriction.end_minute,
+          isGlobal: true // Assuming all from time_restrictions are global
+        }));
+        
+        setTimeRestrictions(mappedRestrictions);
       }
       
       console.log("ConfigContext: Configuration data loaded successfully");
@@ -113,6 +143,7 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
       const { data, error } = await supabase
         .from('clients')
         .insert({
+          account_id: client.accountId,
           account_name: client.accountName,
           created_by: user?.id,
           auth_token: client.authToken,
@@ -123,19 +154,22 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
       if (error) throw error;
       
       // Update local state
-      const newClient = data[0] as any;
-      setClients([...clients, {
-        id: newClient.id,
-        accountId: newClient.account_id,
-        accountName: newClient.account_name,
-        createdBy: newClient.created_by,
-        createdAt: newClient.created_at,
-        updatedAt: newClient.updated_at,
-        authToken: newClient.auth_token,
-        creator_account_name: newClient.creator_account_name
-      }]);
+      if (data && data[0]) {
+        const newClient: Client = {
+          id: data[0].id,
+          accountId: data[0].account_id,
+          accountName: data[0].account_name,
+          createdBy: data[0].created_by,
+          createdAt: data[0].created_at,
+          updatedAt: data[0].updated_at,
+          authToken: data[0].auth_token,
+          creator_account_name: data[0].creator_account_name
+        };
+        
+        setClients([...clients, newClient]);
+      }
       
-      return { success: true, data: newClient };
+      return { success: true, data: data?.[0] };
     } catch (error: any) {
       console.error("Error adding client:", error);
       return { success: false, error: error.message };
@@ -144,12 +178,13 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
 
   const updateClient = async (id: string, updates: Partial<Client>) => {
     try {
+      const updateData: any = {};
+      if (updates.accountName) updateData.account_name = updates.accountName;
+      if (updates.authToken) updateData.auth_token = updates.authToken;
+      
       const { error } = await supabase
         .from('clients')
-        .update({
-          account_name: updates.accountName,
-          auth_token: updates.authToken,
-        })
+        .update(updateData)
         .eq('id', id);
       
       if (error) throw error;
@@ -188,29 +223,10 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
   // Handle CRUD operations for users
   const addUser = async (newUser: Omit<User, "id">) => {
     try {
-      const { data, error } = await supabase
-        .from('users')
-        .insert({
-          email: newUser.email,
-          account_name: newUser.accountName,
-          role: newUser.role,
-        })
-        .select();
-      
-      if (error) throw error;
-      
-      // Update local state
-      const addedUser = data[0] as any;
-      setUsers([...users, {
-        id: addedUser.id,
-        email: addedUser.email,
-        accountName: addedUser.account_name,
-        role: addedUser.role,
-        active: addedUser.active,
-        setupComplete: addedUser.setup_complete
-      }]);
-      
-      return { success: true, data: addedUser };
+      // This is a placeholder - actual user creation would be handled differently
+      // typically using auth.signUp or a custom endpoint
+      toast.info("Adding new users requires a proper auth implementation");
+      return { success: false, error: "Not implemented directly" };
     } catch (error: any) {
       console.error("Error adding user:", error);
       return { success: false, error: error.message };
@@ -219,14 +235,14 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
 
   const updateUser = async (id: string, updates: Partial<User>) => {
     try {
+      const updateData: any = {};
+      if (updates.accountName) updateData.account_name = updates.accountName;
+      if (updates.role) updateData.role = updates.role;
+      if (updates.authToken) updateData.auth_token = updates.authToken;
+      
       const { error } = await supabase
-        .from('users')
-        .update({
-          account_name: updates.accountName,
-          email: updates.email,
-          role: updates.role,
-          active: updates.active
-        })
+        .from('profiles')
+        .update(updateData)
         .eq('id', id);
       
       if (error) throw error;
@@ -245,17 +261,9 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
 
   const deleteUser = async (id: string) => {
     try {
-      const { error } = await supabase
-        .from('users')
-        .delete()
-        .eq('id', id);
-      
-      if (error) throw error;
-      
-      // Update local state
-      setUsers(users.filter(user => user.id !== id));
-      
-      return { success: true };
+      // This would typically call a server-side function to handle the actual deletion
+      toast.info("Deleting users requires a proper auth implementation");
+      return { success: false, error: "Not implemented directly" };
     } catch (error: any) {
       console.error("Error deleting user:", error);
       return { success: false, error: error.message };
@@ -275,16 +283,21 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
       
       if (error) throw error;
       
-      // Update local state
-      const newTag = data[0] as any;
-      setTags([...tags, {
-        id: newTag.id,
-        name: newTag.name,
-        createdBy: newTag.created_by,
-        createdAt: newTag.created_at
-      }]);
+      if (data && data[0]) {
+        const newTag: Tag = {
+          id: data[0].id,
+          name: data[0].name,
+          createdBy: data[0].created_by,
+          createdAt: data[0].created_at
+        };
+        
+        // Update local state
+        setTags([...tags, newTag]);
+        
+        return { success: true, data: newTag };
+      }
       
-      return { success: true, data: newTag };
+      return { success: true };
     } catch (error: any) {
       console.error("Error adding tag:", error);
       return { success: false, error: error.message };
@@ -317,29 +330,38 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
         .from('time_restrictions')
         .insert({
           name: restriction.name,
-          instance_id: restriction.instanceId,
+          active: restriction.active,
           days: restriction.days,
-          start_time: restriction.startTime,
-          end_time: restriction.endTime
+          start_hour: restriction.startHour,
+          start_minute: restriction.startMinute,
+          end_hour: restriction.endHour,
+          end_minute: restriction.endMinute,
+          created_by: user?.id
         })
         .select();
       
       if (error) throw error;
       
-      // Update local state
-      const newRestriction = data[0] as any;
-      setTimeRestrictions([...timeRestrictions, {
-        id: newRestriction.id,
-        name: newRestriction.name,
-        instanceId: newRestriction.instance_id,
-        days: newRestriction.days,
-        startTime: newRestriction.start_time,
-        endTime: newRestriction.end_time,
-        createdAt: newRestriction.created_at,
-        updatedAt: newRestriction.updated_at
-      }]);
+      if (data && data[0]) {
+        const newRestriction: TimeRestriction = {
+          id: data[0].id,
+          name: data[0].name,
+          active: data[0].active,
+          days: data[0].days,
+          startHour: data[0].start_hour,
+          startMinute: data[0].start_minute,
+          endHour: data[0].end_hour,
+          endMinute: data[0].end_minute,
+          isGlobal: true
+        };
+        
+        // Update local state
+        setTimeRestrictions([...timeRestrictions, newRestriction]);
+        
+        return { success: true, data: newRestriction };
+      }
       
-      return { success: true, data: newRestriction };
+      return { success: true };
     } catch (error: any) {
       console.error("Error adding time restriction:", error);
       return { success: false, error: error.message };
@@ -348,14 +370,18 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
 
   const updateTimeRestriction = async (id: string, updates: Partial<TimeRestriction>) => {
     try {
+      const updateData: any = {};
+      if (updates.name) updateData.name = updates.name;
+      if (updates.active !== undefined) updateData.active = updates.active;
+      if (updates.days) updateData.days = updates.days;
+      if (updates.startHour !== undefined) updateData.start_hour = updates.startHour;
+      if (updates.startMinute !== undefined) updateData.start_minute = updates.startMinute;
+      if (updates.endHour !== undefined) updateData.end_hour = updates.endHour;
+      if (updates.endMinute !== undefined) updateData.end_minute = updates.endMinute;
+      
       const { error } = await supabase
         .from('time_restrictions')
-        .update({
-          name: updates.name,
-          days: updates.days,
-          start_time: updates.startTime,
-          end_time: updates.endTime
-        })
+        .update(updateData)
         .eq('id', id);
       
       if (error) throw error;
