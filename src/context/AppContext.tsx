@@ -14,7 +14,7 @@ import {
   StageProgress,
   TagCondition
 } from "@/types";
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "@/hooks/use-toast";
 import AppContactContext, { createContactFunctions, AppContactFunctions } from './AppContact';
 
 interface AppContextType {
@@ -421,7 +421,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
   
   const loadSequences = async () => {
-    // ... keep existing code (sequence loading logic)
     const { data: sequencesData, error: sequencesError } = await supabase
       .from('sequences')
       .select(`
@@ -543,7 +542,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
   
   const loadContacts = async () => {
-    // ... keep existing code (contacts loading logic)
     const { data: contactsData, error: contactsError } = await supabase
       .from('contacts')
       .select('*');
