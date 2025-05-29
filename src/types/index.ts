@@ -34,7 +34,6 @@ export interface Instance {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
-  inboxId?: number; // Added inbox filter field
 }
 
 export interface Sequence {
@@ -52,7 +51,6 @@ export interface Sequence {
   updatedAt: string;
   webhookEnabled: boolean; // New field for webhook support
   webhookId?: string; // New field for webhook ID
-  inboxFilterEnabled: boolean; // New field for inbox filter toggle
 }
 
 export interface TagCondition {
@@ -309,7 +307,6 @@ export interface Database {
           created_by: string;
           created_at: string;
           updated_at: string;
-          inbox_id: number | null; // Added inbox_id field
         };
         Insert: {
           id?: string;
@@ -321,7 +318,6 @@ export interface Database {
           created_by: string;
           created_at?: string;
           updated_at?: string;
-          inbox_id?: number | null; // Added inbox_id field
         };
         Update: {
           id?: string;
@@ -333,7 +329,6 @@ export interface Database {
           created_by?: string;
           created_at?: string;
           updated_at?: string;
-          inbox_id?: number | null; // Added inbox_id field
         };
       };
       app_setup: {

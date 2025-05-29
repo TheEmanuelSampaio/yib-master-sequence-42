@@ -1,8 +1,8 @@
 
-export async function processSequences(supabase, clientId, contactId, tags, variables = {}, inboxId = null) {
+
+export async function processSequences(supabase, clientId, contactId, tags, variables = {}) {
   console.log(`[5.1 SEQUÊNCIAS] Iniciando processamento de sequências para o contato ${contactId} com tags: ${JSON.stringify(tags)}`);
   console.log(`[5.1 SEQUÊNCIAS] Filtrando sequências para o client_id: ${clientId}`);
-  console.log(`[5.1 SEQUÊNCIAS] InboxId recebido: ${inboxId}`);
   console.log(`[5.1 VARIÁVEIS] Processando variáveis recebidas: ${JSON.stringify(variables || {})}`);
   
   try {
@@ -28,7 +28,7 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
         sequencesProcessed: 0,
         sequencesAdded: 0,
         sequencesSkipped: 0,
-        sequencesRemoved: 0
+        sequencesRemoved: 0 // Adicionado contador de sequências removidas
       };
     }
     
@@ -36,7 +36,7 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
     const instanceIds = instances.map(instance => instance.id);
     console.log(`[5.2 SEQUÊNCIAS] Encontradas ${instanceIds.length} instâncias para o cliente ${clientId}.`);
     
-    // Buscar sequências usando os IDs das instâncias, incluindo dados da instância para inbox_id
+    // Buscar sequências usando os IDs das instâncias
     const { data: sequences, error: sequencesError } = await supabase
       .from("sequences")
       .select(`
@@ -49,12 +49,6 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
         stop_condition_tags,
         status,
         created_by,
-        inbox_filter_enabled,
-        instances!inner (
-          id,
-          name,
-          inbox_id
-        ),
         sequence_stages (
           id,
           name,
@@ -123,13 +117,13 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
           // Normalizando as tags do contato para comparação consistente
           const normalizedContactTags = tags.map(tag => tag.toLowerCase().trim());
           
-          console.log(`[5.2.2 SEQUÊNCIA "${sequence.name}"] Verificando condições de parada para possível remoção`);
-          console.log(`[5.2.2 SEQUÊNCIA "${sequence.name}"] Condição de parada: tipo=${sequence.stop_condition_type}, tags=${JSON.stringify(sequence.stop_condition_tags)}`);
+          console.log(`[5.2.2 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Verificando condições de parada para possível remoção`);
+          console.log(`[5.2.2 SEQUÊNCIA ${sequence.id}] Condição de parada: tipo=${sequence.stop_condition_type}, tags=${JSON.stringify(sequence.stop_condition_tags)}`);
           
           const matchesStop = evaluateCondition(sequence.stop_condition_type, sequence.stop_condition_tags, normalizedContactTags);
           
           if (matchesStop) {
-            console.log(`[5.2.3 SEQUÊNCIA "${sequence.name}"] Contato atende às condições de parada, removendo da sequência...`);
+            console.log(`[5.2.3 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Contato atende às condições de parada, removendo da sequência...`);
             
             // Processo de remoção similar ao usado na função removeFromSequence() do arquivo AppContact.tsx
             
@@ -141,7 +135,7 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
               .eq('sequence_id', sequence.id);
               
             if (msgError) {
-              console.error(`[5.2.3 SEQUÊNCIA "${sequence.name}"] Erro ao remover mensagens agendadas: ${msgError.message}`);
+              console.error(`[5.2.3 SEQUÊNCIA ${sequence.id}] Erro ao remover mensagens agendadas: ${msgError.message}`);
               continue;
             }
             
@@ -153,7 +147,7 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
               .eq('status', 'pending');
               
             if (progError) {
-              console.error(`[5.2.3 SEQUÊNCIA "${sequence.name}"] Erro ao atualizar progresso do estágio: ${progError.message}`);
+              console.error(`[5.2.3 SEQUÊNCIA ${sequence.id}] Erro ao atualizar progresso do estágio: ${progError.message}`);
               continue;
             }
             
@@ -167,14 +161,14 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
               .eq('id', contactSequence.id);
 
             if (error) {
-              console.error(`[5.2.3 SEQUÊNCIA "${sequence.name}"] Erro ao remover contato da sequência: ${error.message}`);
+              console.error(`[5.2.3 SEQUÊNCIA ${sequence.id}] Erro ao remover contato da sequência: ${error.message}`);
               continue;
             }
             
-            console.log(`[5.2.3 SEQUÊNCIA "${sequence.name}"] Contato removido com sucesso da sequência`);
+            console.log(`[5.2.3 SEQUÊNCIA ${sequence.id}] Contato removido com sucesso da sequência`);
             sequencesRemoved++;
           } else {
-            console.log(`[5.2.3 SEQUÊNCIA "${sequence.name}"] Contato não atende às condições de parada, mantendo na sequência`);
+            console.log(`[5.2.3 SEQUÊNCIA ${sequence.id}] Contato não atende às condições de parada, mantendo na sequência`);
           }
         }
       }
@@ -184,41 +178,16 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
       console.log(`[5.2.1 SEQUÊNCIAS] Contato ${contactId} não está em nenhuma sequência ativa`);
     }
 
-    // Passo 2: Aplicar filtro de inbox_id e depois filtrar pelas condições de tags
-    let eligibleSequences = [];
-    let inboxFilterWarnings = [];
-    
-    for (const sequence of sequences) {
-      console.log(`[5.3 SEQUÊNCIA "${sequence.name}"] Avaliando elegibilidade`);
-      console.log(`[5.3 SEQUÊNCIA "${sequence.name}"] Filtro de inbox habilitado: ${sequence.inbox_filter_enabled}`);
-      console.log(`[5.3 SEQUÊNCIA "${sequence.name}"] Inbox ID da instância: ${sequence.instances.inbox_id}`);
-      console.log(`[5.3 SEQUÊNCIA "${sequence.name}"] Inbox ID do contato: ${inboxId}`);
-      
-      // NOVO: Verificar filtro de inbox_id primeiro
-      if (sequence.inbox_filter_enabled) {
-        if (!sequence.instances.inbox_id) {
-          const warning = `Sequência "${sequence.name}" tem filtro de inbox habilitado, mas a instância "${sequence.instances.name}" não tem inbox_id configurado`;
-          console.log(`[5.3 SEQUÊNCIA "${sequence.name}"] ${warning}`);
-          inboxFilterWarnings.push(warning);
-          continue; // Pula esta sequência
-        }
-        
-        if (inboxId && sequence.instances.inbox_id !== inboxId) {
-          console.log(`[5.3 SEQUÊNCIA "${sequence.name}"] Inbox ID não coincide, pulando sequência`);
-          continue; // Pula esta sequência
-        }
-        
-        console.log(`[5.3 SEQUÊNCIA "${sequence.name}"] Filtro de inbox passou - continua para verificação de tags`);
-      } else {
-        console.log(`[5.3 SEQUÊNCIA "${sequence.name}"] Filtro de inbox desabilitado - continua para verificação de tags`);
-      }
-      
+    // Passo 2: Filtrar aquelas onde o contato atende as condições de start e não atende as de stop
+    const eligibleSequences = sequences.filter(sequence => {
       // Normalizando as tags do contato para comparação consistente
       const normalizedContactTags = tags.map(tag => tag.toLowerCase().trim());
       
-      console.log(`[5.3 SEQUÊNCIA "${sequence.name}"] Condição de início: tipo=${sequence.start_condition_type}, tags=${JSON.stringify(sequence.start_condition_tags)}`);
-      console.log(`[5.3 SEQUÊNCIA "${sequence.name}"] Condição de parada: tipo=${sequence.stop_condition_type}, tags=${JSON.stringify(sequence.stop_condition_tags)}`);
-      console.log(`[5.3 SEQUÊNCIA "${sequence.name}"] Tags do contato: ${JSON.stringify(normalizedContactTags)}`);
+      // Debug da sequência sendo avaliada
+      console.log(`[5.3 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Avaliando elegibilidade`);
+      console.log(`[5.3 SEQUÊNCIA ${sequence.id}] Condição de início: tipo=${sequence.start_condition_type}, tags=${JSON.stringify(sequence.start_condition_tags)}`);
+      console.log(`[5.3 SEQUÊNCIA ${sequence.id}] Condição de parada: tipo=${sequence.stop_condition_type}, tags=${JSON.stringify(sequence.stop_condition_tags)}`);
+      console.log(`[5.3 SEQUÊNCIA ${sequence.id}] Tags do contato: ${JSON.stringify(normalizedContactTags)}`);
       
       const matchesStart = evaluateCondition(sequence.start_condition_type, sequence.start_condition_tags, normalizedContactTags);
       const matchesStop = evaluateCondition(sequence.stop_condition_type, sequence.stop_condition_tags, normalizedContactTags);
@@ -227,24 +196,19 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
       const hasStopConditions = sequence.stop_condition_tags && sequence.stop_condition_tags.length > 0;
       const isEligible = matchesStart && (!hasStopConditions || !matchesStop);
       
-      console.log(`[5.3 SEQUÊNCIA "${sequence.name}"] Elegibilidade: matchesStart=${matchesStart}, matchesStop=${matchesStop}, hasStopConditions=${hasStopConditions}, isEligible=${isEligible}`);
+      console.log(`[5.3 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Elegibilidade: matchesStart=${matchesStart}, matchesStop=${matchesStop}, hasStopConditions=${hasStopConditions}, isEligible=${isEligible}`);
       
-      if (isEligible) {
-        eligibleSequences.push(sequence);
-      }
-    }
+      return isEligible;
+    });
 
     console.log(`[5.3 SEQUÊNCIAS] ${eligibleSequences.length} sequências elegíveis para o contato com tags: ${JSON.stringify(tags)}`);
-    if (inboxFilterWarnings.length > 0) {
-      console.log(`[5.3 SEQUÊNCIAS] ${inboxFilterWarnings.length} warnings de filtro de inbox`);
-    }
 
     // Passo 3: Para cada sequência elegível, verificar se o contato já está na sequência
     let sequencesAdded = 0;
     let sequencesSkipped = 0;
     
     for (const sequence of eligibleSequences) {
-      console.log(`[5.4 SEQUÊNCIA "${sequence.name}"] Verificando se o contato já está na sequência...`);
+      console.log(`[5.4 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Verificando se o contato já está na sequência...`);
       
       const { data: existingContactSequence, error: contactSequenceError } = await supabase
         .from("contact_sequences")
@@ -255,12 +219,12 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
         .maybeSingle();
 
       if (contactSequenceError) {
-        console.error(`[5.4 SEQUÊNCIA "${sequence.name}"] Erro ao verificar contato na sequência: ${contactSequenceError.message}`);
+        console.error(`[5.4 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Erro ao verificar contato na sequência: ${contactSequenceError.message}`);
         continue;
       }
 
       if (existingContactSequence) {
-        console.log(`[5.4 SEQUÊNCIA "${sequence.name}"] Contato já está na sequência com status ${existingContactSequence.status}`);
+        console.log(`[5.4 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Contato já está na sequência com status ${existingContactSequence.status}`);
         sequencesSkipped++;
         continue;
       }
@@ -274,14 +238,14 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
       const sortedStages = [...sequenceStages].sort((a, b) => a.order_index - b.order_index);
       
       if (sortedStages.length === 0) {
-        console.log(`[5.4 SEQUÊNCIA "${sequence.name}"] Sequência não tem estágios, pulando...`);
+        console.log(`[5.4 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Sequência não tem estágios, pulando...`);
         sequencesSkipped++;
         continue;
       }
 
       const firstStage = sortedStages[0];
 
-      console.log(`[5.5 SEQUÊNCIA "${sequence.name}"] Adicionando contato à sequência, primeiro estágio: ${firstStage.id} - "${firstStage.name}"`);
+      console.log(`[5.5 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Adicionando contato à sequência, primeiro estágio: ${firstStage.id} - "${firstStage.name}"`);
 
       // Adicionar o contato à sequência
       const { data: newContactSequence, error: insertError } = await supabase
@@ -297,11 +261,11 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
         .single();
 
       if (insertError) {
-        console.error(`[5.5 SEQUÊNCIA "${sequence.name}"] Erro ao adicionar contato à sequência: ${insertError.message}`);
+        console.error(`[5.5 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Erro ao adicionar contato à sequência: ${insertError.message}`);
         continue;
       }
 
-      console.log(`[5.5 SEQUÊNCIA "${sequence.name}"] Contato adicionado com sucesso à sequência: ${newContactSequence.id}`);
+      console.log(`[5.5 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Contato adicionado com sucesso à sequência: ${newContactSequence.id}`);
 
       // ALTERAÇÃO AQUI: Adicionar SOMENTE o registro de stage_progress para o PRIMEIRO estágio
       // Antes criávamos registros para todos os estágios, agora só para o primeiro
@@ -316,14 +280,14 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
         .insert(stageProgressRecord);
 
       if (stageProgressError) {
-        console.error(`[5.6 SEQUÊNCIA "${sequence.name}"] Erro ao criar registro de progresso de estágio: ${stageProgressError.message}`);
+        console.error(`[5.6 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Erro ao criar registro de progresso de estágio: ${stageProgressError.message}`);
       } else {
-        console.log(`[5.6 SEQUÊNCIA "${sequence.name}"] Criado registro de progresso para o primeiro estágio`);
+        console.log(`[5.6 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Criado registro de progresso para o primeiro estágio`);
       }
 
       // Calcular tempo de delay para a primeira mensagem
       const delay = calculateDelayInMinutes(firstStage.delay, firstStage.delay_unit);
-      console.log(`[5.7 SEQUÊNCIA "${sequence.name}"] Delay calculado para o primeiro estágio: ${delay} minutos`);
+      console.log(`[5.7 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Delay calculado para o primeiro estágio: ${delay} minutos`);
       
       // Calcular horário de envio
       const scheduledTime = new Date();
@@ -337,7 +301,7 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
       );
 
       if (restrictionsError) {
-        console.error(`[5.7 SEQUÊNCIA "${sequence.name}"] Erro ao obter restrições de tempo: ${restrictionsError.message}`);
+        console.error(`[5.7 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Erro ao obter restrições de tempo: ${restrictionsError.message}`);
       }
       
       // Garantir que timeRestrictions é um array, mesmo que seja null
@@ -349,7 +313,7 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
       );
       
       if (wasAdjusted) {
-        console.log(`[5.7 SEQUÊNCIA "${sequence.name}"] Horário ajustado devido a restrições de tempo: ${adjustedTime.toISOString()}`);
+        console.log(`[5.7 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Horário ajustado devido a restrições de tempo: ${adjustedTime.toISOString()}`);
       }
       
       // Processar variáveis no conteúdo antes de agendar a mensagem
@@ -372,9 +336,9 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
         .single();
 
       if (scheduleError) {
-        console.error(`[5.8 SEQUÊNCIA "${sequence.name}"] Erro ao agendar primeira mensagem: ${scheduleError.message}`);
+        console.error(`[5.8 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Erro ao agendar primeira mensagem: ${scheduleError.message}`);
       } else {
-        console.log(`[5.8 SEQUÊNCIA "${sequence.name}"] Primeira mensagem agendada com sucesso: ${scheduledMessage.id}`);
+        console.log(`[5.8 SEQUÊNCIA ${sequence.id} - "${sequence.name}"] Primeira mensagem agendada com sucesso: ${scheduledMessage.id}`);
         // Log das variáveis processadas
         console.log(`[5.8 VARIÁVEIS] Mensagem agendada com variáveis: ${JSON.stringify(variables || {})}`);
         console.log(`[5.8 VARIÁVEIS] Conteúdo original: ${firstStage.content}`);
@@ -410,11 +374,10 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
     
     return {
       success: true,
-      sequencesProcessed: sequences.length,
+      sequencesProcessed: eligibleSequences.length,
       sequencesAdded,
       sequencesSkipped,
-      sequencesRemoved: sequencesRemoved || 0,
-      inboxFilterWarnings: inboxFilterWarnings.length > 0 ? inboxFilterWarnings : undefined
+      sequencesRemoved: sequencesRemoved || 0
     };
     
   } catch (error) {
@@ -596,4 +559,4 @@ function applyTimeRestrictions(scheduledTime, restrictions) {
   }
 
   return { adjustedTime: scheduledDate, wasAdjusted };
-}
+import { isAllowedByTimeRestriction } from "./time-rest
