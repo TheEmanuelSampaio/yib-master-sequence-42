@@ -1,3 +1,4 @@
+
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { supabase, UserWithEmail, isValidUUID, checkStagesInUse } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
@@ -486,7 +487,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           updatedAt: sequence.updated_at,
           createdBy: sequence.created_by,
           webhookEnabled: sequence.webhook_enabled || false,
-          webhookId: sequence.webhook_id || undefined
+          webhookId: sequence.webhook_id || undefined,
+          inboxFilterEnabled: sequence.inbox_filter_enabled !== undefined ? sequence.inbox_filter_enabled : true // Add the missing field with default value
         };
       });
       
@@ -773,7 +775,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           status: sequenceData.status,
           created_by: user.id,
           webhook_enabled: sequenceData.webhookEnabled,
-          webhook_id: sequenceData.webhookId
+          webhook_id: sequenceData.webhookId,
+          inbox_filter_enabled: sequenceData.inboxFilterEnabled // Add the new field
         })
         .select()
         .single();
@@ -886,7 +889,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           stop_condition_tags: updates.stopCondition?.tags,
           updated_at: new Date().toISOString(),
           webhook_enabled: updates.webhookEnabled,
-          webhook_id: updates.webhookId
+          webhook_id: updates.webhookId,
+          inbox_filter_enabled: updates.inboxFilterEnabled // Add the new field
         })
         .eq('id', id);
       
@@ -1566,7 +1570,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           updatedAt: seq.updated_at,
           createdBy: seq.created_by, // Add missing createdBy field
           webhookEnabled: seq.webhook_enabled || false, // Add the webhook enabled field
-          webhookId: seq.webhook_id // Add the webhook ID field
+          webhookId: seq.webhook_id, // Add the webhook ID field
+          inboxFilterEnabled: seq.inbox_filter_enabled !== undefined ? seq.inbox_filter_enabled : true // Add the missing field with default value
         });
       }
       
@@ -1599,7 +1604,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       createdAt: seq.created_at,
       updatedAt: seq.updated_at,
       webhookEnabled: seq.webhook_enabled || false,
-      webhookId: seq.webhook_id
+      webhookId: seq.webhook_id,
+      inboxFilterEnabled: seq.inbox_filter_enabled !== undefined ? seq.inbox_filter_enabled : true // Add the missing field with default value
     };
   };
 
