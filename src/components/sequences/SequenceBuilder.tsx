@@ -65,9 +65,6 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
   const [webhookId, setWebhookId] = useState<string | undefined>(
     sequence?.webhookId
   );
-  const [inboxFilterEnabled, setInboxFilterEnabled] = useState<boolean>(
-    sequence?.inboxFilterEnabled !== undefined ? sequence.inboxFilterEnabled : true
-  );
   const [isValidatingWebhookId, setIsValidatingWebhookId] = useState(false);
   const [isWebhookIdUnique, setIsWebhookIdUnique] = useState(true);
   
@@ -108,7 +105,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
     startMinute: 0,
     endHour: 8,
     endMinute: 0,
-    isGlobal: false, // Por padrão, novas restrições são locais
+    isGlobal: false, // Por padr��o, novas restrições são locais
   });
 
   const [showTagDialog, setShowTagDialog] = useState(false);
@@ -593,8 +590,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
         status,
         createdBy: sequence?.createdBy || "system", // Include createdBy field
         webhookEnabled,
-        webhookId: webhookEnabled ? webhookId : undefined,
-        inboxFilterEnabled // Add the missing field
+        webhookId: webhookEnabled ? webhookId : undefined
       };
       
       console.log("Dados da sequência sendo enviados:", JSON.stringify(newSequence, null, 2));
@@ -628,8 +624,7 @@ export function SequenceBuilder({ sequence, onSave, onCancel, onChangesMade }: S
       JSON.stringify(timeRestrictions) !== JSON.stringify(sequence.timeRestrictions) ||
       status !== sequence.status ||
       webhookEnabled !== sequence.webhookEnabled || // Check if webhook state changed
-      (webhookEnabled && webhookId !== sequence.webhookId) || // Check if webhook ID changed when enabled
-      inboxFilterEnabled !== sequence.inboxFilterEnabled // Check if inbox filter changed
+      (webhookEnabled && webhookId !== sequence.webhookId) // Check if webhook ID changed when enabled
     );
   };
   
