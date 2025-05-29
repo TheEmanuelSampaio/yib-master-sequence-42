@@ -20,7 +20,8 @@ export const instances: Instance[] = [
     clientId: "client-1",
     createdBy: "user-1",
     createdAt: "2023-12-01T10:00:00Z",
-    updatedAt: "2023-12-01T10:00:00Z"
+    updatedAt: "2023-12-01T10:00:00Z",
+    inboxId: 101
   },
   {
     id: "instance-2",
@@ -99,7 +100,8 @@ export const sequences: Sequence[] = [
     createdAt: "2023-12-02T10:15:00Z",
     updatedAt: "2023-12-10T16:45:00Z",
     webhookEnabled: false,
-    webhookId: undefined
+    webhookId: undefined,
+    inboxFilterEnabled: true
   },
   {
     id: "sequence-2",
@@ -159,7 +161,8 @@ export const sequences: Sequence[] = [
     createdAt: "2023-12-05T09:20:00Z",
     updatedAt: "2023-12-12T11:30:00Z",
     webhookEnabled: true,
-    webhookId: "recuperacao-leads"
+    webhookId: "recuperacao-leads",
+    inboxFilterEnabled: true
   }
 ];
 
