@@ -247,6 +247,7 @@ export type Database = {
           created_by: string
           evolution_api_url: string
           id: string
+          inbox_id: number | null
           name: string
           updated_at: string | null
         }
@@ -258,6 +259,7 @@ export type Database = {
           created_by: string
           evolution_api_url: string
           id?: string
+          inbox_id?: number | null
           name: string
           updated_at?: string | null
         }
@@ -269,6 +271,7 @@ export type Database = {
           created_by?: string
           evolution_api_url?: string
           id?: string
+          inbox_id?: number | null
           name?: string
           updated_at?: string | null
         }
@@ -544,6 +547,7 @@ export type Database = {
           created_at: string | null
           created_by: string
           id: string
+          inbox_filter_enabled: boolean
           instance_id: string
           name: string
           start_condition_tags: string[]
@@ -559,6 +563,7 @@ export type Database = {
           created_at?: string | null
           created_by: string
           id?: string
+          inbox_filter_enabled?: boolean
           instance_id: string
           name: string
           start_condition_tags: string[]
@@ -574,6 +579,7 @@ export type Database = {
           created_at?: string | null
           created_by?: string
           id?: string
+          inbox_filter_enabled?: boolean
           instance_id?: string
           name?: string
           start_condition_tags?: string[]

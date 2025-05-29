@@ -1,7 +1,8 @@
 
-export async function processSequences(supabase, clientId, contactId, tags, variables = {}) {
+export async function processSequences(supabase, clientId, contactId, tags, variables = {}, inboxId = null) {
   console.log(`[5.1 SEQUÊNCIAS] Iniciando processamento de sequências para o contato ${contactId} com tags: ${JSON.stringify(tags)}`);
   console.log(`[5.1 SEQUÊNCIAS] Filtrando sequências para o client_id: ${clientId}`);
+  console.log(`[5.1 SEQUÊNCIAS] InboxId recebido: ${inboxId}`);
   console.log(`[5.1 VARIÁVEIS] Processando variáveis recebidas: ${JSON.stringify(variables || {})}`);
   
   try {
@@ -35,7 +36,7 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
     const instanceIds = instances.map(instance => instance.id);
     console.log(`[5.2 SEQUÊNCIAS] Encontradas ${instanceIds.length} instâncias para o cliente ${clientId}.`);
     
-    // Buscar sequências usando os IDs das instâncias
+    // Buscar sequências usando os IDs das instâncias, incluindo dados da instância para inbox_id
     const { data: sequences, error: sequencesError } = await supabase
       .from("sequences")
       .select(`
@@ -48,6 +49,12 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
         stop_condition_tags,
         status,
         created_by,
+        inbox_filter_enabled,
+        instances!inner (
+          id,
+          name,
+          inbox_id
+        ),
         sequence_stages (
           id,
           name,
@@ -177,13 +184,38 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
       console.log(`[5.2.1 SEQUÊNCIAS] Contato ${contactId} não está em nenhuma sequência ativa`);
     }
 
-    // Passo 2: Filtrar aquelas onde o contato atende as condições de start e não atende as de stop
-    const eligibleSequences = sequences.filter(sequence => {
+    // Passo 2: Aplicar filtro de inbox_id e depois filtrar pelas condições de tags
+    let eligibleSequences = [];
+    let inboxFilterWarnings = [];
+    
+    for (const sequence of sequences) {
+      console.log(`[5.3 SEQUÊNCIA "${sequence.name}"] Avaliando elegibilidade`);
+      console.log(`[5.3 SEQUÊNCIA "${sequence.name}"] Filtro de inbox habilitado: ${sequence.inbox_filter_enabled}`);
+      console.log(`[5.3 SEQUÊNCIA "${sequence.name}"] Inbox ID da instância: ${sequence.instances.inbox_id}`);
+      console.log(`[5.3 SEQUÊNCIA "${sequence.name}"] Inbox ID do contato: ${inboxId}`);
+      
+      // NOVO: Verificar filtro de inbox_id primeiro
+      if (sequence.inbox_filter_enabled) {
+        if (!sequence.instances.inbox_id) {
+          const warning = `Sequência "${sequence.name}" tem filtro de inbox habilitado, mas a instância "${sequence.instances.name}" não tem inbox_id configurado`;
+          console.log(`[5.3 SEQUÊNCIA "${sequence.name}"] ${warning}`);
+          inboxFilterWarnings.push(warning);
+          continue; // Pula esta sequência
+        }
+        
+        if (inboxId && sequence.instances.inbox_id !== inboxId) {
+          console.log(`[5.3 SEQUÊNCIA "${sequence.name}"] Inbox ID não coincide, pulando sequência`);
+          continue; // Pula esta sequência
+        }
+        
+        console.log(`[5.3 SEQUÊNCIA "${sequence.name}"] Filtro de inbox passou - continua para verificação de tags`);
+      } else {
+        console.log(`[5.3 SEQUÊNCIA "${sequence.name}"] Filtro de inbox desabilitado - continua para verificação de tags`);
+      }
+      
       // Normalizando as tags do contato para comparação consistente
       const normalizedContactTags = tags.map(tag => tag.toLowerCase().trim());
       
-      // Debug da sequência sendo avaliada
-      console.log(`[5.3 SEQUÊNCIA "${sequence.name}"] Avaliando elegibilidade`);
       console.log(`[5.3 SEQUÊNCIA "${sequence.name}"] Condição de início: tipo=${sequence.start_condition_type}, tags=${JSON.stringify(sequence.start_condition_tags)}`);
       console.log(`[5.3 SEQUÊNCIA "${sequence.name}"] Condição de parada: tipo=${sequence.stop_condition_type}, tags=${JSON.stringify(sequence.stop_condition_tags)}`);
       console.log(`[5.3 SEQUÊNCIA "${sequence.name}"] Tags do contato: ${JSON.stringify(normalizedContactTags)}`);
@@ -197,10 +229,15 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
       
       console.log(`[5.3 SEQUÊNCIA "${sequence.name}"] Elegibilidade: matchesStart=${matchesStart}, matchesStop=${matchesStop}, hasStopConditions=${hasStopConditions}, isEligible=${isEligible}`);
       
-      return isEligible;
-    });
+      if (isEligible) {
+        eligibleSequences.push(sequence);
+      }
+    }
 
     console.log(`[5.3 SEQUÊNCIAS] ${eligibleSequences.length} sequências elegíveis para o contato com tags: ${JSON.stringify(tags)}`);
+    if (inboxFilterWarnings.length > 0) {
+      console.log(`[5.3 SEQUÊNCIAS] ${inboxFilterWarnings.length} warnings de filtro de inbox`);
+    }
 
     // Passo 3: Para cada sequência elegível, verificar se o contato já está na sequência
     let sequencesAdded = 0;
@@ -373,10 +410,11 @@ export async function processSequences(supabase, clientId, contactId, tags, vari
     
     return {
       success: true,
-      sequencesProcessed: eligibleSequences.length,
+      sequencesProcessed: sequences.length,
       sequencesAdded,
       sequencesSkipped,
-      sequencesRemoved: sequencesRemoved || 0
+      sequencesRemoved: sequencesRemoved || 0,
+      inboxFilterWarnings: inboxFilterWarnings.length > 0 ? inboxFilterWarnings : undefined
     };
     
   } catch (error) {

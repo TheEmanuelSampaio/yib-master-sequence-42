@@ -1,4 +1,3 @@
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 import { createSupabaseClient } from './client-utils.ts';
@@ -82,7 +81,7 @@ Deno.serve(async (req) => {
     const { id: contactId, name: contactName, phoneNumber } = contactData;
     const { inboxId, conversationId, displayId, labels } = conversationData;
     
-    console.log(`[1. BODY] Processando dados: contactId=${contactId}, name=${contactName}, phoneNumber=${phoneNumber}, accountId=${accountId}, accountName=${accountName}, adminId=${adminId || 'não informado'}, tags=${labels}`);
+    console.log(`[1. BODY] Processando dados: contactId=${contactId}, name=${contactName}, phoneNumber=${phoneNumber}, accountId=${accountId}, accountName=${accountName}, adminId=${adminId || 'não informado'}, tags=${labels}, inboxId=${inboxId}`);
     
     // Validar token de autenticação
     if (!authToken) {
@@ -332,36 +331,46 @@ Deno.serve(async (req) => {
     } else {
       // Verificar sequências para este contato e tags
       console.log(`[5. SEQUÊNCIAS] Verificando sequências para o contato ${contact.id} com client_id ${client.id}`);
-      sequencesResult = await processSequences(supabase, client.id, contact.id, tags, variables);
+      sequencesResult = await processSequences(supabase, client.id, contact.id, tags, variables, inboxId);
+    }
+    
+    // Preparar resposta com warnings se houver
+    const responseData = { 
+      success: true, 
+      message: 'Contato processado com sucesso',
+      client: {
+        id: client.id,
+        accountName: client.account_name,
+        accountId: client.account_id,
+        creatorId: client.created_by,
+        creatorName: client.creator_account_name
+      },
+      contact: {
+        id: contact.id,
+        name: contact.name,
+        tags
+      },
+      stats: {
+        ...tagsResult.stats,
+        sequences: sequencesResult.success ? {
+          processed: sequencesResult.sequencesProcessed,
+          added: sequencesResult.sequencesAdded,
+          skipped: sequencesResult.sequencesSkipped,
+          removed: sequencesResult.sequencesRemoved || 0
+        } : { error: sequencesResult.error }
+      },
+      authMethod: isGlobalToken ? `global_token:${tokenOwner.role}` : 'client_token'
+    };
+    
+    // Adicionar warnings se houver problemas com filtro de inbox
+    if (sequencesResult.inboxFilterWarnings && sequencesResult.inboxFilterWarnings.length > 0) {
+      responseData.warnings = {
+        inboxFilter: sequencesResult.inboxFilterWarnings
+      };
     }
     
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: 'Contato processado com sucesso',
-        client: {
-          id: client.id,
-          accountName: client.account_name,
-          accountId: client.account_id,
-          creatorId: client.created_by,
-          creatorName: client.creator_account_name
-        },
-        contact: {
-          id: contact.id,
-          name: contact.name,
-          tags
-        },
-        stats: {
-          ...tagsResult.stats,
-          sequences: sequencesResult.success ? {
-            processed: sequencesResult.sequencesProcessed,
-            added: sequencesResult.sequencesAdded,
-            skipped: sequencesResult.sequencesSkipped,
-            removed: sequencesResult.sequencesRemoved || 0
-          } : { error: sequencesResult.error }
-        },
-        authMethod: isGlobalToken ? `global_token:${tokenOwner.role}` : 'client_token'
-      }),
+      JSON.stringify(responseData),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
