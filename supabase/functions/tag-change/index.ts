@@ -1,3 +1,4 @@
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 import { createSupabaseClient } from './client-utils.ts';
@@ -317,9 +318,22 @@ Deno.serve(async (req) => {
       );
     }
     
-    // Verificar sequências para este contato e tags
-    console.log(`[5. SEQUÊNCIAS] Verificando sequências para o contato ${contact.id} com client_id ${client.id}`);
-    const sequencesResult = await processSequences(supabase, client.id, contact.id, tags, variables);
+    // OTIMIZAÇÃO 1: Pular verificação de sequências se não há tags
+    let sequencesResult;
+    if (tags.length === 0) {
+      console.log(`[5. SEQUÊNCIAS] Contato sem tags, pulando verificação de sequências`);
+      sequencesResult = {
+        success: true,
+        sequencesProcessed: 0,
+        sequencesAdded: 0,
+        sequencesSkipped: 0,
+        sequencesRemoved: 0
+      };
+    } else {
+      // Verificar sequências para este contato e tags
+      console.log(`[5. SEQUÊNCIAS] Verificando sequências para o contato ${contact.id} com client_id ${client.id}`);
+      sequencesResult = await processSequences(supabase, client.id, contact.id, tags, variables);
+    }
     
     return new Response(
       JSON.stringify({ 
@@ -343,7 +357,7 @@ Deno.serve(async (req) => {
             processed: sequencesResult.sequencesProcessed,
             added: sequencesResult.sequencesAdded,
             skipped: sequencesResult.sequencesSkipped,
-            removed: sequencesResult.sequencesRemoved || 0 // Adicionado contador de sequências removidas
+            removed: sequencesResult.sequencesRemoved || 0
           } : { error: sequencesResult.error }
         },
         authMethod: isGlobalToken ? `global_token:${tokenOwner.role}` : 'client_token'
